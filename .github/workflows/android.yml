@@ -2,6 +2,8 @@ name: Android test APK
 on: [workflow_dispatch]
 jobs:
   build:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     env:
       CI: 'true'
@@ -29,3 +31,10 @@ jobs:
         with:
           name: Mytify-Android
           path: build/app/outputs/flutter-apk/app-release.apk
+      - name: Publish to branch builds-android
+        shell: bash
+        run: |
+          mkdir -p publish-out && cp build/app/outputs/flutter-apk/app-release.apk publish-out/
+          cd publish-out && git init -q && git checkout -q -b builds-android
+          git add -A && git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "build $GITHUB_SHA"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY.git" HEAD:builds-android

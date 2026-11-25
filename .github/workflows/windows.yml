@@ -5,6 +5,8 @@ on:
     branches: [main]
 jobs:
   windows:
+    permissions:
+      contents: write
     runs-on: windows-latest
     env:
       CI: 'true'
@@ -43,3 +45,10 @@ jobs:
         with:
           name: Mytify-Windows
           path: native/mytify_core/target/release/mytify.exe
+      - name: Publish to branch builds-windows
+        shell: bash
+        run: |
+          mkdir -p publish-out && cp native/mytify_core/target/release/mytify.exe publish-out/
+          cd publish-out && git init -q && git checkout -q -b builds-windows
+          git add -A && git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "build $GITHUB_SHA"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY.git" HEAD:builds-windows

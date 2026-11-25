@@ -23,6 +23,8 @@ jobs:
       - run: flutter analyze --no-pub
       - run: flutter test --no-pub
   screenshots:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     needs: check
     env:
@@ -40,3 +42,10 @@ jobs:
         with:
           name: screenshots
           path: test/goldens/*.png
+      - name: Publish to branch screens
+        shell: bash
+        run: |
+          mkdir -p publish-out && cp test/goldens/*.png publish-out/
+          cd publish-out && git init -q && git checkout -q -b screens
+          git add -A && git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "build $GITHUB_SHA"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY.git" HEAD:screens
