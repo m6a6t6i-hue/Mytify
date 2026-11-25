@@ -560,7 +560,7 @@ class _IngestViewState extends State<IngestView> {
     initialValue: items.any((i) => i.$1 == value) ? value : null,
     isExpanded: true,
     isDense: true,
-    style: Ctl.fieldText.copyWith(color: primaryText),
+    style: Theme.of(context).textTheme.bodyMedium!.merge(Ctl.fieldText).copyWith(color: primaryText),
     decoration: Ctl.field(),
     dropdownColor: elevated,
     items: [

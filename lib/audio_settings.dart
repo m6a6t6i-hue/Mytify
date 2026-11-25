@@ -94,7 +94,7 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
                       initialValue: selected,
                       isExpanded: true,
                       isDense: true,
-                      style: Ctl.fieldText.copyWith(color: primaryText),
+                      style: Theme.of(context).textTheme.bodyMedium!.merge(Ctl.fieldText).copyWith(color: primaryText),
                       dropdownColor: elevated,
                       decoration: Ctl.field(),
                       items: [
