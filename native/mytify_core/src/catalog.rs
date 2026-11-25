@@ -66,6 +66,14 @@ pub struct Source {
     pub files: u32,
     pub available_files: u32,
     pub last_scan: i64,
+    /// "local", "smb" ... Network sources describe themselves, local ones do not need to.
+    #[serde(default)]
+    pub protocol: String,
+    /// Address shown to the user. Never contains credentials.
+    #[serde(default)]
+    pub address: String,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
 }
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
@@ -152,9 +160,11 @@ fn path_key(path: &Path) -> String {
     }
 }
 fn display_path(path: &Path) -> String {
-    path.to_string_lossy()
-        .trim_start_matches(r"\\?\")
-        .to_owned()
+    let text = path.to_string_lossy();
+    if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{unc}");
+    }
+    text.trim_start_matches(r"\\?\").to_owned()
 }
 fn supported(path: &Path) -> bool {
     path.extension()
@@ -188,11 +198,18 @@ impl Catalog {
         let db = Connection::open(root.join("catalog.sqlite3"))?;
         db.busy_timeout(std::time::Duration::from_secs(8))?;
         let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
-        if version > 3 {
+        if version > 4 {
             bail!("Katalog pochodzi z nowszej wersji Mytify. Nie został zmieniony.");
         }
         let backup = root.join("catalog-before-0.3.sqlite3");
         if version == 2 && !backup.exists() {
+            let temporary = backup.with_extension(format!("partial-{}", hex(getrandom_bytes()?)));
+            db.backup("main", &temporary, None::<fn(rusqlite::backup::Progress)>)?;
+            fs::rename(temporary, backup)?;
+        }
+        // 0.15 adds network sources. Keep an untouched copy of the previous catalog.
+        let backup = root.join("catalog-before-0.15.sqlite3");
+        if version == 3 && !backup.exists() {
             let temporary = backup.with_extension(format!("partial-{}", hex(getrandom_bytes()?)));
             db.backup("main", &temporary, None::<fn(rusqlite::backup::Progress)>)?;
             fs::rename(temporary, backup)?;
@@ -207,7 +224,8 @@ impl Catalog {
           CREATE TABLE IF NOT EXISTS migrated_v01(hash TEXT PRIMARY KEY);
           CREATE VIRTUAL TABLE IF NOT EXISTS tracks_search USING fts5(track_id UNINDEXED,text,tokenize='unicode61 remove_diacritics 2');
           CREATE TABLE IF NOT EXISTS metadata_overrides(track_id TEXT PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,patch TEXT NOT NULL);
-          PRAGMA user_version=3;
+          CREATE TABLE IF NOT EXISTS source_settings(source_id TEXT PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,protocol TEXT NOT NULL,settings TEXT NOT NULL);
+          PRAGMA user_version=4;
           UPDATE sources SET state='partial' WHERE state='scanning';")?;
         Ok(Self {
             root,
@@ -221,24 +239,42 @@ impl Catalog {
     }
     pub fn sources(&self) -> Result<Vec<Source>> {
         let db = self.db()?;
-        let mut stmt = db.prepare("SELECT s.id,s.name,s.path,s.kind,s.state,s.last_scan,COUNT(l.path_key),COALESCE(SUM(CASE WHEN l.available=1 AND s.state IN ('online','partial','scanning') THEN 1 ELSE 0 END),0) FROM sources s LEFT JOIN locations l ON s.id=l.source_id GROUP BY s.id ORDER BY s.name")?;
+        let mut stmt = db.prepare("SELECT s.id,s.name,s.path,s.kind,s.state,s.last_scan,COUNT(l.path_key),COALESCE(SUM(CASE WHEN l.available=1 AND s.state IN ('online','partial','scanning') THEN 1 ELSE 0 END),0),(SELECT settings FROM source_settings WHERE source_id=s.id) FROM sources s LEFT JOIN locations l ON s.id=l.source_id GROUP BY s.id ORDER BY s.name")?;
         let rows = stmt.query_map([], |r| {
+            let kind: String = r.get(3)?;
+            let path: String = r.get(2)?;
+            let settings: Option<String> = r.get(8)?;
+            let network = settings
+                .and_then(|s| serde_json::from_str::<crate::sources::NetworkConfig>(&s).ok());
+            let (protocol, address) = match &network {
+                Some(c) if c.protocol == "smb" => ("smb".to_string(), crate::sources::smb_address(c)),
+                Some(c) => (c.protocol.clone(), c.url.clone()),
+                None => ("local".to_string(), display_path(Path::new(&path))),
+            };
             Ok(Source {
                 id: r.get(0)?,
                 name: r.get(1)?,
-                path: r.get(2)?,
-                kind: r.get(3)?,
+                path,
+                capabilities: crate::sources::capabilities(&kind)
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
+                kind,
                 state: r.get(4)?,
                 last_scan: r.get(5)?,
                 files: r.get(6)?,
                 available_files: r.get(7)?,
+                protocol,
+                address,
             })
         })?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
     pub fn refresh_sources(&self) -> Result<()> {
         for source in self.sources()? {
-            if source.kind == "files" {
+            // Network shares are probed in the background, never while listing the library:
+            // an unreachable NAS must not freeze the UI.
+            if source.kind == "files" || source.kind == "smb" {
                 continue;
             }
             let path = Path::new(&source.path);
@@ -292,13 +328,112 @@ impl Catalog {
         Ok(Source {
             id,
             name,
-            path: stored_path,
+            path: stored_path.clone(),
             kind: kind.into(),
             state: "online".into(),
             files: 0,
             available_files: 0,
             last_scan: 0,
+            protocol: "local".into(),
+            address: display_path(Path::new(&stored_path)),
+            capabilities: crate::sources::capabilities(kind)
+                .into_iter()
+                .map(String::from)
+                .collect(),
         })
+    }
+    /// Saved settings of a network source, without the password.
+    pub fn network_settings(&self, id: &str) -> Result<Option<crate::sources::NetworkConfig>> {
+        let text: Option<String> = self
+            .db()?
+            .query_row(
+                "SELECT settings FROM source_settings WHERE source_id=?",
+                [id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        Ok(match text {
+            Some(t) => Some(serde_json::from_str(&t)?),
+            None => None,
+        })
+    }
+    /// Adds a new SMB source or updates one. The password goes to the system store.
+    pub fn save_network_source(
+        &self,
+        id: Option<&str>,
+        config: &crate::sources::NetworkConfig,
+    ) -> Result<String> {
+        let config = crate::sources::clean_smb(config)?;
+        let root = crate::sources::smb_scan_root(&config);
+        let stored = root.to_string_lossy().into_owned();
+        let new_id = hex(Sha256::digest(
+            format!("smb\0{}", path_key(&root)).as_bytes(),
+        ));
+        let adding = id.is_none();
+        let id = id.map(str::to_owned).unwrap_or(new_id);
+        let previous: Option<(String, String)> = self
+            .db()?
+            .query_row(
+                "SELECT path,kind FROM sources WHERE id=?",
+                [&id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?;
+        match &previous {
+            Some((_, kind)) if kind != "smb" => bail!("To źródło nie jest folderem sieciowym."),
+            Some(_) if adding => bail!("Ten folder sieciowy jest już dodany."),
+            None if !adding => bail!("Nie znaleziono źródła."),
+            _ => {}
+        }
+        if let Some(password) = &config.password {
+            crate::secrets::store(&id, &crate::sources::login_name(&config), password)?;
+        }
+        let settings = serde_json::to_string(&config)?;
+        let mut db = self.db()?;
+        let tx = db.transaction()?;
+        tx.execute("INSERT INTO sources(id,name,path,kind,state) VALUES(?1,?2,?3,'smb','partial') ON CONFLICT(id) DO UPDATE SET name=excluded.name,path=excluded.path",params![id,config.name,stored])?;
+        if let Some((old_path, _)) = &previous {
+            if path_key(Path::new(old_path)) != path_key(&root) {
+                // Another folder: old locations would only look like missing files.
+                // Tracks (content hash), likes and playlists stay; a rescan re-links them.
+                tx.execute("DELETE FROM locations WHERE source_id=?", [&id])?;
+                tx.execute("UPDATE sources SET state='partial',last_scan=0 WHERE id=?", [&id])?;
+            }
+        }
+        tx.execute("INSERT INTO source_settings(source_id,protocol,settings) VALUES(?1,'smb',?2) ON CONFLICT(source_id) DO UPDATE SET settings=excluded.settings",params![id,settings])?;
+        tx.commit()?;
+        Ok(id)
+    }
+    /// Re-opens the session of a network source. Used before scans and after read errors.
+    pub fn reconnect(&self, id: &str) -> Result<()> {
+        match self.network_settings(id)? {
+            Some(config) => crate::sources::connect(Some(id), &config),
+            None => Ok(()),
+        }
+    }
+    /// Background reachability check, so the library shows the real state of a NAS.
+    pub fn probe_network_sources(&self) -> Result<()> {
+        for source in self.sources()?.into_iter().filter(|s| s.kind == "smb") {
+            let reachable = self.reconnect(&source.id).is_ok()
+                && self
+                    .db()?
+                    .query_row("SELECT path FROM sources WHERE id=?", [&source.id], |r| {
+                        r.get::<_, String>(0)
+                    })
+                    .map(|p| Path::new(&p).is_dir())
+                    .unwrap_or(false);
+            let state = match (reachable, source.state.as_str()) {
+                (_, "scanning") => continue,
+                (false, _) => "offline",
+                (true, "offline") => "partial",
+                (true, s) => s,
+            };
+            self.db()?.execute(
+                "UPDATE sources SET state=?1 WHERE id=?2 AND state<>'scanning'",
+                params![state, source.id],
+            )?;
+        }
+        Ok(())
     }
     pub fn tracks(&self) -> Result<Vec<Track>> {
         self.refresh_sources()?;
@@ -370,7 +505,14 @@ impl Catalog {
         Ok(())
     }
     pub fn forget_source(&self, id: &str) -> Result<()> {
+        let network = self.network_settings(id)?;
         self.db()?.execute("DELETE FROM sources WHERE id=?", [id])?;
+        if let Some(config) = network {
+            crate::secrets::delete(id);
+            if config.protocol == "smb" {
+                crate::smb::disconnect(&crate::sources::share_root(&config));
+            }
+        }
         Ok(())
     }
     pub fn relink_source(&self, id: &str, new_path: &Path) -> Result<()> {
@@ -435,23 +577,40 @@ impl Catalog {
         Ok(())
     }
     pub fn audio_path(&self, id: &str) -> Result<PathBuf> {
-        let paths: Vec<String> = {
+        // Local copies first, network shares last; available locations before stale ones.
+        let paths: Vec<(String, String, String)> = {
             let db = self.db()?;
-            let mut stmt =
-                db.prepare("SELECT path FROM locations WHERE track_id=?1 ORDER BY available DESC")?;
+            let mut stmt = db.prepare("SELECT l.path,s.id,s.kind FROM locations l JOIN sources s ON s.id=l.source_id WHERE l.track_id=?1 ORDER BY CASE WHEN s.kind='smb' THEN 1 ELSE 0 END,l.available DESC")?;
             let values = stmt
-                .query_map([id], |r| r.get(0))?
+                .query_map([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             values
         };
-        for value in paths {
-            let path = PathBuf::from(&value);
-            if let Ok(canonical) = fs::canonicalize(&path) {
-                // Reject replacement symlinks that now point somewhere else.
-                if canonical.is_file() && path_key(&canonical) == path_key(&path) {
-                    return Ok(canonical);
+        let usable = |value: &str| -> Option<PathBuf> {
+            let path = PathBuf::from(value);
+            let canonical = fs::canonicalize(&path).ok()?;
+            // Reject replacement symlinks that now point somewhere else.
+            (canonical.is_file() && path_key(&canonical) == path_key(&path)).then_some(canonical)
+        };
+        let mut network_error = None;
+        for (value, source, kind) in &paths {
+            if let Some(found) = usable(value) {
+                return Ok(found);
+            }
+            if kind == "smb" {
+                // A dropped session after sleep or a network change: log in again once.
+                match self.reconnect(source) {
+                    Ok(()) => {
+                        if let Some(found) = usable(value) {
+                            return Ok(found);
+                        }
+                    }
+                    Err(e) => network_error = Some(e),
                 }
             }
+        }
+        if let Some(e) = network_error {
+            bail!("Źródło niedostępne. {e}");
         }
         bail!("Plik jest niedostępny. Podłącz źródło i wykonaj ponowny skan.")
     }
@@ -517,6 +676,18 @@ impl Catalog {
                 }
             } else {
                 let root = Path::new(&source.path);
+                if source.kind == "smb" {
+                    if let Err(e) = self.reconnect(&source.id) {
+                        // Unreachable NAS: keep the collection, just mark it offline.
+                        self.db()?.execute(
+                            "UPDATE sources SET state='offline' WHERE id=?",
+                            [&source.id],
+                        )?;
+                        report.offline_sources += 1;
+                        report.error(format!("{}: {e}", source.name));
+                        continue;
+                    }
+                }
                 if !root.is_dir() {
                     self.db()?.execute(
                         "UPDATE sources SET state='offline' WHERE id=?",

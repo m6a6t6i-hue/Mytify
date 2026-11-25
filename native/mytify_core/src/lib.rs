@@ -1,4 +1,7 @@
 pub mod catalog;
+pub mod secrets;
+pub mod smb;
+pub mod sources;
 pub mod server;
 
 pub mod metadata;

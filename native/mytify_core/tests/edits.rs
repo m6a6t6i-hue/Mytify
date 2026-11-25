@@ -139,7 +139,7 @@ fn v02_upgrade_makes_consistent_backup_once() {
     assert_eq!(
         db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))
             .unwrap(),
-        3
+        4
     );
 }
 #[test]

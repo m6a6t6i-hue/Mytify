@@ -33,8 +33,28 @@ jobs:
       - run: flutter analyze --no-pub
       - run: flutter test --no-pub
       - run: flutter build web --release --no-pub --no-web-resources-cdn --no-wasm-dry-run
-      - run: cargo test --locked
+      - name: Local SMB share for the network source tests
+        shell: pwsh
+        run: |
+          $pw = 'Mytify-Test-2026!'
+          net user mytifysmb $pw /add | Out-Null
+          $album = Join-Path 'C:\mytify-share' 'Polskie ąę albumy'
+          New-Item -ItemType Directory -Force $album | Out-Null
+          New-Item -ItemType Directory -Force 'C:\mytify-local' | Out-Null
+          Copy-Item test\fixtures\sample.flac 'C:\mytify-local\a.flac'
+          Copy-Item test\fixtures\sample.flac (Join-Path $album 'a.flac')
+          Copy-Item test\fixtures\sample.mp3 (Join-Path $album 'Zażółć gęślą jaźń.mp3')
+          icacls 'C:\mytify-share' /grant 'mytifysmb:(OI)(CI)R' | Out-Null
+          New-SmbShare -Name music -Path 'C:\mytify-share' -ReadAccess mytifysmb | Out-Null
+          Get-SmbShare music
+      - run: cargo test --locked -- --nocapture --test-threads=1
         working-directory: native/mytify_core
+        env:
+          MYTIFY_SMB_HOST: localhost
+          MYTIFY_SMB_SHARE: music
+          MYTIFY_SMB_USER: mytifysmb
+          MYTIFY_SMB_PASSWORD: Mytify-Test-2026!
+          MYTIFY_SMB_LOCAL: C:\mytify-local
       - run: cargo build --locked --release --features desktop,embed-ui
         working-directory: native/mytify_core
         env:

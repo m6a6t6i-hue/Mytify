@@ -87,6 +87,14 @@ pub fn start_with_audio(
         cancellation: Mutex::new(HashMap::new()),
         busy: AtomicBool::new(false),
     });
+    if !test {
+        // Reachability of NAS shares, off the request path: an offline NAS must never block the UI.
+        let catalog = app.catalog.clone();
+        thread::spawn(move || loop {
+            let _ = catalog.probe_network_sources();
+            thread::sleep(std::time::Duration::from_secs(120));
+        });
+    }
     Ok(RunningServer { app, server })
 }
 impl RunningServer {
@@ -239,7 +247,7 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
         return send_json(
             request,
             200,
-            json!({"version":"0.9.0","token":app.token,"base":app.origin,"canPick":cfg!(windows),"dataDirectory":app.catalog.root.to_string_lossy()}),
+            json!({"version":"0.9.0","token":app.token,"base":app.origin,"canPick":cfg!(windows),"dataDirectory":app.catalog.root.to_string_lossy(),"protocols":crate::sources::protocols()}),
         );
     }
     if path.starts_with("/api/") {
@@ -532,6 +540,61 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
             if method == Method::Delete {
                 return match app.catalog.forget_track(id) {
                     Ok(_) => send_json(request, 200, json!({"ok":true})),
+                    Err(e) => send_error(request, 400, e),
+                };
+            }
+        }
+        if path == "/api/sources/test" || path == "/api/sources/browse" || path == "/api/sources/save" {
+            if method != Method::Post {
+                return send_error(request, 405, "Nieobsługiwana metoda.");
+            }
+            let args = match read_json(&mut request) {
+                Ok(v) => v,
+                Err(e) => return send_error(request, 400, e),
+            };
+            let id = args["id"].as_str().filter(|s| !s.is_empty()).map(str::to_owned);
+            let config: crate::sources::NetworkConfig =
+                match serde_json::from_value(args["config"].clone()) {
+                    Ok(c) => c,
+                    Err(_) => return send_error(request, 400, "Nieprawidłowe ustawienia źródła."),
+                };
+            // Network calls can take a while; this request has its own thread.
+            let result = match path.as_str() {
+                "/api/sources/test" => crate::sources::test(id.as_deref(), &config)
+                    .map(|folders| json!({"ok":true,"folders":folders})),
+                "/api/sources/browse" => crate::sources::browse(
+                    id.as_deref(),
+                    &config,
+                    args["path"].as_str().unwrap_or(""),
+                )
+                .map(|folders| json!({"folders":folders})),
+                _ => {
+                    if app.busy.load(Ordering::Acquire) && id.is_some() {
+                        return send_error(request, 409, "Zaczekaj na zakończenie skanowania.");
+                    }
+                    app.catalog
+                        .save_network_source(id.as_deref(), &config)
+                        .map(|id| json!({"id":id}))
+                }
+            };
+            return match result {
+                Ok(v) => send_json(request, 200, v),
+                Err(e) => send_error(request, 400, e),
+            };
+        }
+        if let Some(id) = path
+            .strip_prefix("/api/sources/")
+            .and_then(|p| p.strip_suffix("/settings"))
+        {
+            if method == Method::Get {
+                return match app.catalog.network_settings(id) {
+                    Ok(Some(c)) => {
+                        let has_password = crate::secrets::load(id).ok().flatten().is_some_and(|p| !p.is_empty());
+                        let mut v = serde_json::to_value(c)?;
+                        v["hasPassword"] = json!(has_password);
+                        send_json(request, 200, v)
+                    }
+                    Ok(None) => send_error(request, 404, "To źródło nie ma ustawień sieciowych."),
                     Err(e) => send_error(request, 400, e),
                 };
             }
