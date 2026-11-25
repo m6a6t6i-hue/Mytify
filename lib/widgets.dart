@@ -171,13 +171,14 @@ class SectionHeader extends StatelessWidget {
 /// Horizontal row of cards with desktop wheel support.
 class Shelf extends StatefulWidget {
   final int itemCount;
-  final double height, itemWidth, gap;
+  final double height, itemWidth, gap, textHeight;
   final EdgeInsets padding;
   final Widget Function(BuildContext, int) itemBuilder;
   const Shelf({
     super.key,
     required this.itemCount,
     required this.height,
+    this.textHeight = 0,
     required this.itemWidth,
     required this.itemBuilder,
     this.gap = Sp.m,
@@ -198,7 +199,7 @@ class _ShelfState extends State<Shelf> {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: widget.height,
+    height: widget.height + MediaQuery.textScalerOf(context).scale(widget.textHeight),
     child: Listener(
       onPointerSignal: (event) {
         if (event is PointerScrollEvent &&

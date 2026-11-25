@@ -109,7 +109,8 @@ class HomePage extends StatelessWidget {
         ),
         Shelf(
           itemCount: app.orderedPlaylists.length,
-          height: card + 52,
+          height: card + 14,
+          textHeight: cardText,
           itemWidth: card,
           padding: EdgeInsets.symmetric(horizontal: desktop ? Sp.l : Sp.s),
           gap: 0,
@@ -124,7 +125,8 @@ class HomePage extends StatelessWidget {
         ),
         Shelf(
           itemCount: artists.length,
-          height: card + 40,
+          height: card + 14,
+          textHeight: cardText,
           itemWidth: card,
           padding: EdgeInsets.symmetric(horizontal: desktop ? Sp.l : Sp.s),
           gap: 0,
@@ -157,9 +159,13 @@ class HomePage extends StatelessWidget {
       EdgeInsets.fromLTRB(desktop ? Sp.xl : Sp.l, 20, Sp.s, Sp.xs);
 }
 
+/// Two title lines plus a subtitle line, scaled with system text size.
+const cardText = 52.0;
+
 Widget _albumShelf(LibraryScreenState app, List<AlbumGroup> albums, double card) => Shelf(
   itemCount: albums.length,
-  height: card + 52,
+  height: card + 14,
+  textHeight: cardText,
   itemWidth: card,
   gap: 0,
   padding: EdgeInsets.symmetric(horizontal: app.desktopMode ? Sp.l : Sp.s),
@@ -696,7 +702,7 @@ class _LibraryPageState extends State<LibraryPage> {
       case 'artists':
         final list = _artists();
         slivers.add(view == 'grid'
-            ? _grid(list.length, coverSize, (i) => _artistCard(app, list[i], coverSize), extraHeight: 40)
+            ? _grid(list.length, coverSize, (i) => _artistCard(app, list[i], coverSize))
             : SliverList.builder(
                 itemCount: list.length,
                 itemBuilder: (context, i) => _listTile(
@@ -882,7 +888,7 @@ class _LibraryPageState extends State<LibraryPage> {
     ),
   );
 
-  Widget _grid(int count, double size, Widget Function(int) item, {double extraHeight = 46}) => SliverPadding(
+  Widget _grid(int count, double size, Widget Function(int) item) => SliverPadding(
     padding: EdgeInsets.symmetric(horizontal: app.desktopMode ? Sp.l : Sp.s),
     sliver: SliverLayoutBuilder(
       builder: (context, c) {
@@ -891,7 +897,7 @@ class _LibraryPageState extends State<LibraryPage> {
         return SliverGrid.builder(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            mainAxisExtent: w + extraHeight + MediaQuery.textScalerOf(context).scale(16),
+            mainAxisExtent: w + 14 + MediaQuery.textScalerOf(context).scale(cardText),
           ),
           itemCount: count,
           itemBuilder: (context, i) => LayoutBuilder(builder: (context, b) => SizedBox(width: b.maxWidth, child: _sized(item(i), b.maxWidth))),
@@ -1532,7 +1538,8 @@ class _SearchPageState extends State<SearchPage> {
           SectionHeader('Artyści', padding: pad),
           Shelf(
             itemCount: artists.length > 20 ? 20 : artists.length,
-            height: card + 40,
+            height: card + 14,
+            textHeight: cardText,
             itemWidth: card,
             gap: 0,
             padding: EdgeInsets.symmetric(horizontal: desktop ? Sp.l : Sp.s),
@@ -1543,7 +1550,8 @@ class _SearchPageState extends State<SearchPage> {
           SectionHeader('Playlisty', padding: pad),
           Shelf(
             itemCount: playlists.length,
-            height: card + 52,
+            height: card + 14,
+            textHeight: cardText,
             itemWidth: card,
             gap: 0,
             padding: EdgeInsets.symmetric(horizontal: desktop ? Sp.l : Sp.s),
