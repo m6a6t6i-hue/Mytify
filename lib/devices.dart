@@ -81,9 +81,12 @@ Future<void> showDevicePicker(LibraryScreenState app, {Offset? at}) {
           width: 360,
           child: Material(
             color: elevated,
-            elevation: 12,
-            shadowColor: Colors.black,
-            borderRadius: BorderRadius.circular(Rad.panel),
+            elevation: 6,
+            shadowColor: Colors.black54,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(Rad.panel),
+              side: const BorderSide(color: softBorder),
+            ),
             clipBehavior: Clip.antiAlias,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxHeight: size.height - 140),
