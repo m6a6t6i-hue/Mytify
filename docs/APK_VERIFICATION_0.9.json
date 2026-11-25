@@ -1,0 +1,8 @@
+{
+  "package": "pl.mytify.app",
+  "versionName": "0.9.0",
+  "versionCode": 12,
+  "abi": "arm64-v8a",
+  "certificateSha256": "f965e8d645b6fce458affe5e986e072c5ce5ef9edc4b7634d2b20782b253f90b",
+  "apksignerVerify": true
+}

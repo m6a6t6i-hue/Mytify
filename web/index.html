@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="pl"><head>
+<base href="$FLUTTER_BASE_HREF">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Mytify — Twoja lokalna biblioteka muzyki.">
+<meta name="theme-color" content="#080d0b">
+<link rel="icon" type="image/png" href="favicon.png"><link rel="manifest" href="manifest.json">
+<title>Mytify</title>
+<style>html,body{margin:0;background:#080d0b;color:#f3f2f7;font-family:system-ui,sans-serif}#loading{position:absolute;inset:0;display:grid;place-content:center;text-align:center;gap:12px}#loading strong{font-size:32px;color:#00f078}#loading span{font-size:14px;color:#a4b5aa}</style>
+</head><body>
+<div id="loading"><img src="icons/Icon-192.png" width="72" height="72" style="margin:auto;border-radius:50%" alt=""><strong>Mytify</strong><span>Twoja muzyka. Lokalnie.</span></div>
+<script src="mytify_bridge.js"></script>
+<script>window.addEventListener('flutter-first-frame',()=>document.getElementById('loading')?.remove());</script>
+<script src="flutter_bootstrap.js" async></script>
+</body></html>

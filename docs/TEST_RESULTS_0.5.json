@@ -1,0 +1,45 @@
+{
+  "version": "0.5.0",
+  "flutterTests": 23,
+  "flutterAnalyze": "No issues found",
+  "nativeFramework": "Robolectric 4.16.1 / API 35; graphics native for catalog image validation",
+  "nativeSuites": [
+    {
+      "suite": "pl.mytify.mytify.PlaybackServiceTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "createsOnePlayerWithoutAutoplay",
+        "restoreKeepsCurrentTrackAndModesWhenEarlierEntryIsMissing",
+        "savedVolumeRestoredWithoutPlayback",
+        "invalidSavedQueueDoesNotCrashOrPlay"
+      ]
+    },
+    {
+      "suite": "pl.mytify.mytify.CatalogTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "metadataBatchRollsBackOnInvalidField",
+        "playerCannotResolveArbitraryId",
+        "rescanAndReopenRetainManualMetadataAndLikes",
+        "identicalContentInSecondLocationIsNotSecondTrack",
+        "revokedSourceRetainsCatalogAndCanBeRecovered",
+        "changedContentKeepsManualMetadataAndLikes",
+        "cancellationNeverMarksUnseenTracksMissing",
+        "forgetSourceNeverDeletesMusic",
+        "forgottenTrackStaysIgnoredUntilExplicitImport",
+        "missingOneFileDoesNotDisableTheOthers",
+        "importUsesContentHashAndRetainsOriginal",
+        "invalidCoverRejected"
+      ]
+    }
+  ],
+  "physicalDeviceTested": false,
+  "hardwareAudioValidated": false,
+  "liveMusicBrainzValidated": false
+}

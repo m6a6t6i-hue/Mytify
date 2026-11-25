@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="pl.mytify.mytify.CarLibraryTest" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-11-25T08:37:33.398Z" hostname="6e6a89b7762c" time="19.815">
+  <properties/>
+  <testcase name="sameNamedAlbumsByDifferentArtistsAreSeparate" classname="pl.mytify.mytify.CarLibraryTest" time="7.793"/>
+  <testcase name="artworkUsesOnlyNarrowContentProviderPath" classname="pl.mytify.mytify.CarLibraryTest" time="0.202"/>
+  <testcase name="largeAlbumsAndTracksUseBoundedBrowsableRanges" classname="pl.mytify.mytify.CarLibraryTest" time="0.745"/>
+  <testcase name="unavailableSongsAreAbsentFromBrowseAndQueue" classname="pl.mytify.mytify.CarLibraryTest" time="0.059"/>
+  <testcase name="invalidPlaylistUpdateIsAtomic" classname="pl.mytify.mytify.CarLibraryTest" time="0.068"/>
+  <testcase name="albumCaseAndWhitespaceVariantsShareOneAlbumAndQueue" classname="pl.mytify.mytify.CarLibraryTest" time="0.085"/>
+  <testcase name="coldRootHasFourCategoriesWithoutActivityOrMusic" classname="pl.mytify.mytify.CarLibraryTest" time="0.096"/>
+  <testcase name="playlistsPersistOrderAndExpandAsOneQueue" classname="pl.mytify.mytify.CarLibraryTest" time="0.069"/>
+  <testcase name="migrationFrom05PreservesTracksLikesAndSourceUris" classname="pl.mytify.mytify.CarLibraryTest" time="0.05"/>
+  <testcase name="polishSearchAndSearchPlaybackReturnLocalResults" classname="pl.mytify.mytify.CarLibraryTest" time="0.103"/>
+  <testcase name="albumSelectionExpandsInDiscTrackOrderAndKeepsStart" classname="pl.mytify.mytify.CarLibraryTest" time="0.066"/>
+  <testcase name="likedUpdatesAreVisibleWithoutRestart" classname="pl.mytify.mytify.CarLibraryTest" time="0.106"/>
+  <testcase name="arbitraryIncomingUrisCannotBecomePlaybackSources" classname="pl.mytify.mytify.CarLibraryTest" time="0.072"/>
+  <testcase name="paginationHandlesLargeIntegersAndEmptyPages" classname="pl.mytify.mytify.CarLibraryTest" time="0.05"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

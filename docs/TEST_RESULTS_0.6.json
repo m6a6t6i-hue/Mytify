@@ -1,0 +1,83 @@
+{
+  "version": "0.6.0",
+  "flutterTests": 26,
+  "flutterAnalyze": "No issues found",
+  "nativeTests": 34,
+  "nativeFramework": "Robolectric 4.16.1 / API 35",
+  "suites": [
+    {
+      "suite": "pl.mytify.mytify.CarLibraryTest",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "sameNamedAlbumsByDifferentArtistsAreSeparate",
+        "artworkUsesOnlyNarrowContentProviderPath",
+        "largeAlbumsAndTracksUseBoundedBrowsableRanges",
+        "unavailableSongsAreAbsentFromBrowseAndQueue",
+        "invalidPlaylistUpdateIsAtomic",
+        "coldRootHasFourCategoriesWithoutActivityOrMusic",
+        "playlistsPersistOrderAndExpandAsOneQueue",
+        "migrationFrom05PreservesTracksLikesAndSourceUris",
+        "polishSearchAndSearchPlaybackReturnLocalResults",
+        "albumSelectionExpandsInDiscTrackOrderAndKeepsStart",
+        "likedUpdatesAreVisibleWithoutRestart",
+        "arbitraryIncomingUrisCannotBecomePlaybackSources",
+        "paginationHandlesLargeIntegersAndEmptyPages"
+      ]
+    },
+    {
+      "suite": "pl.mytify.mytify.PlaybackServiceTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "createsOnePlayerWithoutAutoplay",
+        "restoreKeepsCurrentTrackAndModesWhenEarlierEntryIsMissing",
+        "savedVolumeRestoredWithoutPlayback",
+        "invalidSavedQueueDoesNotCrashOrPlay"
+      ]
+    },
+    {
+      "suite": "pl.mytify.mytify.CarSessionTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "verifiedAutoUidGetsLibraryAndPlaybackCommands",
+        "manifestExposesLegacyBrowserAndCarMetadata",
+        "browserSelectionAndPhoneControllerShareOneNativeQueue",
+        "untrustedUnknownControllerAndForgedAutoAreDenied",
+        "realMediaBrowserCanBrowseServiceBeforeAnyActivityExists"
+      ]
+    },
+    {
+      "suite": "pl.mytify.mytify.CatalogTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "metadataBatchRollsBackOnInvalidField",
+        "playerCannotResolveArbitraryId",
+        "rescanAndReopenRetainManualMetadataAndLikes",
+        "identicalContentInSecondLocationIsNotSecondTrack",
+        "revokedSourceRetainsCatalogAndCanBeRecovered",
+        "changedContentKeepsManualMetadataAndLikes",
+        "cancellationNeverMarksUnseenTracksMissing",
+        "forgetSourceNeverDeletesMusic",
+        "forgottenTrackStaysIgnoredUntilExplicitImport",
+        "missingOneFileDoesNotDisableTheOthers",
+        "importUsesContentHashAndRetainsOriginal",
+        "invalidCoverRejected"
+      ]
+    }
+  ],
+  "realMediaBrowserClientTested": true,
+  "DHUTested": false,
+  "physicalAndroidAutoTested": false,
+  "physicalDeviceAudioValidated": false
+}

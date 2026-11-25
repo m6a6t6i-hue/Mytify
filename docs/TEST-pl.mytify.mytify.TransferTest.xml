@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="pl.mytify.mytify.TransferTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-25T08:38:00.386Z" hostname="6e6a89b7762c" time="1.043">
+  <properties/>
+  <testcase name="realTlsResumeChecksumDedupeAndOfflineAfterPcStops" classname="pl.mytify.mytify.TransferTest" time="0.89"/>
+  <testcase name="qrRejectsInternetMetadataAndAmbiguousAddresses" classname="pl.mytify.mytify.TransferTest" time="0.052"/>
+  <testcase name="discardRemovesOnlyPartialFiles" classname="pl.mytify.mytify.TransferTest" time="0.033"/>
+  <testcase name="offlineCatalogPreservesPhoneEditsAndRescansPrivateCopies" classname="pl.mytify.mytify.TransferTest" time="0.06"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

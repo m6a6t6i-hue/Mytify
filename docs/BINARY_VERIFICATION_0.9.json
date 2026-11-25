@@ -1,0 +1,15 @@
+{
+  "windowsX64": true,
+  "exactEmbeddedWebSha256": "fda676a3b789111a7d0c8c570fc44cf4b98a403df6ca8d892cecb1de7d88474a",
+  "embeddedBrand": true,
+  "versionResource": "0.9.0",
+  "mytify_airplay.dll": "63773b5529f793370b2819f958b3b477995cc36b848f906438ce3086c1bf7d65",
+  "WebView2Loader.dll": "86545b66cdb0603bc26b626fb9ad610cb6e71f28d468f5ea66df23b03dda96d5",
+  "androidAbis": [
+    "arm64-v8a"
+  ],
+  "sha256": {
+    "mytify.exe": "0beda87b6a52f5884d849a7f5b15e8c7c5b8a409beba0f6f376ebca9889563c2",
+    "app-release.apk": "bae4247ddd1fa7148bbb209167aa46fb5b7fedf65dd3a0446be5d74c6b51c6a2"
+  }
+}

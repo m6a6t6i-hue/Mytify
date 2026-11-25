@@ -1,0 +1,17 @@
+{
+  "package": "pl.mytify.app",
+  "versionName": "0.6.0",
+  "versionCode": 6,
+  "minSdk": 26,
+  "targetSdk": 35,
+  "compileSdk": 36,
+  "abi": "arm64-v8a",
+  "sha256": "fd9ca2121973e64768de7cbdef40ad30a442347f76adff967183ff743103c4be",
+  "sizeBytes": 19201973,
+  "signatureMatches05": true,
+  "certificateSha256": "f965e8d645b6fce458affe5e986e072c5ce5ef9edc4b7634d2b20782b253f90b",
+  "apkCrcValidated": true,
+  "alignment16KBValidated": true,
+  "carManifestValidated": true,
+  "physicalAndroidAutoTested": false
+}

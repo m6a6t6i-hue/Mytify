@@ -1,0 +1,1274 @@
+{
+  "seconds": 180,
+  "testOutput": true,
+  "hardwareValidated": false,
+  "sourceRate": 44100,
+  "outputRate": 48000,
+  "renderedFrames": 8401408,
+  "underrunFrames": 0,
+  "rssMin": 14123008,
+  "rssMax": 14229504,
+  "samples": [
+    {
+      "seconds": 0.0,
+      "rss": 13029376,
+      "renderedFrames": 0,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 1.02,
+      "rss": 14172160,
+      "renderedFrames": 46592,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 2.02,
+      "rss": 14172160,
+      "renderedFrames": 92160,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 3.03,
+      "rss": 14176256,
+      "renderedFrames": 139264,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 4.03,
+      "rss": 14176256,
+      "renderedFrames": 186880,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 5.04,
+      "rss": 14180352,
+      "renderedFrames": 231424,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 6.04,
+      "rss": 14184448,
+      "renderedFrames": 276480,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 7.05,
+      "rss": 14180352,
+      "renderedFrames": 322560,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 8.05,
+      "rss": 14184448,
+      "renderedFrames": 369664,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 9.05,
+      "rss": 14184448,
+      "renderedFrames": 416256,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 10.06,
+      "rss": 14188544,
+      "renderedFrames": 459264,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 11.07,
+      "rss": 14188544,
+      "renderedFrames": 505856,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 12.07,
+      "rss": 14188544,
+      "renderedFrames": 552448,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 13.07,
+      "rss": 14192640,
+      "renderedFrames": 599552,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 14.08,
+      "rss": 14192640,
+      "renderedFrames": 646656,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 15.09,
+      "rss": 14196736,
+      "renderedFrames": 692224,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 16.09,
+      "rss": 14196736,
+      "renderedFrames": 738304,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 17.09,
+      "rss": 14200832,
+      "renderedFrames": 784384,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 18.11,
+      "rss": 14204928,
+      "renderedFrames": 832000,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 19.12,
+      "rss": 14204928,
+      "renderedFrames": 877568,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 20.12,
+      "rss": 14213120,
+      "renderedFrames": 923648,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 21.12,
+      "rss": 14213120,
+      "renderedFrames": 971264,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 22.13,
+      "rss": 14213120,
+      "renderedFrames": 1014272,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 23.13,
+      "rss": 14217216,
+      "renderedFrames": 1060352,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 24.14,
+      "rss": 14217216,
+      "renderedFrames": 1105920,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 25.14,
+      "rss": 14217216,
+      "renderedFrames": 1152512,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 26.14,
+      "rss": 14217216,
+      "renderedFrames": 1196032,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 27.15,
+      "rss": 14217216,
+      "renderedFrames": 1242624,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 28.15,
+      "rss": 14217216,
+      "renderedFrames": 1289216,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 29.16,
+      "rss": 14221312,
+      "renderedFrames": 1337344,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 30.17,
+      "rss": 14221312,
+      "renderedFrames": 1384960,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 31.17,
+      "rss": 14221312,
+      "renderedFrames": 1432576,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 32.17,
+      "rss": 14221312,
+      "renderedFrames": 1480192,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 33.17,
+      "rss": 14221312,
+      "renderedFrames": 1527808,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 34.18,
+      "rss": 14221312,
+      "renderedFrames": 1575424,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 35.18,
+      "rss": 14225408,
+      "renderedFrames": 1623040,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 36.18,
+      "rss": 14225408,
+      "renderedFrames": 1670144,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 37.19,
+      "rss": 14225408,
+      "renderedFrames": 1717760,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 38.19,
+      "rss": 14225408,
+      "renderedFrames": 1763840,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 39.19,
+      "rss": 14225408,
+      "renderedFrames": 1808896,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 40.2,
+      "rss": 14225408,
+      "renderedFrames": 1853952,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 41.2,
+      "rss": 14225408,
+      "renderedFrames": 1901056,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 42.2,
+      "rss": 14225408,
+      "renderedFrames": 1949184,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 43.21,
+      "rss": 14225408,
+      "renderedFrames": 1996800,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 44.21,
+      "rss": 14225408,
+      "renderedFrames": 2043904,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 45.21,
+      "rss": 14225408,
+      "renderedFrames": 2091520,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 46.21,
+      "rss": 14225408,
+      "renderedFrames": 2139136,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 47.21,
+      "rss": 14225408,
+      "renderedFrames": 2186240,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 48.22,
+      "rss": 14225408,
+      "renderedFrames": 2231808,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 49.23,
+      "rss": 14225408,
+      "renderedFrames": 2279424,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 50.25,
+      "rss": 14225408,
+      "renderedFrames": 2327040,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 51.25,
+      "rss": 14225408,
+      "renderedFrames": 2375168,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 52.27,
+      "rss": 14225408,
+      "renderedFrames": 2423296,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 53.27,
+      "rss": 14225408,
+      "renderedFrames": 2470912,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 54.28,
+      "rss": 14225408,
+      "renderedFrames": 2519040,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 55.28,
+      "rss": 14225408,
+      "renderedFrames": 2566656,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 56.3,
+      "rss": 14225408,
+      "renderedFrames": 2614272,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 57.3,
+      "rss": 14225408,
+      "renderedFrames": 2661888,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 58.31,
+      "rss": 14225408,
+      "renderedFrames": 2709504,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 59.33,
+      "rss": 14225408,
+      "renderedFrames": 2755584,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 60.34,
+      "rss": 14225408,
+      "renderedFrames": 2803200,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 61.34,
+      "rss": 14225408,
+      "renderedFrames": 2850304,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 62.36,
+      "rss": 14225408,
+      "renderedFrames": 2898432,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 63.36,
+      "rss": 14225408,
+      "renderedFrames": 2946048,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 64.37,
+      "rss": 14225408,
+      "renderedFrames": 2993664,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 65.37,
+      "rss": 14225408,
+      "renderedFrames": 3041280,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 66.39,
+      "rss": 14225408,
+      "renderedFrames": 3087872,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 67.39,
+      "rss": 14225408,
+      "renderedFrames": 3135488,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 68.4,
+      "rss": 14225408,
+      "renderedFrames": 3183616,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 69.41,
+      "rss": 14225408,
+      "renderedFrames": 3228160,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 70.42,
+      "rss": 14225408,
+      "renderedFrames": 3275776,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 71.42,
+      "rss": 14225408,
+      "renderedFrames": 3323392,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 72.43,
+      "rss": 14225408,
+      "renderedFrames": 3371520,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 73.43,
+      "rss": 14225408,
+      "renderedFrames": 3419136,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 74.45,
+      "rss": 14225408,
+      "renderedFrames": 3467264,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 75.46,
+      "rss": 14225408,
+      "renderedFrames": 3515392,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 76.47,
+      "rss": 14225408,
+      "renderedFrames": 3563008,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 77.47,
+      "rss": 14225408,
+      "renderedFrames": 3610624,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 78.49,
+      "rss": 14229504,
+      "renderedFrames": 3658752,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 79.5,
+      "rss": 14225408,
+      "renderedFrames": 3706880,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 80.51,
+      "rss": 14225408,
+      "renderedFrames": 3753984,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 81.51,
+      "rss": 14225408,
+      "renderedFrames": 3801600,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 82.51,
+      "rss": 14225408,
+      "renderedFrames": 3846656,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 83.52,
+      "rss": 14229504,
+      "renderedFrames": 3893248,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 84.52,
+      "rss": 14225408,
+      "renderedFrames": 3940864,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 85.53,
+      "rss": 14225408,
+      "renderedFrames": 3988480,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 86.53,
+      "rss": 14225408,
+      "renderedFrames": 4036096,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 87.53,
+      "rss": 14225408,
+      "renderedFrames": 4083200,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 88.53,
+      "rss": 14225408,
+      "renderedFrames": 4130816,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 89.53,
+      "rss": 14225408,
+      "renderedFrames": 4178432,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 90.54,
+      "rss": 14225408,
+      "renderedFrames": 4226048,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 91.54,
+      "rss": 14225408,
+      "renderedFrames": 4273664,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 92.54,
+      "rss": 14225408,
+      "renderedFrames": 4321280,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 93.54,
+      "rss": 14225408,
+      "renderedFrames": 4368896,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 94.55,
+      "rss": 14225408,
+      "renderedFrames": 4415488,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 95.55,
+      "rss": 14123008,
+      "renderedFrames": 4462592,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 96.55,
+      "rss": 14123008,
+      "renderedFrames": 4510208,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 97.56,
+      "rss": 14123008,
+      "renderedFrames": 4557312,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 98.56,
+      "rss": 14123008,
+      "renderedFrames": 4603392,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 99.58,
+      "rss": 14123008,
+      "renderedFrames": 4651520,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 100.58,
+      "rss": 14123008,
+      "renderedFrames": 4699136,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 101.58,
+      "rss": 14123008,
+      "renderedFrames": 4746752,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 102.6,
+      "rss": 14123008,
+      "renderedFrames": 4794880,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 103.6,
+      "rss": 14123008,
+      "renderedFrames": 4842496,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 104.6,
+      "rss": 14123008,
+      "renderedFrames": 4889600,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 105.61,
+      "rss": 14123008,
+      "renderedFrames": 4936192,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 106.62,
+      "rss": 14127104,
+      "renderedFrames": 4983808,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 107.62,
+      "rss": 14123008,
+      "renderedFrames": 5031424,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 108.63,
+      "rss": 14123008,
+      "renderedFrames": 5079552,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 109.63,
+      "rss": 14123008,
+      "renderedFrames": 5126656,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 110.64,
+      "rss": 14123008,
+      "renderedFrames": 5174272,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 111.65,
+      "rss": 14127104,
+      "renderedFrames": 5221888,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 112.66,
+      "rss": 14123008,
+      "renderedFrames": 5269504,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 113.66,
+      "rss": 14127104,
+      "renderedFrames": 5316608,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 114.67,
+      "rss": 14127104,
+      "renderedFrames": 5363200,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 115.68,
+      "rss": 14123008,
+      "renderedFrames": 5410304,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 116.68,
+      "rss": 14123008,
+      "renderedFrames": 5457408,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 117.68,
+      "rss": 14123008,
+      "renderedFrames": 5504000,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 118.68,
+      "rss": 14123008,
+      "renderedFrames": 5551616,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 119.68,
+      "rss": 14123008,
+      "renderedFrames": 5599232,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 120.69,
+      "rss": 14123008,
+      "renderedFrames": 5645824,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 121.69,
+      "rss": 14123008,
+      "renderedFrames": 5689856,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 122.7,
+      "rss": 14123008,
+      "renderedFrames": 5737984,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 123.7,
+      "rss": 14127104,
+      "renderedFrames": 5785600,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 124.7,
+      "rss": 14123008,
+      "renderedFrames": 5832704,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 125.7,
+      "rss": 14123008,
+      "renderedFrames": 5879808,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 126.72,
+      "rss": 14123008,
+      "renderedFrames": 5926400,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 127.72,
+      "rss": 14123008,
+      "renderedFrames": 5971968,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 128.74,
+      "rss": 14123008,
+      "renderedFrames": 6018560,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 129.74,
+      "rss": 14123008,
+      "renderedFrames": 6064640,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 130.75,
+      "rss": 14123008,
+      "renderedFrames": 6108160,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 131.75,
+      "rss": 14127104,
+      "renderedFrames": 6154752,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 132.75,
+      "rss": 14123008,
+      "renderedFrames": 6200320,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 133.76,
+      "rss": 14123008,
+      "renderedFrames": 6246400,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 134.76,
+      "rss": 14123008,
+      "renderedFrames": 6292992,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 135.77,
+      "rss": 14127104,
+      "renderedFrames": 6338560,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 136.77,
+      "rss": 14123008,
+      "renderedFrames": 6384640,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 137.78,
+      "rss": 14123008,
+      "renderedFrames": 6431232,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 138.78,
+      "rss": 14123008,
+      "renderedFrames": 6477824,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 139.79,
+      "rss": 14123008,
+      "renderedFrames": 6523392,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 140.84,
+      "rss": 14123008,
+      "renderedFrames": 6570496,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 141.85,
+      "rss": 14123008,
+      "renderedFrames": 6618112,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 142.85,
+      "rss": 14123008,
+      "renderedFrames": 6664704,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 143.86,
+      "rss": 14123008,
+      "renderedFrames": 6711296,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 144.86,
+      "rss": 14123008,
+      "renderedFrames": 6758400,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 145.87,
+      "rss": 14123008,
+      "renderedFrames": 6803968,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 146.87,
+      "rss": 14123008,
+      "renderedFrames": 6849536,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 147.88,
+      "rss": 14123008,
+      "renderedFrames": 6896128,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 148.88,
+      "rss": 14123008,
+      "renderedFrames": 6943232,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 149.89,
+      "rss": 14127104,
+      "renderedFrames": 6989824,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 150.89,
+      "rss": 14123008,
+      "renderedFrames": 7036416,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 151.89,
+      "rss": 14123008,
+      "renderedFrames": 7083008,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 152.89,
+      "rss": 14123008,
+      "renderedFrames": 7129088,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 153.9,
+      "rss": 14123008,
+      "renderedFrames": 7175680,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 154.9,
+      "rss": 14127104,
+      "renderedFrames": 7222272,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 155.9,
+      "rss": 14123008,
+      "renderedFrames": 7268352,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 156.91,
+      "rss": 14123008,
+      "renderedFrames": 7313920,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 157.92,
+      "rss": 14123008,
+      "renderedFrames": 7361024,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 158.93,
+      "rss": 14123008,
+      "renderedFrames": 7407616,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 159.94,
+      "rss": 14123008,
+      "renderedFrames": 7452160,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 160.94,
+      "rss": 14123008,
+      "renderedFrames": 7498752,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 161.94,
+      "rss": 14123008,
+      "renderedFrames": 7545344,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 162.95,
+      "rss": 14123008,
+      "renderedFrames": 7591424,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 163.96,
+      "rss": 14123008,
+      "renderedFrames": 7639040,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 164.96,
+      "rss": 14123008,
+      "renderedFrames": 7686656,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 165.98,
+      "rss": 14123008,
+      "renderedFrames": 7734272,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 166.98,
+      "rss": 14123008,
+      "renderedFrames": 7781888,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 167.99,
+      "rss": 14123008,
+      "renderedFrames": 7829504,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 169.0,
+      "rss": 14123008,
+      "renderedFrames": 7877632,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 170.0,
+      "rss": 14123008,
+      "renderedFrames": 7924736,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 171.02,
+      "rss": 14123008,
+      "renderedFrames": 7972864,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 172.02,
+      "rss": 14123008,
+      "renderedFrames": 8020480,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 173.03,
+      "rss": 14123008,
+      "renderedFrames": 8068096,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 174.04,
+      "rss": 14123008,
+      "renderedFrames": 8116224,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 175.05,
+      "rss": 14123008,
+      "renderedFrames": 8163840,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 176.06,
+      "rss": 14123008,
+      "renderedFrames": 8211456,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 177.07,
+      "rss": 14123008,
+      "renderedFrames": 8259072,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 178.07,
+      "rss": 14123008,
+      "renderedFrames": 8306176,
+      "underrunFrames": 0,
+      "error": null
+    },
+    {
+      "seconds": 179.08,
+      "rss": 14123008,
+      "renderedFrames": 8353792,
+      "underrunFrames": 0,
+      "error": null
+    }
+  ],
+  "build": "dev: mytify-core opt-level 2; rubato opt-level 3; debug assertions enabled",
+  "earlierAttempt": {
+    "build": "unoptimized debug",
+    "seconds": 180,
+    "passed": false,
+    "underrunFrames": 250624,
+    "note": "Observed in the first timed run before adding DSP dev-profile optimizations; not counted as a passing result."
+  }
+}
