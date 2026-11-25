@@ -101,7 +101,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
             loading = false;
           });
         }).catchError((Object e) {
-          if (mounted) setState(() => (loading, status, statusText) = (false, _Status.failed, readableError(e)));
+          if (mounted) setState(() {loading = false; status = _Status.failed; statusText = readableError(e);});
         }),
       );
     }
@@ -128,7 +128,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
   };
 
   Future<void> test() async {
-    setState(() => (status, statusText) = (_Status.connecting, 'Łączenie…'));
+    setState(() {status = _Status.connecting; statusText = 'Łączenie…';});
     try {
       final folders = await app.repository.testSource(config(), id: id);
       if (!mounted) return;
@@ -137,7 +137,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
         statusText = folders.isEmpty ? 'Połączono.' : 'Połączono. Podfoldery: ${folders.length}.';
       });
     } catch (e) {
-      if (mounted) setState(() => (status, statusText) = (_Status.failed, readableError(e)));
+      if (mounted) setState(() {status = _Status.failed; statusText = readableError(e);});
     }
   }
 
@@ -150,7 +150,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
   }
 
   Future<void> save() async {
-    setState(() => (saving, status, statusText) = (true, _Status.connecting, 'Łączenie…'));
+    setState(() {saving = true; status = _Status.connecting; statusText = 'Łączenie…';});
     try {
       // Save only what works: the same login and folder check as the test button.
       await app.repository.testSource(config(), id: id);
@@ -164,7 +164,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
       await app.loadLibrary();
       if (moved) unawaited(app.scanSources(saved));
     } catch (e) {
-      if (mounted) setState(() => (saving, status, statusText) = (false, _Status.failed, readableError(e)));
+      if (mounted) setState(() {saving = false; status = _Status.failed; statusText = readableError(e);});
     }
   }
 
@@ -289,7 +289,7 @@ class _FolderPickerState extends State<_FolderPicker> {
   }
 
   Future<void> load() async {
-    setState(() => (folders, error) = (null, null));
+    setState(() {folders = null; error = null;});
     try {
       final list = await widget.app.repository.browseSource(widget.config, path.join('/'), id: widget.id);
       if (mounted) setState(() => folders = list);
