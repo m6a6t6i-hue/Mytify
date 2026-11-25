@@ -1814,10 +1814,17 @@ class SettingsPage extends StatelessWidget {
     return [
       _row(
         'Urządzenie odtwarzania',
-        out?['name']?.toString() ?? (app.isPhone ? 'Ten telefon' : 'Domyślne urządzenie'),
+        out?['name']?.toString() ?? (app.isPhone ? 'Ten telefon' : 'Ten komputer'),
         icon: Icons.speaker_group_outlined,
         trailing: const Icon(Icons.chevron_right_rounded, color: secondaryText),
         onTap: app.showDevices,
+      ),
+      _row(
+        'Diagnostyka',
+        'Parametry wyjścia, źródła i bufora, protokoły sieciowe',
+        icon: Icons.monitor_heart_outlined,
+        trailing: const Icon(Icons.chevron_right_rounded, color: secondaryText),
+        onTap: app.showAudioDiagnostics,
       ),
       if (out != null) ...[
         const SizedBox(height: Sp.l),

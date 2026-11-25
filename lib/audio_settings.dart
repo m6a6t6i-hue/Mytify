@@ -87,7 +87,7 @@ class _AudioSettingsState extends State<AudioSettings> {
       return PopScope(
         canPop: !busy,
         child: AlertDialog(
-          title: const Text('Odtwarzaj na urządzeniu'),
+          title: const Text('Diagnostyka dźwięku'),
           content: SizedBox(
             width: 580,
             child: SingleChildScrollView(
@@ -134,7 +134,7 @@ class _AudioSettingsState extends State<AudioSettings> {
                   ),
                   Text(
                     state.selectedDevice.startsWith('airplay:')
-                        ? 'Poziom sygnału aplikacji — głośność amplitunera bez zmian'
+                        ? 'Poziom sygnału aplikacji. Głośność amplitunera bez zmian.'
                         : state.volumeAvailable
                         ? 'Głośność'
                         : 'Odbiornik nie udostępnia odczytu głośności. Użyj jego pilota.',
@@ -212,7 +212,7 @@ class _AudioSettingsState extends State<AudioSettings> {
                     const SizedBox(height: 8),
                     if (output['testSink'] == true)
                       const Text(
-                        'Wyjście testowe — bez dźwięku',
+                        'Wyjście testowe, bez dźwięku',
                         style: TextStyle(color: Colors.amber),
                       ),
                     Text(
@@ -220,7 +220,7 @@ class _AudioSettingsState extends State<AudioSettings> {
                               state.selectedDevice == 'auto'
                           ? 'Media3 / AudioTrack · parametry wyjścia ustala Android'
                           : state.selectedDevice.startsWith('dlna:')
-                          ? 'Oryginalny plik — dekoduje odbiornik DLNA'
+                          ? 'Oryginalny plik, dekoduje odbiornik DLNA'
                           : '${output['backend']}\n${output['sampleRate']} Hz · ${output['sampleFormat']} · ${output['channels']} kanały',
                     ),
                     const SizedBox(height: 12),
@@ -239,7 +239,7 @@ class _AudioSettingsState extends State<AudioSettings> {
                   ],
                   const SizedBox(height: 14),
                   const Text(
-                    'DLNA przesyła oryginalny plik — odbiornik musi obsługiwać jego format. AirPlay: stereo 16 bit / 44,1 kHz, możliwe opóźnienie. MusicCast: sterowanie jednym odbiornikiem przez DLNA; grupy ustawisz w aplikacji Yamahy.',
+                    'DLNA: oryginalny plik, odbiornik musi obsługiwać format. AirPlay: stereo 16 bit / 44,1 kHz z opóźnieniem. MusicCast: jeden odbiornik przez DLNA, grupy w aplikacji Yamahy.',
                     style: TextStyle(fontSize: 12),
                   ),
                   ExpansionTile(

@@ -235,7 +235,7 @@ class LibrarySource {
 }
 
 String durationLabel(int milliseconds) {
-  if (milliseconds <= 0) return '—';
+  if (milliseconds <= 0) return '--:--';
   final seconds = milliseconds ~/ 1000;
   return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
 }

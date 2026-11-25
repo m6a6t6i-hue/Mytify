@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:material_ui/material_ui.dart';
 
+import 'cover_file_stub.dart' if (dart.library.io) 'cover_file_io.dart';
+import 'cover_widget.dart';
 import 'design.dart';
 
 /// Dominant, saturated cover colour for ambient backgrounds. Cached per artwork.
@@ -19,13 +20,13 @@ class CoverTint {
   static ImageProvider? provider(String uri) {
     if (uri.startsWith('data:')) {
       try {
-        return MemoryImage(base64Decode(uri.split(',').last));
+        return MemoryImage(dataBytes(uri));
       } catch (_) {
         return null;
       }
     }
     if (uri.startsWith('http')) return NetworkImage(uri);
-    return null;
+    return localProvider(uri);
   }
 
   static Future<Color?> _compute(String uri) async {

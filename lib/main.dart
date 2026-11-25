@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'audio_player.dart';
 import 'audio_settings.dart';
 import 'design.dart';
+import 'devices.dart';
 import 'ingest.dart';
 import 'library_index.dart';
 import 'metadata_ui.dart';
@@ -1179,9 +1180,11 @@ class LibraryScreenState extends State<LibraryScreen> {
   void showAddMusic({Offset? at}) =>
       unawaited(showActions(context, addMusicEntries(), at: at, title: 'Dodaj muzykę'));
 
-  void showDevices() => showDialog<void>(
+  void showDevices({Offset? at}) => unawaited(showDevicePicker(this, at: at));
+
+  void showAudioDiagnostics() => showDialog<void>(
     context: context,
-    builder: (_) => Theme(data: mytifyTheme(), child: AudioSettings(player: player)),
+    builder: (_) => AudioSettings(player: player),
   );
 
   void openNowPlaying() {

@@ -22,7 +22,7 @@ class PlaylistStore(private val catalog: Catalog) {
         val out=mutableListOf<String>();catalog.readableDatabase.rawQuery("SELECT track FROM playlist_tracks WHERE playlist=? ORDER BY position",arrayOf(id)).use { c->while(c.moveToNext()) out.add(c.getString(0)) };return out
     }
     fun save(id: String?,name: String,ids: List<String>): String {
-        val title=name.trim();require(title.isNotEmpty() && title.length<=100) { "Nazwa playlisty: 1–100 znaków" }
+        val title=name.trim();require(title.isNotEmpty() && title.length<=100) { "Nazwa playlisty: od 1 do 100 znaków" }
         require(ids.size<=10000 && ids.distinct().size==ids.size) { "Nieprawidłowa lista utworów" }
         val db=catalog.writableDatabase;val key=id?:UUID.randomUUID().toString();db.beginTransaction();try {
             if(id!=null) require(db.rawQuery("SELECT id FROM playlists WHERE id=?",arrayOf(id)).use { it.moveToFirst() }) { "Playlista nie istnieje" }

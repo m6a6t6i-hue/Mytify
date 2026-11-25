@@ -258,7 +258,7 @@ internal class TransferManager(
             }
             update(
                 "state" to "complete",
-                "current" to "Gotowe — muzyka jest w telefonie",
+                "current" to "Gotowe, muzyka jest w telefonie",
                 "error" to "",
                 save = true,
             )

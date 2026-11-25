@@ -73,7 +73,7 @@ void main() {
       expect(rip['discId'], 'known-disc');
       expect(rip['album'], 'Mój album');
       expect(rip['titles'], ['Pierwszy', 'Utwór 2']);
-      await t.tap(find.text('Zatrzymaj — zachowaj ukończone pliki'));
+      await t.tap(find.text('Zatrzymaj i zachowaj ukończone pliki'));
       await t.pumpAndSettle();
       expect(repo.running, isFalse);
       await t.pumpWidget(const SizedBox());

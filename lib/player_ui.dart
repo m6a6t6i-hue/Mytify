@@ -106,13 +106,18 @@ class DeviceButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final remote = app.outputDevice != 'auto';
     final name = app.player.state.output?['name']?.toString();
-    return IconAction(
-      remote ? Icons.speaker_group_rounded : Icons.speaker_group_outlined,
-      remote && name != null ? 'Odtwarzanie: $name' : 'Połącz z urządzeniem',
-      app.showDevices,
-      active: remote,
-      size: size,
-      color: remote ? accent : secondaryText,
+    return Builder(
+      builder: (context) => IconAction(
+        remote ? Icons.speaker_group_rounded : Icons.speaker_group_outlined,
+        remote && name != null ? 'Odtwarzanie: $name' : 'Połącz z urządzeniem',
+        () {
+          final box = context.findRenderObject() as RenderBox?;
+          app.showDevices(at: box?.localToGlobal(box.size.topCenter(Offset.zero)));
+        },
+        active: remote,
+        size: size,
+        color: remote ? accent : secondaryText,
+      ),
     );
   }
 }

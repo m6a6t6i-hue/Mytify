@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import 'design.dart';
 import 'model.dart';
 
 class MusicPlaylist {
@@ -129,7 +130,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                 (p) => ListTile(
                   leading: const Icon(Icons.queue_music),
                   title: Text(p.name),
-                  subtitle: Text('${p.ids.length} utworów'),
+                  subtitle: Text(collectionCount(p.ids.length, 'utwór', 'utwory', 'utworów')),
                   onTap: () => edit(p),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,

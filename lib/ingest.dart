@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
+import 'design.dart';
 import 'model.dart';
 
 abstract interface class IngestRepository {
@@ -33,7 +34,7 @@ class _IngestScreenState extends State<IngestScreen> {
   Timer? timer;
   final album = TextEditingController(),
       artist = TextEditingController(),
-      label = TextEditingController(text: 'Winyl — strona A'),
+      label = TextEditingController(text: 'Winyl, strona A'),
       marks = TextEditingController();
   List<TextEditingController> titles = [];
   bool get running => status['running'] == true;
@@ -285,7 +286,7 @@ class _IngestScreenState extends State<IngestScreen> {
     children: [
       card('1. Włóż płytę Audio CD', [
         const Text(
-          'Mytify odczyta audio bezpośrednio z napędu. Pliki .cda nie zawierają muzyki. CD-Extra i płyty z danymi nie są obsługiwane w tej wersji.',
+          'Odczyt cyfrowy bezpośrednio z napędu. Płyty CD-Extra i z danymi nie są obsługiwane.',
         ),
         const SizedBox(height: 16),
         if (drives.isEmpty)
@@ -326,7 +327,7 @@ class _IngestScreenState extends State<IngestScreen> {
       if (toc != null)
         card('2. Sprawdź tytuły i wydanie', [
           Text(
-            '${(toc!['tracks'] as List).length} utworów · stereo 16 bit / 44,1 kHz',
+            '${collectionCount((toc!['tracks'] as List).length, 'utwór', 'utwory', 'utworów')} · stereo 16 bit / 44,1 kHz',
           ),
           const SizedBox(height: 12),
           OutlinedButton(
@@ -336,7 +337,7 @@ class _IngestScreenState extends State<IngestScreen> {
           const SizedBox(height: 16),
           names(),
           const Text(
-            'Odczyt porównujemy co najmniej dwukrotnie. Rozbieżności trafią do raportu; cache napędu może ograniczać niezależność odczytów. To nie jest weryfikacja AccurateRip.',
+            'Każdy odczyt jest porównywany co najmniej dwa razy. Rozbieżności trafią do raportu. To nie jest weryfikacja AccurateRip.',
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
@@ -369,7 +370,7 @@ class _IngestScreenState extends State<IngestScreen> {
       children: [
         card('1. Podłącz i sprawdź poziom', [
           const Text(
-            'Gramofon: wyjście LINE po przedwzmacniaczu PHONO albo USB. Magnetofon: LINE OUT → wejście liniowe interfejsu audio. Zacznij od cichszego poziomu i odtwórz najgłośniejszy fragment. Celuj w szczyty od −12 do −6 dBFS.',
+            'Gramofon przez przedwzmacniacz PHONO lub USB, magnetofon z LINE OUT. Ustaw poziom na najgłośniejszym fragmencie: szczyty od -12 do -6 dBFS.',
           ),
           const SizedBox(height: 16),
           if (inputs.isEmpty)
@@ -457,7 +458,7 @@ class _IngestScreenState extends State<IngestScreen> {
         card('2. Nagraj stronę A lub B', [
           field(label, 'Nazwa nagrania / strona'),
           const Text(
-            'Zapis WAV 24 bit zachowuje całe nagranie. Jakość zależy od przetwornika wejścia; zapis 24 bit nie zwiększa rozdzielczości źródła 16 bit. Bez automatycznego odszumiania i normalizacji.',
+            'Nagranie zapisuje się jako WAV 24 bit, bez odszumiania i normalizacji.',
           ),
           const SizedBox(height: 16),
           Text(
@@ -509,7 +510,7 @@ class _IngestScreenState extends State<IngestScreen> {
         ]),
         card('3. Podziel i dodaj do biblioteki', [
           const Text(
-            'Oryginał WAV pozostaje zachowany. Eksport tworzy osobne utwory FLAC, które możesz ponownie podzielić. Po imporcie okładkę pobierzesz w edycji albumu.',
+            'Eksport tworzy osobne utwory FLAC. Oryginał WAV zostaje.',
           ),
           const SizedBox(height: 16),
           TextButton(
@@ -590,7 +591,7 @@ class _IngestScreenState extends State<IngestScreen> {
                 maxLines: 8,
                 decoration: const InputDecoration(
                   labelText:
-                      'Początki kolejnych utworów — m:ss, jeden w wierszu',
+                      'Początki kolejnych utworów (m:ss), jeden w wierszu',
                   helperText: 'Pierwszy utwór zaczyna się w 0:00. Każdy znacznik rozpoczyna następny.',
                 ),
               ),
@@ -723,7 +724,7 @@ class _IngestScreenState extends State<IngestScreen> {
                                   await poll();
                                 }),
                           child: const Text(
-                            'Zatrzymaj — zachowaj ukończone pliki',
+                            'Zatrzymaj i zachowaj ukończone pliki',
                           ),
                         ),
                     ],

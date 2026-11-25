@@ -72,7 +72,7 @@ class CarLibrary(private val context: Context,private val catalog: Catalog) {
             actual=rows(decode(parts[0])).drop(start).take(100)
         } else {
             val all=rows(parent)
-            actual=if(all.size>100) all.indices.step(100).map { i->Row("bucket:"+encode(parent)+":$i","${i+1}–${minOf(i+100,all.size)}",all[i].title) } else all
+            actual=if(all.size>100) all.indices.step(100).map { i->Row("bucket:"+encode(parent)+":$i","${i+1}-${minOf(i+100,all.size)}",all[i].title) } else all
         }
         return page(actual,page,size).map { r->if(r.song==null) withArt(folder(r.id,r.title,r.subtitle),client) else browse(r.song,r.parent,client) }
     }

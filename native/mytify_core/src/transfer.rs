@@ -254,7 +254,7 @@ impl Transfer {
                 let name = v["name"].as_str().unwrap_or("").trim();
                 ensure!(
                     !name.is_empty() && name.chars().count() <= 100,
-                    "Nazwa playlisty: 1–100 znaków"
+                    "Nazwa playlisty: od 1 do 100 znaków"
                 );
                 let ids: Vec<String> = serde_json::from_value(v["ids"].clone())?;
                 ensure!(
