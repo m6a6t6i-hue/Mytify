@@ -51,7 +51,7 @@ jobs:
           openssl x509 -req -in server.csr -CA ca.pem -CAkey ca.key -CAcreateserial -out server.pem -days 2 -extfile ext.cnf 2>/dev/null
           openssl req -x509 -newkey rsa:2048 -nodes -keyout self.key -out self.pem -days 2 -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost" 2>/dev/null
           # Trust only the test CA in the test JVM; the untrusted server must stay untrusted.
-          "$JAVA_HOME/bin/keytool" -importcert -cacerts -storepass changeit -noprompt -alias mytify-test-ca -file ca.pem
+          sudo "$JAVA_HOME/bin/keytool" -importcert -cacerts -storepass changeit -noprompt -alias mytify-test-ca -file ca.pem
           nohup python3 "$GITHUB_WORKSPACE/tools/dav_test_server.py" "$d/root" 18443 server.pem server.key mat Haslo-123 > dav1.log 2>&1 &
           nohup python3 "$GITHUB_WORKSPACE/tools/dav_test_server.py" "$d/root" 18444 self.pem self.key mat Haslo-123 > dav2.log 2>&1 &
           nohup python3 "$GITHUB_WORKSPACE/tools/norange_test_server.py" "$d/root" 18445 server.pem server.key > nr.log 2>&1 &
