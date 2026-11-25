@@ -103,7 +103,11 @@ void main() {
           {'id': 'p1', 'name': 'Na drogę', 'ids': [for (final t in tracks.take(9)) t['id']]},
           {'id': 'p2', 'name': 'Wieczór', 'ids': [for (final t in tracks.skip(10).take(7)) t['id']]},
         ],
-        'audioDevices' => [{'id': 'auto', 'name': 'Ten telefon'}],
+        'audioDevices' => [
+          {'id': 'auto', 'name': 'Domyślne urządzenie systemu'},
+          {'id': 'dlna:uuid-1', 'name': 'Salon · Yamaha / MusicCast (DLNA)'},
+          {'id': 'airplay:abc', 'name': 'Kuchnia · AirPlay 2'},
+        ],
         'audioState' || 'audioCommand' => {
           'available': true,
           'playing': true,
@@ -180,6 +184,10 @@ void main() {
     await shot(tester, 'm5_search');
     await tester.tap(find.text('Start').last);
     await settle(tester);
+    await tester.tap(find.byTooltip('Połącz z urządzeniem').first);
+    await shot(tester, 'm7_devices');
+    await tester.tapAt(const Offset(20, 20));
+    await settle(tester);
     await tester.tap(find.text('The last sunset over us').first);
     await shot(tester, 'm6_now_playing');
     await close(tester);
@@ -198,6 +206,8 @@ void main() {
       await shot(tester, 'd${w}_3_tracks');
       await tester.tap(find.byTooltip('Kolejka'));
       await shot(tester, 'd${w}_5_queue');
+      await tester.tap(find.byTooltip('Połącz z urządzeniem').last);
+      await shot(tester, 'd${w}_6_devices');
       await close(tester);
     }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   }

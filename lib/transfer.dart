@@ -575,7 +575,7 @@ class _TransferScreenState extends State<TransferScreen> {
           contentPadding: EdgeInsets.zero,
           value: playlists.contains(p['id']),
           title: Text(p['name'] as String),
-          subtitle: Text('${collectionCount((p['ids'] as List).length, 'utwór', 'utwory', 'utworów')}'),
+          subtitle: Text(collectionCount((p['ids'] as List).length, 'utwór', 'utwory', 'utworów')),
           onChanged: busy
               ? null
               : (v) => setState(() {
