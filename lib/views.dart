@@ -1760,14 +1760,22 @@ class SettingsPage extends StatelessWidget {
   );
 
   List<Widget> _sources() => [
-    Row(
+    Wrap(
+      spacing: Sp.s,
+      runSpacing: Sp.s,
       children: [
-        FilledButton.icon(
-          onPressed: app.importing ? null : () => unawaited(app.importMusic(true)),
-          icon: const Icon(Icons.create_new_folder_outlined, size: 18),
-          label: const Text('Dodaj folder'),
+        Builder(
+          builder: (context) => FilledButton.icon(
+            onPressed: app.importing
+                ? null
+                : () {
+                    final box = context.findRenderObject() as RenderBox?;
+                    app.showAddMusic(at: box?.localToGlobal(box.size.bottomLeft(Offset.zero)));
+                  },
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Dodaj źródło'),
+          ),
         ),
-        const SizedBox(width: Sp.s),
         OutlinedButton.icon(
           onPressed: app.importing || app.librarySources.isEmpty ? null : () => unawaited(app.scanSources()),
           icon: const Icon(Icons.refresh_rounded, size: 18),
@@ -1783,20 +1791,29 @@ class SettingsPage extends StatelessWidget {
   Widget _source(LibrarySource source) {
     final offline = source.state == 'offline' || source.state == 'error';
     final problem = switch (source.state) {
-      'offline' => 'Niedostępne',
+      'offline' => source.network ? 'Źródło niedostępne' : 'Niedostępne',
       'error' => 'Nie można odczytać',
       'partial' => 'Wymaga ponownego skanu',
       'scanning' => 'Skanowanie',
       _ => null,
     };
-    final path = source.path.startsWith(r'\\?\') ? source.path.substring(4) : source.path;
+    final path = source.address.isNotEmpty
+        ? source.address
+        : source.path.startsWith(r'\\?\')
+        ? source.path.substring(4)
+        : source.path;
     return Container(
       margin: const EdgeInsets.only(bottom: Sp.s),
       padding: const EdgeInsets.fromLTRB(Sp.l, Sp.m, Sp.s, Sp.m),
       decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(Rad.panel)),
       child: Row(
         children: [
-          Icon(offline ? Icons.folder_off_outlined : Icons.folder_outlined, color: offline ? const Color(0xffffb454) : secondaryText),
+          Icon(
+            source.network
+                ? (offline ? Icons.portable_wifi_off_rounded : Icons.lan_outlined)
+                : (offline ? Icons.folder_off_outlined : Icons.folder_outlined),
+            color: offline ? const Color(0xffffb454) : secondaryText,
+          ),
           const SizedBox(width: Sp.m),
           Expanded(
             child: Column(
@@ -1819,6 +1836,8 @@ class SettingsPage extends StatelessWidget {
             onSelected: (v) {
               if (v == 'scan') {
                 unawaited(app.scanSources(source.id));
+              } else if (v == 'edit') {
+                unawaited(app.editSource(source));
               } else if (v == 'relink') {
                 unawaited(app.relinkSource(source.id));
               } else {
@@ -1827,6 +1846,7 @@ class SettingsPage extends StatelessWidget {
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'scan', height: 36, child: Text('Skanuj ponownie')),
+              if (source.network) const PopupMenuItem(value: 'edit', height: 36, child: Text('Edytuj połączenie')),
               if (source.kind == 'folder') const PopupMenuItem(value: 'relink', height: 36, child: Text('Wskaż folder ponownie')),
               const PopupMenuDivider(),
               const PopupMenuItem(value: 'forget', height: 36, child: Text('Odłącz źródło', style: TextStyle(color: Color(0xffff6b6b)))),

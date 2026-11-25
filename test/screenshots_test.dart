@@ -100,7 +100,12 @@ void main() {
       channel,
       (call) async => jsonEncode(switch (call.method) {
         'load' => tracks,
-        'sources' => [],
+        'sources' => [
+          {'id': 's1', 'name': 'Muzyka', 'path': '/storage/Muzyka', 'kind': 'folder', 'state': 'online', 'files': 24, 'availableFiles': 24, 'lastScan': 1, 'protocol': 'local'},
+          {'id': 's2', 'name': 'Jazz na NAS', 'path': r'\\nas\music\Jazz', 'kind': 'smb', 'state': 'offline', 'files': 1840, 'availableFiles': 0, 'lastScan': 1, 'protocol': 'smb', 'address': r'\\nas\music\Jazz'},
+        ],
+        'networkProtocols' => ['smb'],
+        'sourceSettings' => {'protocol': 'smb', 'name': 'Jazz na NAS', 'host': 'nas', 'share': 'music', 'folder': 'Jazz', 'user': 'mat', 'domain': '', 'hasPassword': true},
         'playlists' => [
           {'id': 'p1', 'name': 'Na drogę', 'ids': [for (final t in tracks.take(9)) t['id']]},
           {'id': 'p2', 'name': 'Wieczór', 'ids': [for (final t in tracks.skip(10).take(7)) t['id']]},
@@ -192,6 +197,12 @@ void main() {
     await settle(tester);
     await tester.tap(find.text('The last sunset over us').first);
     await shot(tester, 'm6_now_playing');
+    await tester.tap(find.byTooltip('Zamknij').evaluate().isEmpty ? find.byIcon(Icons.keyboard_arrow_down_rounded).first : find.byTooltip('Zamknij').first);
+    await settle(tester);
+    await tester.tap(find.byTooltip('Dodaj muzykę'));
+    await shot(tester, 'm8_add_source');
+    await tester.tap(find.text('Folder sieciowy SMB'));
+    await shot(tester, 'm9_smb_form');
     await close(tester);
   }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
@@ -210,6 +221,14 @@ void main() {
       await shot(tester, 'd${w}_5_queue');
       await tester.tap(find.byTooltip('Połącz z urządzeniem').last);
       await shot(tester, 'd${w}_6_devices');
+      await tester.tapAt(const Offset(5, 5));
+      await settle(tester);
+      await tester.tap(find.byTooltip('Ustawienia (Ctrl+,)'));
+      await shot(tester, 'd${w}_7_settings');
+      await tester.tap(find.byTooltip('Opcje źródła').last);
+      await settle(tester);
+      await tester.tap(find.text('Edytuj połączenie'));
+      await shot(tester, 'd${w}_8_smb_edit');
       await close(tester);
     }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   }

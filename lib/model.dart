@@ -205,6 +205,26 @@ abstract class LibraryRepository {
   Future<AudioSnapshot> audioCommand(Map<String, dynamic> action);
   Future<List<AudioDevice>> audioDevices();
   Future<void> dispose() async {}
+
+  /// Network protocols that really work here ("smb" ...). Empty means local music only.
+  Future<List<String>> networkProtocols() async => const [];
+
+  /// Logs in and lists the chosen folder; nothing is saved. Throws a readable message.
+  Future<List<String>> testSource(Map<String, dynamic> config, {String? id}) =>
+      Future.error(StateError('Źródła sieciowe nie są dostępne w tej wersji.'));
+
+  /// Subfolders of [path] inside the share, for the folder picker.
+  Future<List<String>> browseSource(Map<String, dynamic> config, String path, {String? id}) =>
+      Future.error(StateError('Źródła sieciowe nie są dostępne w tej wersji.'));
+
+  /// Adds or edits a network source. Returns its id. The password goes to the system store.
+  Future<String> saveSource(Map<String, dynamic> config, {String? id}) =>
+      Future.error(StateError('Źródła sieciowe nie są dostępne w tej wersji.'));
+
+  /// Saved settings without the password (`hasPassword` tells if one is stored).
+  Future<Map<String, dynamic>> sourceSettings(String id) =>
+      Future.error(StateError('Źródła sieciowe nie są dostępne w tej wersji.'));
+
   /// Rust player accepts an atomic queue restore; Android Media3 does not.
   bool get queueRestore => true;
 }
@@ -212,6 +232,10 @@ abstract class LibraryRepository {
 class LibrarySource {
   final String id, name, path, kind, state;
   final int files, availableFiles, lastScan;
+
+  /// "local", "smb" ... and what the source can do. Address never contains credentials.
+  final String protocol, address;
+  final List<String> capabilities;
   const LibrarySource({
     required this.id,
     required this.name,
@@ -221,7 +245,11 @@ class LibrarySource {
     required this.files,
     required this.availableFiles,
     required this.lastScan,
+    this.protocol = 'local',
+    this.address = '',
+    this.capabilities = const [],
   });
+  bool get network => protocol != 'local';
   factory LibrarySource.fromJson(Map<String, dynamic> j) => LibrarySource(
     id: j['id'] as String,
     name: j['name'] as String,
@@ -231,6 +259,9 @@ class LibrarySource {
     files: (j['files'] as num).toInt(),
     availableFiles: (j['availableFiles'] as num).toInt(),
     lastScan: (j['lastScan'] as num).toInt(),
+    protocol: j['protocol'] as String? ?? 'local',
+    address: j['address'] as String? ?? '',
+    capabilities: [for (final c in j['capabilities'] as List? ?? const []) c as String],
   );
 }
 

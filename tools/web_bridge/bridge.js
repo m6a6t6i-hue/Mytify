@@ -91,6 +91,13 @@ async function migrateLegacy() {
 
 window.mytifyBridge = {
   async transfer(body) { return JSON.stringify(await api('/api/transfer',{method:'POST',body:JSON.parse(body)})); },
+  async network(action,body) {
+    // Network sources (SMB on Windows). Passwords go to the Windows credential store.
+    if(action==='protocols') return JSON.stringify((await session()).protocols||[]);
+    if(action==='settings') return JSON.stringify(await api('/api/sources/'+encodeURIComponent(body)+'/settings'));
+    if(!['test','browse','save'].includes(action)) throw new Error('Nieznana operacja źródła.');
+    return JSON.stringify(await api('/api/sources/'+action,{method:'POST',body:JSON.parse(body)}));
+  },
   async ingest(body) { const args=JSON.parse(body);return JSON.stringify(await api(args.action==='disc'?'/api/metadata/disc':'/api/ingest',{method:'POST',body:args})); },
   async audio(route,body) {
     if(!['state','devices','command'].includes(route)) throw new Error('Nieznana operacja odtwarzania.');

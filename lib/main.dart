@@ -19,6 +19,7 @@ import 'queue.dart';
 import 'repository.dart';
 import 'shell_desktop.dart';
 import 'shell_mobile.dart';
+import 'sources_ui.dart';
 import 'transfer.dart';
 import 'ui_prefs.dart';
 import 'widgets.dart';
@@ -218,6 +219,8 @@ class LibraryScreenState extends State<LibraryScreen> {
   List<Track> get tracks => index.tracks;
   List<MusicPlaylist> playlists = [];
   List<LibrarySource> librarySources = [];
+  /// Network protocols this build really supports; the UI offers nothing else.
+  List<String> networkProtocols = const [];
   Timer? _libraryRefresh;
   bool cancelling = false;
   String? startupError;
@@ -293,6 +296,11 @@ class LibraryScreenState extends State<LibraryScreen> {
     }));
     unawaited(player.start());
     unawaited(loadLibrary());
+    unawaited(
+      repository.networkProtocols().then((v) {
+        if (mounted) setState(() => networkProtocols = v);
+      }).catchError((Object _) {}),
+    );
   }
 
   @override
@@ -1141,7 +1149,9 @@ class LibraryScreenState extends State<LibraryScreen> {
     final ok = await confirm(
       context,
       title: 'Odłączyć źródło?',
-      message: '„${source.name}” zniknie z katalogu. Pliki i foldery na dysku zostaną bez zmian.',
+      message: source.network
+          ? '„${source.name}” zniknie z katalogu, a zapisane hasło zostanie usunięte. Pliki na serwerze zostaną bez zmian.'
+          : '„${source.name}” zniknie z katalogu. Pliki i foldery na dysku zostaną bez zmian.',
       action: 'Odłącz',
     );
     if (!ok) return;
@@ -1177,17 +1187,26 @@ class LibraryScreenState extends State<LibraryScreen> {
 
   List<MenuEntry> addMusicEntries() => [
     MenuEntry(
-      'Dodaj folder',
+      'Muzyka na urządzeniu',
       icon: Icons.create_new_folder_outlined,
       shortcut: desktopMode ? 'Ctrl+Shift+O' : null,
       onTap: importing ? null : () => unawaited(importMusic(true)),
     ),
     MenuEntry(
-      'Dodaj pliki',
+      'Pojedyncze pliki',
       icon: Icons.audio_file_outlined,
       shortcut: desktopMode ? 'Ctrl+O' : null,
       onTap: importing ? null : () => unawaited(importMusic(false)),
     ),
+    if (networkKinds(networkProtocols).isNotEmpty) ...[
+      MenuEntry.divider,
+      for (final k in networkKinds(networkProtocols))
+        MenuEntry(
+          k.label,
+          icon: k.icon,
+          onTap: importing ? null : () => unawaited(showNetworkSourceForm(this, protocol: k.protocol)),
+        ),
+    ],
     if (canDigitize && !isPhone) ...[
       MenuEntry.divider,
       MenuEntry('Importuj Audio CD', icon: Icons.album_outlined, onTap: importing ? null : () => unawaited(openIngest(true))),
@@ -1196,7 +1215,9 @@ class LibraryScreenState extends State<LibraryScreen> {
   ];
 
   void showAddMusic({Offset? at}) =>
-      unawaited(showActions(context, addMusicEntries(), at: at, title: 'Dodaj muzykę'));
+      unawaited(showActions(context, addMusicEntries(), at: at, title: 'Dodaj źródło'));
+
+  Future<void> editSource(LibrarySource source) => showNetworkSourceForm(this, source: source);
 
   void showDevices({Offset? at}) => unawaited(showDevicePicker(this, at: at));
 

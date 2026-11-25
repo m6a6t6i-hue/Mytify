@@ -164,6 +164,23 @@ class AndroidLibraryRepository extends LibraryRepository
           .toList();
 
   @override
+  Future<List<String>> networkProtocols() async =>
+      [for (final p in await _call('networkProtocols') as List) p as String];
+  @override
+  Future<List<String>> testSource(Map<String, dynamic> config, {String? id}) async =>
+      [for (final f in _map(await _call('testSource', jsonEncode({'id': id, 'config': config})))['folders'] as List) f as String];
+  @override
+  Future<List<String>> browseSource(Map<String, dynamic> config, String path, {String? id}) async => [
+    for (final f in _map(await _call('browseSource', jsonEncode({'id': id, 'config': config, 'path': path})))['folders'] as List)
+      f as String,
+  ];
+  @override
+  Future<String> saveSource(Map<String, dynamic> config, {String? id}) async =>
+      _map(await _call('saveSource', jsonEncode({'id': id, 'config': config})))['id'] as String;
+  @override
+  Future<Map<String, dynamic>> sourceSettings(String id) async => _map(await _call('sourceSettings', id));
+
+  @override
   Future<void> dispose() async {
     _channel.setMethodCallHandler(null);
     await _changes.close();

@@ -138,7 +138,7 @@ void main() {
       expect(find.text('Polubione'), findsWidgets);
       await tester.tap(find.byTooltip('Dodaj muzykę'));
       await tester.pumpAndSettle();
-      expect(find.text('Dodaj folder'), findsOneWidget);
+      expect(find.text('Muzyka na urządzeniu'), findsOneWidget);
       expect(find.text('Importuj Audio CD'), findsNothing);
       await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();

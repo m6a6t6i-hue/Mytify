@@ -45,11 +45,31 @@ LibraryRepository createRepository() => WebLibraryRepository();
 @JS('mytifyBridge.transfer')
 external JSPromise<JSString> _transfer(JSString body);
 
+@JS('mytifyBridge.network')
+external JSPromise<JSString> _network(JSString action, JSString body);
+
 @JS('mytifyBridge.ingest')
 external JSPromise<JSString> _ingest(JSString body);
 
 class WebLibraryRepository extends LibraryRepository
     implements IngestRepository, PlaylistRepository, TransferRepository {
+  Future<dynamic> _net(String action, [Object? body]) async =>
+      jsonDecode((await _network(action.toJS, (body is String ? body : jsonEncode(body)).toJS).toDart).toDart);
+  @override
+  Future<List<String>> networkProtocols() async => [for (final p in await _net('protocols', '') as List) p as String];
+  @override
+  Future<List<String>> testSource(Map<String, dynamic> config, {String? id}) async =>
+      [for (final f in (await _net('test', {'id': id, 'config': config}) as Map)['folders'] as List) f as String];
+  @override
+  Future<List<String>> browseSource(Map<String, dynamic> config, String path, {String? id}) async =>
+      [for (final f in (await _net('browse', {'id': id, 'config': config, 'path': path}) as Map)['folders'] as List) f as String];
+  @override
+  Future<String> saveSource(Map<String, dynamic> config, {String? id}) async =>
+      (await _net('save', {'id': id, 'config': config}) as Map)['id'] as String;
+  @override
+  Future<Map<String, dynamic>> sourceSettings(String id) async =>
+      Map<String, dynamic>.from(await _net('settings', id) as Map);
+
   @override
   bool get receivesTransfers => false;
   @override

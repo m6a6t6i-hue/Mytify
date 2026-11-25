@@ -1,5 +1,5 @@
 (() => {
-  // tools/web_bridge/bridge.js
+  // bridge.js
   var sessionPromise;
   var progress = { done: 0, total: 0, name: "" };
   var activeJob = null;
@@ -125,6 +125,12 @@
   window.mytifyBridge = {
     async transfer(body) {
       return JSON.stringify(await api("/api/transfer", { method: "POST", body: JSON.parse(body) }));
+    },
+    async network(action, body) {
+      if (action === "protocols") return JSON.stringify((await session()).protocols || []);
+      if (action === "settings") return JSON.stringify(await api("/api/sources/" + encodeURIComponent(body) + "/settings"));
+      if (!["test", "browse", "save"].includes(action)) throw new Error("Nieznana operacja \u017Ar\xF3d\u0142a.");
+      return JSON.stringify(await api("/api/sources/" + action, { method: "POST", body: JSON.parse(body) }));
     },
     async ingest(body) {
       const args = JSON.parse(body);
