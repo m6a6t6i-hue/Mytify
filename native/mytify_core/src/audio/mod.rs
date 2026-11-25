@@ -2,6 +2,7 @@ pub mod decoder;
 mod output;
 pub mod render;
 mod sequence;
+pub mod spectrum;
 use crate::catalog::{getrandom_bytes, Catalog};
 use anyhow::{anyhow, bail, Result};
 use decoder::SourceInfo;
@@ -129,6 +130,7 @@ pub struct Player {
     test: bool,
     root: PathBuf,
     settings_io: Arc<Mutex<()>>,
+    scope_seen: Mutex<(u64, std::time::Instant)>,
 }
 impl Player {
     pub fn new(catalog: Arc<Catalog>, test: bool, capture: Option<PathBuf>) -> Self {
@@ -161,7 +163,33 @@ impl Player {
             test,
             root,
             settings_io,
+            scope_seen: Mutex::new((0, std::time::Instant::now())),
         }
+    }
+    /// Band levels of the sound leaving this computer now, for the seek bar display.
+    /// `None` when nothing real is available: paused, buffering, a network receiver
+    /// (DLNA decodes itself, AirPlay plays with seconds of delay) or a stalled device.
+    pub fn levels(&self) -> Option<Vec<f32>> {
+        if self.signals.paused.load(Ordering::Acquire) || !self.signals.ready.load(Ordering::Acquire) {
+            return None;
+        }
+        let (rate, device) = {
+            let data = self.data.lock().unwrap();
+            (data.output.as_ref().map(|o| o.sample_rate)?, data.selected_device.clone())
+        };
+        if device.starts_with("airplay:") || device.starts_with("dlna:") {
+            return None;
+        }
+        let head = self.signals.scope_head.load(Ordering::Acquire);
+        {
+            let mut seen = self.scope_seen.lock().unwrap();
+            if head != seen.0 {
+                *seen = (head, std::time::Instant::now());
+            } else if seen.1.elapsed() > Duration::from_millis(300) {
+                return None;
+            }
+        }
+        spectrum::bands(&self.signals, rate)
     }
     pub fn flush_settings(&self) -> Result<()> {
         self.signals.paused.store(true, Ordering::Release);

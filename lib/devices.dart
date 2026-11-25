@@ -49,6 +49,62 @@ bool isPhoneOutput = false;
   return (parts.first.trim(), kind);
 }
 
+/// Output devices as the app sees them. One state for the player popover and
+/// Settings → Audio, so both always show the same device, volume and mute.
+class OutputDevices extends ChangeNotifier {
+  final LibraryScreenState app;
+  OutputDevices(this.app);
+  List<AudioDevice> devices = [];
+  bool searching = false, searched = false;
+  String? connecting, error;
+
+  /// Discovery only lists devices; it never switches the output.
+  Future<void> refresh() async {
+    if (searching) return;
+    searching = true;
+    error = null;
+    notifyListeners();
+    try {
+      devices = await app.player.devices();
+      searched = true;
+    } catch (_) {
+      error = 'Nie udało się wyszukać urządzeń';
+    } finally {
+      searching = false;
+      notifyListeners();
+    }
+  }
+
+  /// First visit of a view that lists devices.
+  void ensure() {
+    if (!searched && !searching) unawaited(refresh());
+  }
+
+  Future<void> choose(String id) async {
+    if (id == app.player.state.selectedDevice || connecting != null) return;
+    connecting = id;
+    error = null;
+    notifyListeners();
+    try {
+      await app.player.selectDevice(id);
+    } catch (e) {
+      error = '$e'.replaceFirst('Bad state: ', '');
+    } finally {
+      connecting = null;
+      notifyListeners();
+    }
+  }
+
+  Future<void> command(Map<String, dynamic> action) async {
+    try {
+      await app.player.command(action);
+    } catch (e) {
+      error = '$e'.replaceFirst('Bad state: ', '');
+      notifyListeners();
+    }
+  }
+}
+
 /// Desktop: popover above the player bar. Mobile: bottom sheet.
 Future<void> showDevicePicker(LibraryScreenState app, {Offset? at}) {
   isPhoneOutput = app.isPhone;
@@ -117,72 +173,41 @@ class DevicePanel extends StatefulWidget {
 }
 
 class _DevicePanelState extends State<DevicePanel> {
-  List<AudioDevice> devices = [];
-  bool searching = true;
-  String? connecting, error;
-  int _errorSerial = 0;
   final pin = TextEditingController();
+  int _errorSerial = 0;
 
   LibraryScreenState get app => widget.app;
+  OutputDevices get out => app.outputs;
 
   @override
   void initState() {
     super.initState();
     _errorSerial = app.player.state.errorSerial;
-    unawaited(refresh());
+    out.addListener(_changed);
+    // Looking for devices never changes the current output.
+    unawaited(out.refresh());
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    out.removeListener(_changed);
     pin.dispose();
     super.dispose();
-  }
-
-  Future<void> refresh() async {
-    setState(() {
-      searching = true;
-      error = null;
-    });
-    try {
-      final list = await app.player.devices();
-      if (mounted) setState(() => devices = list);
-    } catch (e) {
-      if (mounted) setState(() => error = 'Nie udało się wyszukać urządzeń');
-    } finally {
-      if (mounted) setState(() => searching = false);
-    }
-  }
-
-  Future<void> choose(String id) async {
-    setState(() {
-      connecting = id;
-      error = null;
-    });
-    try {
-      await app.player.selectDevice(id);
-    } catch (e) {
-      if (mounted) setState(() => error = '$e'.replaceFirst('Bad state: ', ''));
-    } finally {
-      if (mounted) setState(() => connecting = null);
-    }
-  }
-
-  Future<void> command(Map<String, dynamic> action) async {
-    try {
-      await app.player.command(action);
-    } catch (e) {
-      if (mounted) setState(() => error = '$e'.replaceFirst('Bad state: ', ''));
-    }
   }
 
   @override
   Widget build(BuildContext context) => PlayerListener(
     app: app,
     builder: (context, s) {
-      if (s.errorSerial != _errorSerial && s.error != null && connecting == null) {
+      if (s.errorSerial != _errorSerial && s.error != null && out.connecting == null) {
         _errorSerial = s.errorSerial;
-        error = s.error;
+        out.error = s.error;
       }
+      final devices = out.devices, searching = out.searching, connecting = out.connecting, error = out.error;
       final selected = s.selectedDevice;
       final all = [...devices];
       if (!all.any((d) => d.id == selected)) {
@@ -206,7 +231,7 @@ class _DevicePanelState extends State<DevicePanel> {
                   child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                 )
               else
-                IconAction(Icons.refresh_rounded, 'Odśwież', () => unawaited(refresh()), color: secondaryText, box: 40),
+                IconAction(Icons.refresh_rounded, 'Odśwież', () => unawaited(out.refresh()), color: secondaryText, box: 40),
             ],
           ),
           const SizedBox(height: Sp.s),
@@ -238,12 +263,12 @@ class _DevicePanelState extends State<DevicePanel> {
                     maxLength: 4,
                     autofocus: true,
                     decoration: const InputDecoration(hintText: 'PIN z ekranu odbiornika', counterText: ''),
-                    onSubmitted: (v) => unawaited(command({'action': 'pin', 'value': v.trim()})),
+                    onSubmitted: (v) => unawaited(out.command({'action': 'pin', 'value': v.trim()})),
                   ),
                 ),
                 const SizedBox(width: Sp.s),
                 FilledButton(
-                  onPressed: () => unawaited(command({'action': 'pin', 'value': pin.text.trim()})),
+                  onPressed: () => unawaited(out.command({'action': 'pin', 'value': pin.text.trim()})),
                   child: const Text('Połącz'),
                 ),
               ],
@@ -253,7 +278,7 @@ class _DevicePanelState extends State<DevicePanel> {
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
-                onPressed: () => unawaited(command({'action': 'receiverPower'})),
+                onPressed: () => unawaited(out.command({'action': 'receiverPower'})),
                 icon: const Icon(Icons.power_settings_new_rounded, size: 18),
                 label: const Text('Włącz amplituner'),
               ),
@@ -313,7 +338,7 @@ class _DevicePanelState extends State<DevicePanel> {
               device: d,
               active: false,
               status: connecting == d.id ? 'Łączenie…' : null,
-              onTap: connecting == null ? () => unawaited(choose(d.id)) : null,
+              onTap: connecting == null ? () => unawaited(out.choose(d.id)) : null,
             ),
           if (searching && others.isEmpty)
             const Padding(

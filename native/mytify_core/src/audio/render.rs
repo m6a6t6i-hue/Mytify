@@ -5,6 +5,8 @@ use std::sync::{
     Arc,
 };
 pub const BLOCK: usize = 512;
+/// Last mono samples sent to the output, read by the level display. Power of two.
+pub const SCOPE: usize = 4096;
 pub struct AudioBlock {
     pub samples: [Stereo; BLOCK],
     pub len: usize,
@@ -36,6 +38,9 @@ pub struct Signals {
     pub underrun_frames: AtomicU64,
     pub rendered_frames: AtomicU64,
     pub device_failed: AtomicBool,
+    /// Ring of rendered mono samples (f32 bits, before volume) and the count written so far.
+    pub scope: Box<[AtomicU32]>,
+    pub scope_head: AtomicU64,
 }
 impl Signals {
     pub fn new(volume: f32) -> Self {
@@ -50,6 +55,8 @@ impl Signals {
             underrun_frames: AtomicU64::new(0),
             rendered_frames: AtomicU64::new(0),
             device_failed: AtomicBool::new(false),
+            scope: (0..SCOPE).map(|_| AtomicU32::new(0)).collect(),
+            scope_head: AtomicU64::new(0),
         }
     }
 }
@@ -143,6 +150,7 @@ impl Renderer {
         let gain = f32::from_bits(self.signals.gain.load(Ordering::Relaxed));
         let mut last = None;
         let mut rendered = 0;
+        let mut head = self.signals.scope_head.load(Ordering::Relaxed);
         for target in output.chunks_exact_mut(channels) {
             loop {
                 if self
@@ -175,6 +183,9 @@ impl Renderer {
                     break;
                 }
                 let sample = block.samples[self.offset];
+                self.signals.scope[(head as usize) & (SCOPE - 1)]
+                    .store(((sample[0] + sample[1]) * 0.5).to_bits(), Ordering::Relaxed);
+                head += 1;
                 self.gain += (gain - self.gain).clamp(-self.step, self.step);
                 let gain = self.gain;
                 if channels == 1 {
@@ -192,6 +203,7 @@ impl Renderer {
                 break;
             }
         }
+        self.signals.scope_head.store(head, Ordering::Release);
         if let Some((track, position)) = last {
             self.signals.active.store(track, Ordering::Release);
             self.signals.position.store(position, Ordering::Release);

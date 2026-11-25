@@ -320,6 +320,9 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
                 app.network.state(serde_json::to_value(app.player.state())?),
             );
         }
+        if path == "/api/player/levels" && method == Method::Get {
+            return send_json(request, 200, json!({ "bands": app.player.levels() }));
+        }
         if path == "/api/player/devices" && method == Method::Get {
             return match app.player.devices() {
                 Ok(mut v) => {

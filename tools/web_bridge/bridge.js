@@ -107,7 +107,7 @@ window.mytifyBridge = {
   },
   async ingest(body) { const args=JSON.parse(body);return JSON.stringify(await api(args.action==='disc'?'/api/metadata/disc':'/api/ingest',{method:'POST',body:args})); },
   async audio(route,body) {
-    if(!['state','devices','command'].includes(route)) throw new Error('Nieznana operacja odtwarzania.');
+    if(!['state','devices','command','levels'].includes(route)) throw new Error('Nieznana operacja odtwarzania.');
     return JSON.stringify(await api('/api/player/'+route,route==='command'?{method:'POST',body:JSON.parse(body)}:{}));
   },
   async metadata(action,argsJson) {

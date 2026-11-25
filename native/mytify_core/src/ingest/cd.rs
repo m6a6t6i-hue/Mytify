@@ -57,7 +57,7 @@ pub fn parse_toc(drive: &str, b: &[u8]) -> Result<Toc> {
     }
     // Mixed-mode/CD-Extra lead-out needs session-aware TOC. Reject rather than silently truncate audio.
     if tracks.iter().any(|t| t.data) {
-        bail!("Płyta zawiera także dane. W 0.8 użyj płyty wyłącznie Audio CD; CD-Extra wymaga odczytu sesji.")
+        bail!("Płyta zawiera ścieżki z danymi (CD-Extra, CD-ROM lub DVD). Mytify importuje tylko płyty Audio CD.")
     };
     let mut ascii = format!("{first:02X}{last:02X}{:08X}", leadout + 150);
     for number in 1..=99 {
@@ -123,6 +123,54 @@ pub mod device {
             .filter(|s| unsafe { GetDriveTypeW(wide(&format!("{s}\\")).as_ptr()) } == 5)
             .collect()
     }
+    /// Vendor and model reported by the drive, e.g. "ASUS SDRW-08U9M-U". None if it does not answer.
+    pub fn name(id: &str) -> Option<String> {
+        let h = unsafe {
+            CreateFileW(
+                wide(&format!("\\\\.\\{id}")).as_ptr(),
+                0,
+                3,
+                ptr::null(),
+                3,
+                0,
+                ptr::null_mut(),
+            )
+        };
+        if h as isize == -1 {
+            return None;
+        }
+        let drive = Drive(h);
+        // STORAGE_PROPERTY_QUERY { StorageDeviceProperty, PropertyStandardQuery }
+        let query = [0u32; 3];
+        let mut b = [0u8; 1024];
+        let mut n = 0;
+        let ok = unsafe {
+            DeviceIoControl(
+                drive.0,
+                0x2D1400,
+                query.as_ptr().cast(),
+                std::mem::size_of_val(&query) as u32,
+                b.as_mut_ptr().cast(),
+                b.len() as u32,
+                &mut n,
+                ptr::null_mut(),
+            )
+        };
+        if ok == 0 || n < 20 {
+            return None;
+        }
+        let text = |at: usize| -> Option<String> {
+            let offset = u32::from_le_bytes(b[at..at + 4].try_into().ok()?) as usize;
+            if offset == 0 || offset >= n as usize {
+                return None;
+            }
+            let end = b[offset..n as usize].iter().position(|c| *c == 0)? + offset;
+            let s = String::from_utf8_lossy(&b[offset..end]).trim().to_string();
+            (!s.is_empty()).then_some(s)
+        };
+        let name = [text(12), text(16)].into_iter().flatten().collect::<Vec<_>>().join(" ");
+        (!name.is_empty()).then_some(name)
+    }
     pub struct Drive(*mut c_void);
     impl Drop for Drive {
         fn drop(&mut self) {
@@ -171,10 +219,12 @@ pub mod device {
                 )
             };
             if ok == 0 {
-                bail!(
-                    "Nie można odczytać płyty: {}",
-                    std::io::Error::last_os_error()
-                )
+                let e = std::io::Error::last_os_error();
+                // ERROR_NOT_READY: the tray is empty or the disc is still spinning up.
+                if e.raw_os_error() == Some(21) {
+                    bail!("Brak płyty w napędzie.")
+                }
+                bail!("Nie można odczytać płyty: {e}")
             };
             parse_toc(id, &b[..n as usize])
         }

@@ -213,6 +213,11 @@ abstract class LibraryRepository {
   Future<AudioSnapshot> audioState();
   Future<AudioSnapshot> audioCommand(Map<String, dynamic> action);
   Future<List<AudioDevice>> audioDevices();
+
+  /// Band levels in dBFS (low to high) of what the output is playing right now,
+  /// or null when the platform has no real signal to show.
+  Future<List<double>?> audioLevels() async => null;
+  bool get hasAudioLevels => false;
   Future<void> dispose() async {}
 
   /// Network protocols that really work here ("smb" ...). Empty means local music only.
@@ -354,3 +359,10 @@ String albumGroupingPart(String text) => text
     )
     .trim()
     .toLowerCase();
+
+/// `{"bands": [...]}` from the player, or null when there is nothing real to show.
+List<double>? levelsFrom(Object? json) {
+  final bands = json is Map ? json['bands'] : null;
+  if (bands is! List || bands.isEmpty) return null;
+  return [for (final b in bands) (b as num).toDouble()];
+}

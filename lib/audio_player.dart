@@ -10,6 +10,50 @@ class AudioStreams {
   const AudioStreams(this.playing, this.position, this.error, this.snapshot);
 }
 
+/// Real band levels for the seek bar display. Polled only while a visible,
+/// playing seek bar is attached; nothing is generated when the engine has no data.
+class LevelFeed {
+  static LevelFeed? current;
+  final Future<List<double>?> Function() read;
+  LevelFeed(this.read);
+
+  static const interval = Duration(milliseconds: 40);
+
+  /// Latest levels in dBFS, or null while the engine reports nothing real.
+  List<double>? bands;
+  int _users = 0;
+  Timer? _timer;
+
+  void attach() {
+    if (_users++ == 0) _schedule(Duration.zero);
+  }
+
+  void detach() {
+    if (_users == 0 || --_users > 0) return;
+    _timer?.cancel();
+    _timer = null;
+    bands = null;
+  }
+
+  void _schedule(Duration delay) {
+    _timer?.cancel();
+    _timer = Timer(delay, () => unawaited(_poll()));
+  }
+
+  Future<void> _poll() async {
+    List<double>? next;
+    try {
+      next = await read();
+    } catch (_) {
+      next = null;
+    }
+    if (_users == 0) return;
+    bands = next;
+    // Without data (paused, network receiver) only check now and then.
+    _schedule(next == null ? const Duration(milliseconds: 300) : interval);
+  }
+}
+
 /// Controls the one Rust-owned player. This client never decodes or plays audio.
 class NativeAudioPlayer {
   final LibraryRepository repository;
@@ -28,7 +72,13 @@ class NativeAudioPlayer {
   bool _polling = false, _disposed = false, _connectionFailed = false;
   int _generation = 0, _lastError = 0;
   Future<void> _commands = Future<void>.value();
-  NativeAudioPlayer(this.repository);
+  NativeAudioPlayer(this.repository) {
+    var levels = false;
+    try {
+      levels = repository.hasAudioLevels;
+    } catch (_) {}
+    LevelFeed.current = levels ? LevelFeed(repository.audioLevels) : null;
+  }
   Future<void> start() async {
     await _poll();
     if (!_disposed) {

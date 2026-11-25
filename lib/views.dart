@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'audio_settings.dart';
 import 'cover_tint.dart';
 import 'design.dart';
 import 'downloads_ui.dart';
+import 'ingest.dart';
 import 'library_index.dart';
 import 'links.dart';
 import 'main.dart';
@@ -31,7 +33,15 @@ Widget pageFor(LibraryScreenState app, Nav nav) {
     'album' => AlbumPage(app: app, albumKey: nav.arg!),
     'artist' => ArtistPage(app: app, artistKey: nav.arg!),
     'playlist' || 'liked' || 'recent' => CollectionPage(app: app, nav: nav),
+    'settings' when nav.arg == 'sources' => SourcesPage(app: app),
+    'settings' when nav.arg == 'import' && app.desktopMode && app.canDigitize => IngestView(state: app.ingest),
     'settings' => SettingsPage(app: app, section: nav.arg),
+    'sources' => SourcesPage(app: app),
+    'import' when app.canDigitize && !app.isPhone => IngestView(
+      state: app.ingest,
+      padding: app.desktopMode ? const EdgeInsets.fromLTRB(Sp.xl, Sp.xl, Sp.xl, Sp.xxl) : const EdgeInsets.all(Sp.l),
+    ),
+    'import' => SettingsPage(app: app, section: 'import'),
     'downloads' => DownloadsPage(app: app),
     'transfer' when app.canTransfer => app.transferScreen(),
     _ => HomePage(app: app),
@@ -48,6 +58,8 @@ String pageTitle(LibraryScreenState app, Nav nav) => switch (nav.page) {
   'recent' => 'Ostatnio dodane',
   'settings' => settingsTitle(nav.arg) ?? 'Ustawienia',
   'downloads' => 'Pobrane',
+  'sources' => 'Źródła muzyki',
+  'import' => 'Import',
   'transfer' => app.isPhone ? 'Z komputera' : 'Połącz telefon',
   _ => 'Start',
 };
@@ -1694,7 +1706,7 @@ class _SearchPageState extends State<SearchPage> {
 String? settingsTitle(String? section) => switch (section) {
   'sources' => 'Źródła muzyki',
   'import' => 'Import',
-  'audio' => 'Dźwięk i urządzenia',
+  'audio' => 'Audio',
   'look' => 'Wygląd',
   'phone' => 'Telefon i komputer',
   'about' => 'Informacje',
@@ -1706,14 +1718,30 @@ class SettingsPage extends StatelessWidget {
   final String? section;
   const SettingsPage({super.key, required this.app, this.section});
 
+  /// Desktop keeps sources and the phone link in the sidebar, so they are not repeated here.
   List<(String, IconData, String)> get sections => [
-    ('sources', Icons.folder_open_outlined, 'Źródła muzyki'),
-    ('import', Icons.add_circle_outline_rounded, 'Import'),
-    ('audio', Icons.speaker_group_outlined, 'Dźwięk i urządzenia'),
+    if (!app.desktopMode) ('sources', Icons.folder_open_outlined, 'Źródła muzyki'),
+    ('audio', Icons.volume_up_outlined, 'Audio'),
+    ('import', Icons.download_outlined, 'Import'),
     if (app.desktopMode) ('look', Icons.tune_rounded, 'Wygląd'),
-    if (app.canTransfer) ('phone', Icons.phonelink_rounded, app.isPhone ? 'Z komputera' : 'Połącz telefon'),
+    if (app.canTransfer && !app.desktopMode) ('phone', Icons.phonelink_rounded, app.isPhone ? 'Z komputera' : 'Połącz telefon'),
     ('about', Icons.info_outline_rounded, 'Informacje'),
   ];
+
+  /// One route per destination: sources and import are their own views.
+  void open(String key) {
+    if (key == 'sources') {
+      app.go(const Nav('sources'));
+    } else if (key == 'import' && app.canDigitize && !app.isPhone) {
+      app.go(const Nav('import'));
+    } else if (key == 'phone' && !app.desktopMode) {
+      app.go(const Nav('transfer'));
+    } else if (app.desktopMode) {
+      app.replaceRoute(Nav('settings', key));
+    } else {
+      app.go(Nav('settings', key));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1728,12 +1756,12 @@ class SettingsPage extends StatelessWidget {
               leading: Icon(icon),
               title: Text(label),
               trailing: const Icon(Icons.chevron_right_rounded, color: secondaryText),
-              onTap: () => key == 'phone' ? app.go(const Nav('transfer')) : app.go(Nav('settings', key)),
+              onTap: () => open(key),
             ),
         ],
       );
     }
-    final current = section ?? 'sources';
+    final current = section ?? 'audio';
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1754,7 +1782,7 @@ class SettingsPage extends StatelessWidget {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.control)),
                     leading: Icon(icon, size: 20),
                     title: Text(label, style: const TextStyle(fontSize: 13.5)),
-                    onTap: () => app.replaceRoute(Nav('settings', key)),
+                    onTap: () => open(key),
                   ),
                 ),
             ],
@@ -1768,8 +1796,8 @@ class SettingsPage extends StatelessWidget {
                   key: PageStorageKey('settings:$current'),
                   padding: const EdgeInsets.fromLTRB(Sp.xxl, Sp.xl, Sp.xxl, Sp.xxl),
                   children: [
-                    Text(settingsTitle(current) ?? '', style: Txt.title),
-                    const SizedBox(height: Sp.l),
+                    Text(settingsTitle(current) ?? '', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -.5)),
+                    const SizedBox(height: Sp.xl),
                     ..._content(context, current),
                   ],
                 ),
@@ -1779,9 +1807,9 @@ class SettingsPage extends StatelessWidget {
   }
 
   List<Widget> _content(BuildContext context, String s) => switch (s) {
-    'sources' => _sources(),
+    'sources' => [SourcesList(app: app)],
     'import' => _import(),
-    'audio' => _audio(),
+    'audio' => [AudioSettingsView(app: app)],
     'look' => _look(),
     'phone' => [SizedBox(height: 600, child: app.transferScreen())],
     _ => _about(),
@@ -1797,13 +1825,140 @@ class SettingsPage extends StatelessWidget {
     onTap: onTap,
   );
 
-  List<Widget> _sources() => [
+  List<Widget> _import() => [
+    const Text('Muzyka na urządzeniu', style: Txt.meta),
+    _row('Dodaj folder', null, icon: Icons.create_new_folder_outlined, onTap: app.importing ? null : () => unawaited(app.importMusic(true))),
+    _row('Dodaj pliki', null, icon: Icons.audio_file_outlined, onTap: app.importing ? null : () => unawaited(app.importMusic(false))),
+    if (app.canDigitize && !app.isPhone) ...[
+      const SizedBox(height: Sp.l),
+      const Text('Digitalizacja', style: Txt.meta),
+      _row('Audio CD', 'Odczyt cyfrowy, dane albumu, FLAC', icon: Icons.album_outlined, onTap: () => app.openIngest(true)),
+      _row('Winyl i kaseta', 'Nagranie, podział i opis utworów', icon: Icons.radio_outlined, onTap: () => app.openIngest(false)),
+    ],
+    if (!app.isPhone) ...[
+      const SizedBox(height: Sp.l),
+      const Text('Zaawansowane', style: Txt.meta),
+      _row('Przenieś bibliotekę z wersji 0.1', null, icon: Icons.move_to_inbox_outlined, onTap: app.importing ? null : () => unawaited(app.migrateLegacy())),
+    ],
+    if (app.lastImport != null)
+      _row('Ostatni wynik importu', null, icon: Icons.receipt_long_outlined, onTap: () => unawaited(app.showImportReport(app.lastImport!))),
+    const SizedBox(height: Sp.l),
+    Text(
+      app.isPhone
+          ? 'MP3, FLAC, WAV, AAC, OGG, OPUS. Import nie zmienia plików.'
+          : 'MP3, FLAC, WAV, M4A, OGG. Import nie zmienia plików.',
+      style: Txt.meta,
+    ),
+  ];
+
+  List<Widget> _look() => [
+    const Text('Rozmiar okładek w siatce', style: Txt.meta),
+    Slider(
+      value: app.prefs.number('coverSize', 184).clamp(140, 240).toDouble(),
+      min: 140,
+      max: 240,
+      divisions: 10,
+      label: '${app.prefs.number('coverSize', 184).round()}',
+      onChanged: (v) => app.refresh(() => app.prefs.set('coverSize', v)),
+    ),
+    SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Kompaktowa tabela utworów', style: TextStyle(fontSize: 14.5)),
+      subtitle: const Text('Niższe wiersze, bez okładek. Kolumny wybierzesz prawym przyciskiem na nagłówku tabeli.', style: Txt.meta),
+      value: compactTable(app.prefs),
+      onChanged: (v) => app.refresh(() => app.prefs.set('density', v ? 'compact' : 'normal')),
+    ),
+    SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Zwinięty panel boczny', style: TextStyle(fontSize: 14.5)),
+      value: app.prefs.get('sidebarCollapsed', false),
+      onChanged: (v) => app.refresh(() => app.prefs.set('sidebarCollapsed', v)),
+    ),
+  ];
+
+  List<Widget> _about() => [
+    _row('Mytify', 'Wersja 0.18', icon: Icons.info_outline_rounded),
+    _row('Autor', 'Mateusz Kanik', icon: Icons.person_outline_rounded),
+    _row(
+      'Strona',
+      'kanik.dev',
+      icon: Icons.language_rounded,
+      trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: secondaryText),
+      onTap: () => unawaited(openLink('https://kanik.dev').catchError((_) => app.message('Nie można otworzyć strony.'))),
+    ),
+    _row('Biblioteka', '${trackCount(app.tracks.length)} · ${albumCount(app.index.albums.length)}', icon: Icons.library_music_outlined),
+    _row('Skróty klawiaturowe', null, icon: Icons.keyboard_outlined, onTap: app.desktopMode ? () => showShortcuts(app.context) : null),
+  ];
+}
+
+void showShortcuts(BuildContext context) => showDialog<void>(
+  context: context,
+  builder: (context) => AlertDialog(
+    title: const Text('Skróty klawiaturowe', style: Txt.title),
+    content: SizedBox(
+      width: 420,
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            for (final (k, v) in const [
+              ('Spacja', 'Odtwórz / wstrzymaj'),
+              ('Ctrl + → / ←', 'Następny / poprzedni utwór'),
+              ('Ctrl + ↑ / ↓', 'Głośniej / ciszej'),
+              ('Ctrl + F', 'Szukaj'),
+              ('Ctrl + O', 'Dodaj pliki'),
+              ('Ctrl + Shift + O', 'Dodaj folder'),
+              ('Ctrl + L', 'Polub bieżący utwór'),
+              ('Ctrl + N', 'Nowa playlista'),
+              ('Ctrl + ,', 'Ustawienia'),
+              ('Ctrl + A', 'Zaznacz wszystkie utwory'),
+              ('Enter', 'Odtwórz zaznaczony utwór'),
+              ('Delete', 'Usuń zaznaczone'),
+              ('F11', 'Pełny ekran odtwarzacza'),
+              ('Alt + ← / →', 'Wstecz / dalej'),
+              ('Esc', 'Zamknij panel lub okno'),
+            ])
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(children: [SizedBox(width: 170, child: Text(k, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))), Expanded(child: Text(v, style: Txt.sub))]),
+              ),
+          ],
+        ),
+      ),
+    ),
+    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Zamknij'))],
+  ),
+);
+
+/// "Źródła muzyki": browsing and managing sources. "Dodaj źródło" creates one.
+class SourcesPage extends StatelessWidget {
+  final LibraryScreenState app;
+  const SourcesPage({super.key, required this.app});
+  @override
+  Widget build(BuildContext context) => ListView(
+    key: const PageStorageKey('sources'),
+    padding: app.desktopMode ? const EdgeInsets.fromLTRB(Sp.xl, Sp.xl, Sp.xl, Sp.xxl) : const EdgeInsets.all(Sp.l),
+    children: [
+      if (app.desktopMode) const Padding(padding: EdgeInsets.only(bottom: Sp.l), child: Text('Źródła muzyki', style: Txt.display)),
+      SourcesList(app: app),
+    ],
+  );
+}
+
+class SourcesList extends StatelessWidget {
+  final LibraryScreenState app;
+  const SourcesList({super.key, required this.app});
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _items());
+
+  List<Widget> _items() => [
     Wrap(
       spacing: Sp.s,
       runSpacing: Sp.s,
       children: [
         Builder(
           builder: (context) => FilledButton.icon(
+            style: Ctl.filled,
             onPressed: app.importing
                 ? null
                 : () {
@@ -1815,6 +1970,7 @@ class SettingsPage extends StatelessWidget {
           ),
         ),
         OutlinedButton.icon(
+          style: Ctl.outlined,
           onPressed: app.importing || app.librarySources.isEmpty ? null : () => unawaited(app.scanSources()),
           icon: const Icon(Icons.refresh_rounded, size: 18),
           label: const Text('Skanuj wszystkie'),
@@ -1834,6 +1990,21 @@ class SettingsPage extends StatelessWidget {
         subtitle: const Text('Kopie offline, kolejka pobierania, zajęte miejsce', style: Txt.meta),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => app.go(const Nav('downloads')),
+      ),
+    if (app.lastImport != null || !app.isPhone) const SectionTitle('Więcej'),
+    if (app.lastImport != null)
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.receipt_long_outlined, color: secondaryText),
+        title: const Text('Ostatni wynik importu'),
+        onTap: () => unawaited(app.showImportReport(app.lastImport!)),
+      ),
+    if (!app.isPhone)
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.move_to_inbox_outlined, color: secondaryText),
+        title: const Text('Przenieś bibliotekę z wersji 0.1'),
+        onTap: app.importing ? null : () => unawaited(app.migrateLegacy()),
       ),
   ];
 
@@ -1910,143 +2081,4 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  List<Widget> _import() => [
-    const Text('Muzyka na urządzeniu', style: Txt.meta),
-    _row('Dodaj folder', null, icon: Icons.create_new_folder_outlined, onTap: app.importing ? null : () => unawaited(app.importMusic(true))),
-    _row('Dodaj pliki', null, icon: Icons.audio_file_outlined, onTap: app.importing ? null : () => unawaited(app.importMusic(false))),
-    if (app.canDigitize && !app.isPhone) ...[
-      const SizedBox(height: Sp.l),
-      const Text('Digitalizacja', style: Txt.meta),
-      _row('Importuj Audio CD', 'Odczyt cyfrowy, dane albumu, FLAC', icon: Icons.album_outlined, onTap: app.importing ? null : () => unawaited(app.openIngest(true))),
-      _row('Nagraj winyl lub kasetę', 'Nagranie, podział i opis utworów', icon: Icons.radio_outlined, onTap: app.importing ? null : () => unawaited(app.openIngest(false))),
-    ],
-    if (!app.isPhone) ...[
-      const SizedBox(height: Sp.l),
-      const Text('Zaawansowane', style: Txt.meta),
-      _row('Przenieś bibliotekę z wersji 0.1', null, icon: Icons.move_to_inbox_outlined, onTap: app.importing ? null : () => unawaited(app.migrateLegacy())),
-    ],
-    if (app.lastImport != null)
-      _row('Ostatni wynik importu', null, icon: Icons.receipt_long_outlined, onTap: () => unawaited(app.showImportReport(app.lastImport!))),
-    const SizedBox(height: Sp.l),
-    Text(
-      app.isPhone
-          ? 'MP3, FLAC, WAV, AAC, OGG, OPUS. Import nie zmienia plików.'
-          : 'MP3, FLAC, WAV, M4A, OGG. Import nie zmienia plików.',
-      style: Txt.meta,
-    ),
-  ];
-
-  List<Widget> _audio() {
-    final s = app.player.state;
-    final out = s.output;
-    return [
-      _row(
-        'Urządzenie odtwarzania',
-        out?['name']?.toString() ?? (app.isPhone ? 'Ten telefon' : 'Ten komputer'),
-        icon: Icons.speaker_group_outlined,
-        trailing: const Icon(Icons.chevron_right_rounded, color: secondaryText),
-        onTap: app.showDevices,
-      ),
-      _row(
-        'Diagnostyka',
-        'Parametry wyjścia, źródła i bufora, protokoły sieciowe',
-        icon: Icons.monitor_heart_outlined,
-        trailing: const Icon(Icons.chevron_right_rounded, color: secondaryText),
-        onTap: app.showAudioDiagnostics,
-      ),
-      if (out != null) ...[
-        const SizedBox(height: Sp.l),
-        const Text('Szczegóły wyjścia', style: Txt.meta),
-        const SizedBox(height: Sp.s),
-        for (final (k, v) in [
-          ('Silnik', out['backend']?.toString()),
-          ('Częstotliwość', (out['sampleRate'] as num? ?? 0) > 0 ? sampleRateLabel((out['sampleRate'] as num).toInt()) : null),
-          ('Format próbek', out['sampleFormat']?.toString()),
-          ('Kanały', (out['channels'] as num? ?? 0) > 0 ? '${out['channels']}' : null),
-        ])
-          if (v != null && v.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(children: [SizedBox(width: 160, child: Text(k, style: Txt.meta)), Expanded(child: Text(v, style: const TextStyle(fontSize: 13)))]),
-            ),
-      ],
-    ];
-  }
-
-  List<Widget> _look() => [
-    const Text('Rozmiar okładek w siatce', style: Txt.meta),
-    Slider(
-      value: app.prefs.number('coverSize', 184).clamp(140, 240).toDouble(),
-      min: 140,
-      max: 240,
-      divisions: 10,
-      label: '${app.prefs.number('coverSize', 184).round()}',
-      onChanged: (v) => app.refresh(() => app.prefs.set('coverSize', v)),
-    ),
-    SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      title: const Text('Kompaktowa tabela utworów', style: TextStyle(fontSize: 14.5)),
-      subtitle: const Text('Niższe wiersze, bez okładek. Kolumny wybierzesz prawym przyciskiem na nagłówku tabeli.', style: Txt.meta),
-      value: compactTable(app.prefs),
-      onChanged: (v) => app.refresh(() => app.prefs.set('density', v ? 'compact' : 'normal')),
-    ),
-    SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      title: const Text('Zwinięty panel boczny', style: TextStyle(fontSize: 14.5)),
-      value: app.prefs.get('sidebarCollapsed', false),
-      onChanged: (v) => app.refresh(() => app.prefs.set('sidebarCollapsed', v)),
-    ),
-  ];
-
-  List<Widget> _about() => [
-    _row('Mytify', 'Wersja 0.17', icon: Icons.info_outline_rounded),
-    _row('Autor', 'Mateusz Kanik', icon: Icons.person_outline_rounded),
-    _row(
-      'Strona',
-      'kanik.dev',
-      icon: Icons.language_rounded,
-      trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: secondaryText),
-      onTap: () => unawaited(openLink('https://kanik.dev').catchError((_) => app.message('Nie można otworzyć strony.'))),
-    ),
-    _row('Biblioteka', '${trackCount(app.tracks.length)} · ${albumCount(app.index.albums.length)}', icon: Icons.library_music_outlined),
-    _row('Skróty klawiaturowe', null, icon: Icons.keyboard_outlined, onTap: app.desktopMode ? () => showShortcuts(app.context) : null),
-  ];
 }
-
-void showShortcuts(BuildContext context) => showDialog<void>(
-  context: context,
-  builder: (context) => AlertDialog(
-    title: const Text('Skróty klawiaturowe', style: Txt.title),
-    content: SizedBox(
-      width: 420,
-      child: SingleChildScrollView(
-        child: Column(
-          children: [
-            for (final (k, v) in const [
-              ('Spacja', 'Odtwórz / wstrzymaj'),
-              ('Ctrl + → / ←', 'Następny / poprzedni utwór'),
-              ('Ctrl + ↑ / ↓', 'Głośniej / ciszej'),
-              ('Ctrl + F', 'Szukaj'),
-              ('Ctrl + O', 'Dodaj pliki'),
-              ('Ctrl + Shift + O', 'Dodaj folder'),
-              ('Ctrl + L', 'Polub bieżący utwór'),
-              ('Ctrl + N', 'Nowa playlista'),
-              ('Ctrl + ,', 'Ustawienia'),
-              ('Ctrl + A', 'Zaznacz wszystkie utwory'),
-              ('Enter', 'Odtwórz zaznaczony utwór'),
-              ('Delete', 'Usuń zaznaczone'),
-              ('F11', 'Pełny ekran odtwarzacza'),
-              ('Alt + ← / →', 'Wstecz / dalej'),
-              ('Esc', 'Zamknij panel lub okno'),
-            ])
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(children: [SizedBox(width: 170, child: Text(k, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))), Expanded(child: Text(v, style: Txt.sub))]),
-              ),
-          ],
-        ),
-      ),
-    ),
-    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Zamknij'))],
-  ),
-);

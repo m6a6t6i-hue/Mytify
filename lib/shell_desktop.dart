@@ -120,11 +120,24 @@ class _DesktopShellState extends State<DesktopShell> {
   double get width => MediaQuery.sizeOf(context).width;
   bool get collapsed =>
       app.prefs.get<bool>('sidebarCollapsed', false) || width < 1000;
-  bool get panelOpen =>
-      app.prefs.get<bool>('panel.open', width >= 1400) && width >= 1100;
+  /// Settings, sources and import hide the right panel by default. Opening it
+  /// there lasts until leaving; the remembered library state is never touched.
+  bool get _utility => const {'settings', 'sources', 'import', 'downloads'}.contains(app.route.page);
+  bool _utilityPanel = false;
+  String? _utilityRoute;
+  bool get panelOpen {
+    if (width < 1100) return false;
+    if (_utility) return _utilityPanel;
+    return app.prefs.get<bool>('panel.open', width >= 1400);
+  }
+
   String get panelTab => app.prefs.get<String>('panel.tab', 'now');
   void setPanel(bool open, [String? tab]) => app.refresh(() {
-    app.prefs.set('panel.open', open);
+    if (_utility) {
+      _utilityPanel = open;
+    } else {
+      app.prefs.set('panel.open', open);
+    }
     if (tab != null) app.prefs.set('panel.tab', tab);
   });
 
@@ -150,6 +163,10 @@ class _DesktopShellState extends State<DesktopShell> {
         : (_dragSidebar ?? app.prefs.number('sidebar.w', 240)).clamp(200.0, 320.0);
     final panelW = (_dragPanel ?? app.prefs.number('panel.w', 320)).clamp(280.0, 420.0);
     final route = app.route;
+    if (_utilityRoute != route.page) {
+      _utilityRoute = route.page;
+      _utilityPanel = false;
+    }
     return Scaffold(
       backgroundColor: background,
       body: Listener(
@@ -301,6 +318,7 @@ class Toolbar extends StatelessWidget {
           ),
           const Spacer(),
           if (app.importing) ImportStatus(app: app, compact: true),
+          IngestStatus(app: app),
           Builder(
             builder: (context) => IconAction(
               Icons.add_rounded,
@@ -490,43 +508,10 @@ class Sidebar extends StatelessWidget {
           const Divider(height: 1, color: softBorder),
           const SizedBox(height: Sp.xs),
           if (app.importing && !collapsed) ImportStatus(app: app),
-          Builder(
-            builder: (context) {
-              final tile = Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(Rad.control),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(Rad.control),
-                  onTap: () {
-                    final box = context.findRenderObject() as RenderBox?;
-                    app.showAddMusic(at: box?.localToGlobal(box.size.topLeft(const Offset(8, -8))));
-                  },
-                  child: SizedBox(
-                    height: 38,
-                    child: Row(
-                      mainAxisAlignment: collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
-                      children: [
-                        if (!collapsed) const SizedBox(width: Sp.m),
-                        const Icon(Icons.add_circle_outline_rounded, size: 21, color: secondaryText),
-                        if (!collapsed) ...[
-                          const SizedBox(width: Sp.m),
-                          const Text('Dodaj źródło', style: TextStyle(fontSize: 13.5, color: secondaryText, fontWeight: FontWeight.w500)),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              );
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Sp.s, vertical: 1),
-                child: collapsed ? Tooltip(message: 'Dodaj źródło', child: tile) : tile,
-              );
-            },
-          ),
-          _item(Icons.folder_open_outlined, Icons.folder_rounded, 'Źródła muzyki', const Nav('settings', 'sources')),
+          _item(Icons.folder_open_outlined, Icons.folder_rounded, 'Źródła muzyki', const Nav('sources'), active: _active('sources') || _active('settings', 'sources') || _active('downloads')),
           if (app.canTransfer)
             _item(Icons.phonelink_rounded, Icons.phonelink_rounded, 'Połącz telefon', const Nav('settings', 'phone')),
-          _item(Icons.settings_outlined, Icons.settings_rounded, 'Ustawienia', const Nav('settings'), active: _active('settings') && !_active('settings', 'sources') && !_active('settings', 'phone')),
+          _item(Icons.settings_outlined, Icons.settings_rounded, 'Ustawienia', const Nav('settings'), active: (_active('settings') && !_active('settings', 'sources') && !_active('settings', 'phone')) || _active('import')),
           const SizedBox(height: Sp.s),
         ],
       ),
@@ -586,6 +571,47 @@ class _PlaylistItem extends StatelessWidget {
           ),
         );
         return collapsed ? Tooltip(message: p.name, child: tile) : tile;
+      },
+    );
+  }
+}
+
+/// Running CD import, level check, recording or export, visible from any view.
+class IngestStatus extends StatelessWidget {
+  final LibraryScreenState app;
+  const IngestStatus({super.key, required this.app});
+  @override
+  Widget build(BuildContext context) {
+    if (!app.canDigitize || app.isPhone) return const SizedBox.shrink();
+    final s = app.ingest;
+    return ListenableBuilder(
+      listenable: s,
+      builder: (context, _) {
+        if (!s.running || app.route.page == 'import') return const SizedBox.shrink();
+        final done = (s.status['done'] as num? ?? 0).toDouble();
+        final total = (s.status['total'] as num? ?? 0).toDouble();
+        final frames = (s.status['frames'] as num? ?? 0).toDouble();
+        final rate = (s.status['rate'] as num? ?? 0).toDouble();
+        final label = s.recording
+            ? 'Nagrywanie ${clock(rate > 0 ? (frames * 1000 / rate).round() : 0)}'
+            : s.monitoring
+            ? 'Podgląd poziomu'
+            : s.ripping
+            ? 'Import CD${total > 0 ? ' ${(done * 100 / total).clamp(0, 100).round()}%' : ''}'
+            : s.exporting
+            ? 'Eksport ${done.round()} z ${total.round()}'
+            : 'Import';
+        return Padding(
+          padding: const EdgeInsets.only(right: Sp.s),
+          child: TextButton.icon(
+            style: Ctl.text,
+            onPressed: () => app.go(const Nav('import')),
+            icon: s.recording
+                ? const Icon(Icons.fiber_manual_record, size: 12, color: Color(0xffff5252))
+                : const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+            label: Text(label, style: const TextStyle(fontSize: 13, fontFeatures: [FontFeature.tabularFigures()])),
+          ),
+        );
       },
     );
   }

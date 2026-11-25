@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'cover_widget.dart';
+import 'audio_player.dart';
 import 'design.dart';
 import 'library_index.dart';
 import 'model.dart';
@@ -444,22 +446,23 @@ class SeekBar extends StatefulWidget {
   State<SeekBar> createState() => _SeekBarState();
 }
 
-class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
+class _SeekBarState extends State<SeekBar>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   double? dragging, hover;
   final _EqMotion eq = _EqMotion();
   late final ticker = createTicker(_tick);
   Duration last = Duration.zero;
-  bool reduced = false;
+  bool reduced = false, resumed = true;
+  LevelFeed? _feed;
 
   bool get _live => !widget.thin && widget.duration > Duration.zero;
+  VisualizerStyle get _style => widget.compact ? VisualizerStyle.compact : VisualizerStyle.regular;
 
   @override
   void initState() {
     super.initState();
-    eq
-      ..seed = widget.seed
-      ..amp = widget.playing && _live ? 1 : 0
-      ..settle();
+    WidgetsBinding.instance.addObserver(this);
+    eq.spin = widget.playing && _live ? 1 : 0;
   }
 
   @override
@@ -472,21 +475,36 @@ class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
   @override
   void didUpdateWidget(SeekBar old) {
     super.didUpdateWidget(old);
-    eq.seed = widget.seed;
     _sync();
   }
 
-  /// Runs only while playing or while the bars are still fading to the line.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    resumed = state == AppLifecycleState.resumed;
+    _sync();
+  }
+
+  /// Runs only while playing or while the picture is still fading out. Minimised,
+  /// hidden or reduced motion: no ticker and no polling, a static line instead.
   void _sync() {
     final playing = widget.playing && _live;
-    if (reduced) {
+    final allowed = _live && resumed && !reduced;
+    final wanted = playing && allowed;
+    if (wanted && _feed == null) {
+      _feed = LevelFeed.current?..attach();
+    } else if (!wanted && _feed != null) {
+      _feed!.detach();
+      _feed = null;
+    }
+    if (!allowed) {
       if (ticker.isActive) ticker.stop();
       eq
-        ..amp = playing ? 1 : 0
-        ..settle();
+        ..amp = 0
+        ..spin = reduced ? 0 : eq.spin
+        ..changed();
       return;
     }
-    if ((playing || eq.amp > 0) && _live) {
+    if (wanted || eq.amp > 0 || eq.spin > 0) {
       if (!ticker.isActive) {
         last = Duration.zero;
         ticker.start();
@@ -499,12 +517,15 @@ class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
   void _tick(Duration elapsed) {
     final dt = ((elapsed - last).inMicroseconds / 1e6).clamp(0.0, .1);
     last = elapsed;
-    eq.step(dt, widget.playing && _live);
-    if (!widget.playing && eq.amp <= 0) ticker.stop();
+    final playing = widget.playing && _live;
+    eq.step(dt, playing, playing ? _feed?.bands : null, _style);
+    if (!playing && eq.amp <= 0 && eq.spin <= 0) ticker.stop();
   }
 
   @override
   void dispose() {
+    _feed?.detach();
+    WidgetsBinding.instance.removeObserver(this);
     ticker.dispose();
     eq.dispose();
     super.dispose();
@@ -570,6 +591,7 @@ class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
                       color: enabled ? color : secondaryText,
                       thumb: _thumb,
                       compact: widget.compact,
+                      style: _style,
                     ),
                   ),
                 ),
@@ -669,81 +691,108 @@ class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
   }
 }
 
-double _hash(int seed, int x, int y) {
-  var h = (seed * 0x27d4eb2d) ^ (x * 0x165667b1) ^ (y * 0x2f6b4c3d);
-  h = (h ^ (h >> 15)) * 0x85ebca6b & 0xffffffff;
-  h = (h ^ (h >> 13)) * 0xc2b2ae35 & 0xffffffff;
-  h ^= h >> 16;
-  return (h & 0xffffff) / 0x1000000;
+/// Look and timing of the equalizer drawn in the seek bar. One definition for
+/// PC and Android; [regular] and [compact] differ only in size.
+class VisualizerStyle {
+  /// Bar thickness, distance between bars and full bar height, in logical pixels.
+  final double barWidth, step, maxHeight;
+
+  /// Outer part of each half of a bar that fades to transparent at the tip.
+  final double tipFade;
+
+  /// Part of the whole seek bar width faded at both ends of the bars.
+  final double edgeFade;
+
+  /// Opacity of a bar's solid middle.
+  final double opacity;
+
+  /// Rise time constant, full-height fall time, and the fade on play and pause.
+  final Duration attack, decay, fade;
+
+  /// Loudness range shown, in dB below the running peak of the music.
+  final double range;
+
+  const VisualizerStyle({
+    required this.barWidth,
+    required this.step,
+    required this.maxHeight,
+    this.tipFade = .38,
+    this.edgeFade = .10,
+    this.opacity = .95,
+    this.attack = const Duration(milliseconds: 30),
+    this.decay = const Duration(milliseconds: 380),
+    this.fade = const Duration(milliseconds: 200),
+    this.range = 36,
+  });
+
+  // 80% of the previous 2.8 / 2.2 px bars.
+  static const regular = VisualizerStyle(barWidth: 2.24, step: 5.5, maxHeight: 26);
+  static const compact = VisualizerStyle(barWidth: 1.76, step: 4.5, maxHeight: 18);
 }
 
-/// Smooth 2D value noise: not periodic, so the bars never repeat a cycle.
-double _noise(int seed, double x, double y) {
-  final xi = x.floor(), yi = y.floor();
-  final fx = x - xi, fy = y - yi;
-  final u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
-  final a = _hash(seed, xi, yi), b = _hash(seed, xi + 1, yi);
-  final c = _hash(seed, xi, yi + 1), d = _hash(seed, xi + 1, yi + 1);
-  return (a + (b - a) * u) + ((c + (d - c) * u) - (a + (b - a) * u)) * v;
-}
-
-/// Live state of the decorative equalizer. Bars behave like a level meter:
-/// a beat with uneven accents, noisy bands, fast attack and slow release.
-/// It is driven by the clock, not by the audio signal.
+/// State of the seek bar equalizer. Heights come only from real band levels of
+/// the output ([LevelFeed]); without them the bar is a plain static progress line.
 class _EqMotion extends ChangeNotifier {
-  static const _max = 360;
-  final List<double> levels = List.filled(_max, 0);
-  double time = 0, amp = 0, angle = 0;
-  int seed = 0, bars = 160;
+  /// Displayed band heights 0..1, low to high frequency.
+  List<double> levels = const [];
 
-  double _target(int i) {
-    final t = time;
-    final x = i.toDouble();
-    final body = .55 * _noise(seed, x / 7, t * 1.1) +
-        .30 * _noise(seed + 1, x / 2.6, t * 2.7) +
-        .15 * _noise(seed + 2, x * .9, t * 6.3);
-    final shape = math.pow(body, 1.5).toDouble();
-    final bpm = 92 + 44 * _hash(seed, 7, 7);
-    final period = 60 / bpm;
-    final beat = (t / period).floor();
-    final since = t - beat * period;
-    final roll = _hash(seed, beat, 3);
-    final accent = roll < .14 ? .15 : .45 + .55 * roll;
-    final pulse = accent * math.exp(-since / .16);
-    final reach = _noise(seed + 3, x / 16, t * .35);
-    return (.06 + .62 * shape + .48 * pulse * (.35 + .65 * reach)).clamp(0.0, 1.0);
-  }
+  /// Visibility of the bars (0 = progress line only) and record rotation speed.
+  double amp = 0, spin = 0, angle = 0;
 
-  void settle() {
-    for (var i = 0; i < _max; i++) {
-      levels[i] = _target(i);
+  /// Running peak in dB, so quiet and loud recordings both fill the bar.
+  double peak = -40;
+
+  void changed() => notifyListeners();
+
+  void step(double dt, bool playing, List<double>? bands, VisualizerStyle style) {
+    final fade = style.fade.inMicroseconds / 1e6;
+    final hasData = bands != null && bands.isNotEmpty;
+    amp = (amp + (playing && hasData ? dt : -dt) / fade).clamp(0.0, 1.0);
+    // 33 1/3 rpm, slowing down like a turntable when paused.
+    spin = (spin + (playing ? dt : -dt) / .45).clamp(0.0, 1.0);
+    angle += dt * 3.49 * spin * spin * (3 - 2 * spin);
+    if (bands != null && bands.isNotEmpty) {
+      if (levels.length != bands.length) levels = List.filled(bands.length, 0.0);
+      final loudest = bands.reduce((a, b) => a > b ? a : b);
+      peak = loudest > peak ? loudest : math.max(-40.0, peak - dt * 4);
+      final floor = peak - style.range;
+      final rise = 1 - math.exp(-dt * 1e6 / style.attack.inMicroseconds);
+      final fall = dt * 1e6 / style.decay.inMicroseconds;
+      for (var i = 0; i < bands.length; i++) {
+        final x = ((bands[i] - floor) / style.range).clamp(0.0, 1.0);
+        final target = math.pow(x, 1.6).toDouble();
+        final cur = levels[i];
+        levels[i] = target > cur ? cur + (target - cur) * rise : math.max(target, cur - fall);
+      }
     }
+    // Paused or no data: the last picture only fades, it is not updated.
     notifyListeners();
   }
 
-  void step(double dt, bool playing) {
-    time += dt;
-    amp = (amp + (playing ? dt : -dt) / .45).clamp(0.0, 1.0);
-    final eased = amp * amp * (3 - 2 * amp);
-    // 33 1/3 rpm, slowing down with the fade like a turntable.
-    angle += dt * 3.49 * eased;
-    final rise = 1 - math.exp(-dt * 28), fall = 1 - math.exp(-dt * 7);
-    final n = math.min(bars, _max);
-    for (var i = 0; i < n; i++) {
-      final target = _target(i);
-      final cur = levels[i];
-      levels[i] = cur + (target - cur) * (target > cur ? rise : fall);
-    }
-    notifyListeners();
+  /// Height 0..1 at [t] (0 = left end, 1 = thumb), smooth between bands.
+  double at(double t) {
+    if (levels.isEmpty) return 0;
+    final p = t.clamp(0.0, 1.0) * (levels.length - 1);
+    final i = p.floor(), f = p - i;
+    final a = levels[i], b = levels[math.min(i + 1, levels.length - 1)];
+    final w = (1 - math.cos(f * math.pi)) / 2;
+    return a + (b - a) * w;
   }
 }
 
-/// Equalizer bars, remaining line and the record thumb.
+double _smooth(double edge, double x) {
+  if (edge <= 0) return 1;
+  final t = (x / edge).clamp(0.0, 1.0);
+  return t * t * (3 - 2 * t);
+}
+
+/// Equalizer bars or progress line, remaining line and the record thumb.
 class _WavePainter extends CustomPainter {
   final _EqMotion eq;
   final double value, thumb;
   final bool known, active, compact;
   final Color color;
+  final VisualizerStyle style;
   _WavePainter({
     required this.eq,
     required this.value,
@@ -752,6 +801,7 @@ class _WavePainter extends CustomPainter {
     required this.color,
     required this.thumb,
     required this.compact,
+    required this.style,
   }) : super(repaint: eq);
 
   @override
@@ -772,26 +822,37 @@ class _WavePainter extends CustomPainter {
       canvas.drawLine(Offset(x, cy), Offset(size.width - line / 2, cy), rest);
     }
 
-    // Played part: a green line that grows into equalizer bars while playing.
+    // Played part: the progress line while paused or without audio data,
+    // cross-fading into bars while playing. No line runs through the bars.
     final amp = eq.amp * eq.amp * (3 - 2 * eq.amp);
     final end = x - r - 3;
     if (end > line / 2) {
-      final paint = Paint()
-        ..color = color
-        ..strokeCap = StrokeCap.round;
-      final spine = line + (1.6 - line) * amp;
-      canvas.drawLine(Offset(line / 2, cy), Offset(end, cy), paint..strokeWidth = spine);
+      if (amp < 1) {
+        canvas.drawLine(
+          Offset(line / 2, cy),
+          Offset(end, cy),
+          Paint()
+            ..color = color.withValues(alpha: color.a * (1 - amp))
+            ..strokeWidth = line
+            ..strokeCap = StrokeCap.round,
+        );
+      }
       if (amp > 0) {
-        final step = compact ? 4.5 : 5.5;
-        final width = compact ? 2.2 : 2.8;
-        final maxH = compact ? 18.0 : 26.0;
-        paint.strokeWidth = width;
-        eq.bars = (end / step).ceil() + 1;
-        var i = 0;
-        for (var bx = width / 2 + 1; bx <= end && i < eq.levels.length; bx += step, i++) {
-          final h = maxH * eq.levels[i] * amp;
-          if (h <= spine) continue;
-          canvas.drawLine(Offset(bx, cy - h / 2), Offset(bx, cy + h / 2), paint);
+        final edge = math.min(style.edgeFade * size.width, end / 2);
+        final paint = Paint()
+          ..strokeWidth = style.barWidth
+          ..strokeCap = StrokeCap.round;
+        final tip = style.tipFade / 2;
+        for (var bx = style.barWidth / 2 + 1; bx <= end; bx += style.step) {
+          final h = style.maxHeight * eq.at(bx / end) * amp;
+          if (h < 1) continue;
+          final alpha = style.opacity * _smooth(edge, bx) * _smooth(edge, end - bx);
+          if (alpha < .02) continue;
+          final solid = color.withValues(alpha: color.a * alpha);
+          final clear = color.withValues(alpha: 0);
+          final top = Offset(bx, cy - h / 2), bottom = Offset(bx, cy + h / 2);
+          paint.shader = ui.Gradient.linear(top, bottom, [clear, solid, solid, clear], [0, tip, 1 - tip, 1]);
+          canvas.drawLine(top, bottom, paint);
         }
       }
     }
@@ -836,7 +897,8 @@ class _WavePainter extends CustomPainter {
       old.known != known ||
       old.active != active ||
       old.color != color ||
-      old.thumb != thumb;
+      old.thumb != thumb ||
+      old.style != style;
 }
 
 String clock(int ms) {
@@ -1131,3 +1193,181 @@ String sampleRateLabel(int hz) => hz <= 0
 
 String? bitDepthLabel(Track t) =>
     lossless(t.format) && t.bitDepth > 0 ? '${t.bitDepth} bit' : null;
+
+/// Section heading with a hairline to the right ("Wyjście ———").
+class SectionTitle extends StatelessWidget {
+  final String text;
+  final EdgeInsets padding;
+  const SectionTitle(this.text, {super.key, this.padding = const EdgeInsets.only(top: Sp.xl, bottom: Sp.m)});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: padding,
+    child: Row(
+      children: [
+        Semantics(header: true, child: Text(text, style: Ctl.section)),
+        const SizedBox(width: Sp.m),
+        const Expanded(child: Divider(height: 1, color: softBorder)),
+      ],
+    ),
+  );
+}
+
+/// Label and value in one line; the value is selectable for bug reports.
+class InfoRow extends StatelessWidget {
+  final String label, value;
+  final Color? color;
+  const InfoRow(this.label, this.value, {super.key, this.color});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(width: 200, child: Text(label, style: Ctl.label)),
+        Expanded(child: SelectableText(value, style: TextStyle(fontSize: 13.5, color: color))),
+      ],
+    ),
+  );
+}
+
+/// Header that opens and closes its content in place, as a quiet card.
+class Collapsible extends StatefulWidget {
+  final String title;
+  final String? trailing;
+  final Widget child;
+  final bool initiallyOpen, enabled, card;
+  final ValueChanged<bool>? onChanged;
+  const Collapsible({
+    super.key,
+    required this.title,
+    required this.child,
+    this.trailing,
+    this.initiallyOpen = false,
+    this.enabled = true,
+    this.card = true,
+    this.onChanged,
+  });
+  @override
+  State<Collapsible> createState() => _CollapsibleState();
+}
+
+class _CollapsibleState extends State<Collapsible> {
+  late bool open = widget.initiallyOpen;
+  @override
+  Widget build(BuildContext context) {
+    final shown = open && widget.enabled;
+    final header = InkWell(
+      borderRadius: BorderRadius.circular(widget.card ? Rad.panel : Rad.control),
+      onTap: widget.enabled
+          ? () {
+              setState(() => open = !open);
+              widget.onChanged?.call(open);
+            }
+          : null,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: widget.card ? Sp.l : Sp.xs, vertical: widget.card ? Sp.m : Sp.s),
+        child: Row(
+          children: [
+            AnimatedRotation(
+              turns: shown ? .25 : 0,
+              duration: motion(context, Dur.standard),
+              child: Icon(Icons.chevron_right_rounded, size: 20, color: widget.enabled ? primaryText : secondaryText),
+            ),
+            const SizedBox(width: Sp.s),
+            Expanded(
+              child: Text(
+                widget.title,
+                style: TextStyle(
+                  fontSize: widget.card ? 15 : 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: widget.enabled ? primaryText : secondaryText,
+                ),
+              ),
+            ),
+            if (widget.trailing != null) Text(widget.trailing!, style: Ctl.label),
+          ],
+        ),
+      ),
+    );
+    final body = AnimatedSize(
+      duration: motion(context, Dur.standard),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: shown
+          ? Padding(
+              padding: EdgeInsets.fromLTRB(widget.card ? Sp.xl + Sp.l : Sp.xl + Sp.xs, 0, widget.card ? Sp.l : 0, widget.card ? Sp.l : Sp.s),
+              child: widget.child,
+            )
+          : const SizedBox(width: double.infinity),
+    );
+    final content = Semantics(
+      expanded: shown,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [header, body]),
+    );
+    if (!widget.card) return content;
+    return Container(
+      margin: const EdgeInsets.only(bottom: Sp.m),
+      decoration: BoxDecoration(
+        color: panel,
+        borderRadius: BorderRadius.circular(Rad.panel),
+        border: Border.all(color: softBorder),
+      ),
+      child: Material(type: MaterialType.transparency, child: content),
+    );
+  }
+}
+
+/// Text tabs with an underline under the active one.
+class TextTabs extends StatelessWidget {
+  final List<String> labels;
+  final int index;
+  final ValueChanged<int> onChanged;
+  /// Optional small marker per tab (e.g. work running there).
+  final List<bool>? busy;
+  const TextTabs({super.key, required this.labels, required this.index, required this.onChanged, this.busy});
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: softBorder))),
+    child: Row(
+      children: [
+        for (var i = 0; i < labels.length; i++)
+          Semantics(
+            selected: i == index,
+            button: true,
+            child: InkWell(
+              onTap: () => onChanged(i),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(Rad.control)),
+              child: AnimatedContainer(
+                duration: motion(context, Dur.standard),
+                padding: const EdgeInsets.fromLTRB(Sp.l, Sp.m, Sp.l, Sp.m - 2),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: i == index ? accent : Colors.transparent, width: 2)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      labels[i],
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: i == index ? primaryText : secondaryText,
+                      ),
+                    ),
+                    if (busy != null && busy![i]) ...[
+                      const SizedBox(width: Sp.s),
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(color: Color(0xffff5252), shape: BoxShape.circle),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}

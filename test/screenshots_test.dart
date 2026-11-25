@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mytify/audio_player.dart';
+import 'package:mytify/ingest.dart';
 import 'package:mytify/intro.dart';
 import 'package:mytify/main.dart';
 import 'package:mytify/repository_android.dart';
@@ -86,6 +88,34 @@ Future<void> loadFonts() async {
   await family('Arial', ['Roboto-Regular.ttf', 'Roboto-Medium.ttf', 'Roboto-Bold.ttf', 'Roboto-Black.ttf']);
   await family('MaterialIcons', ['MaterialIcons-Regular.otf']);
 }
+
+/// PC-like repository for screenshots: digitization and real-looking levels come from fixtures.
+class ShotRepo extends AndroidLibraryRepository implements IngestRepository {
+  List<dynamic> drives = [];
+  List<dynamic> inputs = [];
+  Map<String, dynamic> state = {'running': false, 'stage': ''};
+  @override
+  bool get hasAudioLevels => true;
+  @override
+  Future<List<double>?> audioLevels() async => shotBands;
+  @override
+  Future<dynamic> ingest(Map<String, dynamic> r) async => switch (r['action']) {
+    'drives' => drives,
+    'inputs' => inputs,
+    'sessions' => [],
+    'state' => state,
+    'folders' => {'recordings': r'C:\Users\mat\AppData\Local\Mytify\recordings', 'cd': r'C:\Users\mat\AppData\Local\Mytify\cd-imports'},
+    'toc' => {
+      'discId': 'shot',
+      'tracks': [for (var i = 0; i < 9; i++) {'number': i + 1, 'start': i * 75 * 230, 'end': (i + 1) * 75 * 230 - 75 * (i * 7 % 40)}],
+    },
+    'monitor' => state = {'running': true, 'stage': 'monitor', 'channels': 2, 'peaks': [0.32, 0.27], 'clips': 0, 'dropouts': 0, 'rate': 48000},
+    _ => {},
+  };
+}
+
+/// Fixed spectrum shaped like music (dBFS per band), only for screenshots.
+final shotBands = [for (var i = 0; i < 40; i++) -18.0 - 14 * (i / 40) + 9 * (i % 7 == 2 ? 1 : 0) - 6 * ((i * 5) % 3)];
 
 void main() {
   final enabled = Platform.environment['SCREENSHOTS'] == '1';
@@ -230,10 +260,59 @@ void main() {
       await settle(tester);
       await tester.tap(find.byTooltip('Ustawienia (Ctrl+,)'));
       await shot(tester, 'd${w}_7_settings');
+      await tester.tap(find.text('Źródła muzyki').first);
+      await settle(tester);
       await tester.tap(find.byTooltip('Opcje źródła').last);
       await settle(tester);
       await tester.tap(find.text('Edytuj połączenie'));
       await shot(tester, 'd${w}_8_smb_edit');
+      await close(tester);
+    }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+  }
+
+  for (final (size, ratio) in [
+    for (final size in [const Size(1366, 768), const Size(1920, 1080)])
+      for (final ratio in [1.0, 1.25, 1.5, 2.0]) (size, ratio),
+  ]) {
+    final tag = 'p${size.width.round()}_${(ratio * 100).round()}';
+    testWidgets('panels $tag', (tester) async {
+      await loadFonts();
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = ratio;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repo = ShotRepo();
+      await tester.pumpWidget(MytifyApp(repository: repo));
+      await settle(tester);
+      final app = tester.state<LibraryScreenState>(find.byType(LibraryScreen));
+      await shot(tester, '${tag}_1_playing');
+      app.go(const Nav('sources'));
+      await shot(tester, '${tag}_2_sources');
+      app.go(const Nav('settings', 'audio'));
+      await settle(tester);
+      if (find.text('Diagnostyka dźwięku').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Diagnostyka dźwięku'));
+      }
+      await shot(tester, '${tag}_3_audio');
+      app.go(const Nav('import'));
+      await shot(tester, '${tag}_4_cd_none');
+      repo.drives = [
+        {'id': 'E:', 'name': 'ASUS SDRW-08U9M-U'},
+      ];
+      await tester.runAsync(() async {
+        await app.ingest.refresh();
+        await app.ingest.readCd();
+      });
+      await shot(tester, '${tag}_5_cd_tracks');
+      repo.inputs = [
+        {'id': 'usb', 'name': 'Mikrofon (USB Audio CODEC)', 'rates': [44100, 48000, 96000], 'channels': 2},
+      ];
+      app.ingest.setTab(1);
+      await tester.runAsync(() async {
+        await app.ingest.refresh();
+        await app.ingest.monitor();
+      });
+      await shot(tester, '${tag}_6_vinyl');
       await close(tester);
     }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   }
@@ -256,6 +335,7 @@ void main() {
 
   testWidgets('seek bar playing and paused', (tester) async {
     await loadFonts();
+    LevelFeed.current = LevelFeed(() async => shotBands);
     tester.view.physicalSize = const Size(840, 220);
     tester.view.devicePixelRatio = 2;
     Widget bar(bool playing) => MaterialApp(
@@ -286,6 +366,7 @@ void main() {
     }
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/w_seek_paused.png'));
     await tester.pumpWidget(const SizedBox());
+    LevelFeed.current = null;
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
   }, skip: !enabled);

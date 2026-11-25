@@ -26,6 +26,8 @@ pub struct Status {
     pub input_format: String,
     pub frames: u64,
     pub peak: f32,
+    /// Peak per input channel since the last snapshot (one entry for mono inputs).
+    pub peaks: Vec<f32>,
     pub clips: u64,
     pub dropouts: u64,
     pub markers: Vec<u64>,
@@ -39,6 +41,7 @@ pub struct Signals {
     pub stop: AtomicBool,
     pub frames: AtomicU64,
     pub peak: AtomicU32,
+    pub peaks: [AtomicU32; 2],
     pub clips: AtomicU64,
     pub dropped: AtomicU64,
     pub failed: AtomicBool,
@@ -49,6 +52,7 @@ impl Default for Signals {
             stop: AtomicBool::new(false),
             frames: AtomicU64::new(0),
             peak: AtomicU32::new(0),
+            peaks: [AtomicU32::new(0), AtomicU32::new(0)],
             clips: AtomicU64::new(0),
             dropped: AtomicU64::new(0),
             failed: AtomicBool::new(false),
@@ -83,6 +87,10 @@ impl Ingest {
         if s.stage == "recording" || s.stage == "monitor" {
             s.frames = self.signals.frames.load(Ordering::Acquire);
             s.peak = f32::from_bits(self.signals.peak.swap(0, Ordering::AcqRel));
+            s.peaks = self.signals.peaks[..(s.channels as usize).min(2)]
+                .iter()
+                .map(|p| f32::from_bits(p.swap(0, Ordering::AcqRel)))
+                .collect();
             s.clips = self.signals.clips.load(Ordering::Acquire);
             s.dropouts = self.signals.dropped.load(Ordering::Acquire);
         }
@@ -96,6 +104,9 @@ impl Ingest {
         self.signals.failed.store(false, Ordering::Release);
         self.signals.frames.store(0, Ordering::Release);
         self.signals.peak.store(0, Ordering::Release);
+        for p in &self.signals.peaks {
+            p.store(0, Ordering::Release);
+        }
         self.signals.clips.store(0, Ordering::Release);
         self.signals.dropped.store(0, Ordering::Release);
         *self.state.lock().unwrap() = Status {
@@ -179,6 +190,10 @@ impl Ingest {
                 };
                 Ok(json!({"positionMs":ms}))
             }
+            "folders" => Ok(json!({
+                "recordings": self.root(),
+                "cd": self.catalog.root.join("cd-imports"),
+            })),
             "openFolder" => {
                 #[cfg(windows)]
                 {
@@ -206,7 +221,10 @@ impl Ingest {
             "drives" => {
                 #[cfg(windows)]
                 {
-                    Ok(json!(cd::device::drives()))
+                    Ok(json!(cd::device::drives()
+                        .into_iter()
+                        .map(|id| json!({"id": id, "name": cd::device::name(&id)}))
+                        .collect::<Vec<_>>()))
                 }
                 #[cfg(not(windows))]
                 {
@@ -357,19 +375,32 @@ impl Ingest {
         if titles.len() != toc.tracks.len() {
             bail!("Nieprawidłowa liczba tytułów")
         };
+        // Optional list of track numbers to import; all tracks when absent.
+        let chosen: Option<Vec<u8>> = serde_json::from_value(v["tracks"].clone()).ok();
+        let wanted = |n: u8| chosen.as_ref().is_none_or(|c| c.contains(&n));
+        if !toc.tracks.iter().any(|t| wanted(t.number)) {
+            bail!("Zaznacz co najmniej jeden utwór")
+        };
         let dest = self
             .catalog
             .root
             .join("cd-imports")
             .join(hex(getrandom_bytes()?));
         std::fs::create_dir_all(&dest)?;
-        self.state.lock().unwrap().total =
-            toc.tracks.iter().map(|t| (t.end - t.start) as u64).sum();
+        self.state.lock().unwrap().total = toc
+            .tracks
+            .iter()
+            .filter(|t| wanted(t.number))
+            .map(|t| (t.end - t.start) as u64)
+            .sum();
         let mut done = 0;
         let mut reports = Vec::new();
         for (i, track) in toc.tracks.iter().enumerate() {
             if self.signals.stop.load(Ordering::Acquire) {
                 break;
+            }
+            if !wanted(track.number) {
+                continue;
             }
             let temp = dest.join(format!("track-{:02}.wav.partial", track.number));
             let mut wav = wav::Wav::create(&temp, 44100, 2, 16)?;

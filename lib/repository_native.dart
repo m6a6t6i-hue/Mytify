@@ -114,6 +114,11 @@ class NativeLibraryRepository extends LibraryRepository
         ),
       );
   @override
+  bool get hasAudioLevels => true;
+  @override
+  Future<List<double>?> audioLevels() async =>
+      levelsFrom(await _api('/api/player/levels'));
+  @override
   Future<List<AudioDevice>> audioDevices() async =>
       ((await _api('/api/player/devices')) as List)
           .map((v) => AudioDevice.fromJson(Map<String, dynamic>.from(v as Map)))

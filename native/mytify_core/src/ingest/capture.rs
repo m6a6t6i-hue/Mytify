@@ -41,7 +41,8 @@ pub fn inputs() -> Result<Value> {
                     .any(|c| c.min_sample_rate() <= *r && c.max_sample_rate() >= *r)
             })
             .collect::<Vec<_>>();
-        list.push(json!({"id":d.id()?.to_string(),"name":d.description()?.name(),"rates":rates}));
+        let channels = configs.iter().map(|c| c.channels()).max().unwrap_or(2);
+        list.push(json!({"id":d.id()?.to_string(),"name":d.description()?.name(),"rates":rates,"channels":channels}));
     }
     Ok(json!(list))
 }
@@ -50,16 +51,22 @@ where
     f32: cpal::FromSample<T>,
 {
     let mut peak = 0f32;
+    let mut per = [0f32; 2];
     let mut clips = 0;
-    for &v in data {
+    for (i, &v) in data.iter().enumerate() {
         let f = f32::from_sample(v);
         let p = if f.is_finite() { f.abs() } else { 1. };
         peak = peak.max(p.min(8.));
+        let c = (i % channels.max(1)).min(1);
+        per[c] = per[c].max(p.min(8.));
         if p >= 0.99997 {
             clips += 1;
         }
     }
     s.peak.fetch_max(peak.to_bits(), Ordering::Relaxed);
+    for (slot, value) in s.peaks.iter().zip(per) {
+        slot.fetch_max(value.to_bits(), Ordering::Relaxed);
+    }
     s.clips.fetch_add(clips, Ordering::Relaxed);
     if s.failed.load(Ordering::Relaxed) || s.stop.load(Ordering::Relaxed) {
         return;

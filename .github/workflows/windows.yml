@@ -1,6 +1,11 @@
 name: Windows build
 on:
   workflow_dispatch:
+    inputs:
+      package:
+        description: 'Build and publish mytify.exe (off: tests and checks only)'
+        type: boolean
+        default: true
 jobs:
   windows:
     permissions:
@@ -33,6 +38,7 @@ jobs:
       - run: flutter analyze --no-pub
       - run: flutter test --no-pub
       - run: flutter build web --release --no-pub --no-web-resources-cdn --no-wasm-dry-run
+        if: inputs.package
       - name: Local SMB share for the network source tests
         shell: pwsh
         run: |
@@ -99,16 +105,22 @@ jobs:
           MYTIFY_SUBSONIC_URL: http://127.0.0.1:14533
           MYTIFY_SUBSONIC_USER: mat
           MYTIFY_SUBSONIC_PASSWORD: Haslo-123
+      - run: cargo check --locked --features desktop
+        if: ${{ !inputs.package }}
+        working-directory: native/mytify_core
       - run: cargo build --locked --release --features desktop,embed-ui
+        if: inputs.package
         working-directory: native/mytify_core
         env:
           # Static CRT: runs without the Visual C++ redistributable installed.
           RUSTFLAGS: -C target-feature=+crt-static
       - uses: actions/upload-artifact@v4
+        if: inputs.package
         with:
           name: Mytify-Windows
           path: native/mytify_core/target/release/mytify.exe
       - name: Publish to branch builds-windows
+        if: inputs.package
         shell: bash
         run: |
           mkdir -p publish-out && cp native/mytify_core/target/release/mytify.exe publish-out/

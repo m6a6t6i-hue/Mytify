@@ -451,3 +451,31 @@ class _PressableState extends State<Pressable> {
     ),
   );
 }
+
+/// Standard 36 px controls for settings and import screens.
+abstract final class Ctl {
+  static const height = 36.0;
+  static final filled = FilledButton.styleFrom(
+    minimumSize: const Size(0, height),
+    padding: const EdgeInsets.symmetric(horizontal: Sp.l),
+    textStyle: const TextStyle(fontFamily: 'Arial', fontSize: 13.5, fontWeight: FontWeight.w700),
+  );
+  static final outlined = OutlinedButton.styleFrom(
+    minimumSize: const Size(0, height),
+    padding: const EdgeInsets.symmetric(horizontal: Sp.l),
+    textStyle: const TextStyle(fontFamily: 'Arial', fontSize: 13.5, fontWeight: FontWeight.w600),
+  );
+  static final text = TextButton.styleFrom(
+    minimumSize: const Size(0, height),
+    padding: const EdgeInsets.symmetric(horizontal: Sp.m),
+    textStyle: const TextStyle(fontFamily: 'Arial', fontSize: 13.5, fontWeight: FontWeight.w600),
+  );
+  static InputDecoration field({String? hint}) => InputDecoration(
+    isDense: true,
+    hintText: hint,
+    contentPadding: const EdgeInsets.symmetric(horizontal: Sp.m, vertical: 10),
+  );
+  static const fieldText = TextStyle(fontSize: 13.5);
+  static const label = TextStyle(fontSize: 13, color: secondaryText);
+  static const section = TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -.2);
+}

@@ -159,6 +159,11 @@ class WebLibraryRepository extends LibraryRepository
         Map<String, dynamic>.from(await _audioApi('command', action) as Map),
       );
   @override
+  bool get hasAudioLevels => true;
+  @override
+  Future<List<double>?> audioLevels() async =>
+      levelsFrom(await _audioApi('levels', null));
+  @override
   Future<List<AudioDevice>> audioDevices() async =>
       ((await _audioApi('devices', null)) as List)
           .map((v) => AudioDevice.fromJson(Map<String, dynamic>.from(v as Map)))

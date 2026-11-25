@@ -1,283 +1,329 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'design.dart';
+import 'devices.dart';
+import 'main.dart';
 import 'model.dart';
-import 'audio_player.dart';
+import 'player_ui.dart';
+import 'widgets.dart';
 
-class AudioSettings extends StatefulWidget {
-  final NativeAudioPlayer player;
-  const AudioSettings({super.key, required this.player});
+/// Settings → Audio: output, volume and mute in place, details folded below.
+/// Uses the same state as the player's device popover. Opening it changes nothing.
+class AudioSettingsView extends StatefulWidget {
+  final LibraryScreenState app;
+  const AudioSettingsView({super.key, required this.app});
   @override
-  State<AudioSettings> createState() => _AudioSettingsState();
+  State<AudioSettingsView> createState() => _AudioSettingsViewState();
 }
 
-class _AudioSettingsState extends State<AudioSettings> {
-  List<AudioDevice> devices = [];
+class _AudioSettingsViewState extends State<AudioSettingsView> {
   final pin = TextEditingController();
-  bool busy = false;
+  LibraryScreenState get app => widget.app;
+  OutputDevices get out => app.outputs;
+  bool get android => defaultTargetPlatform == TargetPlatform.android;
+
+  @override
+  void initState() {
+    super.initState();
+    out.addListener(_changed);
+    out.ensure();
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    out.removeListener(_changed);
     pin.dispose();
     super.dispose();
   }
 
-  String? error;
-  @override
-  void initState() {
-    super.initState();
-    refresh();
-  }
-
-  Future<void> refresh() async {
-    setState(() {
-      busy = true;
-      error = null;
-    });
-    try {
-      final value = await widget.player.devices();
-      if (mounted) {
-        setState(() => devices = value);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => error = '$e');
-      }
-    } finally {
-      if (mounted) {
-        setState(() => busy = false);
-      }
-    }
-  }
-
-  Future<void> choose(String id) async {
-    setState(() {
-      busy = true;
-      error = null;
-    });
-    try {
-      await widget.player.selectDevice(id);
-    } catch (e) {
-      if (mounted) {
-        setState(() => error = '$e');
-      }
-    } finally {
-      if (mounted) {
-        setState(() => busy = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => StreamBuilder<AudioSnapshot>(
-    stream: widget.player.stream.snapshot,
-    initialData: widget.player.state,
-    builder: (context, snap) {
-      final state = snap.data ?? widget.player.state;
-      final output = state.output, source = state.source;
-      final options = [...devices];
-      if (!options.any((d) => d.id == state.selectedDevice)) {
-        options.insert(
-          0,
-          AudioDevice(
-            state.selectedDevice,
-            'Zapisane urządzenie (obecnie niedostępne)',
+  Widget _labelled(String label, Widget control, {bool narrow = false}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: Sp.s),
+    child: narrow
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [Text(label, style: Ctl.label), const SizedBox(height: Sp.xs), control],
+          )
+        : Row(
+            children: [
+              SizedBox(width: 200, child: Text(label, style: const TextStyle(fontSize: 14))),
+              Expanded(child: control),
+            ],
           ),
-        );
-      }
-      return PopScope(
-        canPop: !busy,
-        child: AlertDialog(
-          title: const Text('Diagnostyka dźwięku'),
-          content: SizedBox(
-            width: 580,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+  );
+
+  @override
+  Widget build(BuildContext context) => PlayerListener(
+    app: app,
+    builder: (context, s) => LayoutBuilder(
+      builder: (context, box) {
+        final narrow = box.maxWidth < 560;
+        final selected = s.selectedDevice;
+        final all = [...out.devices];
+        if (!all.any((d) => d.id == selected)) {
+          all.insert(0, AudioDevice(selected, s.output?['name']?.toString() ?? 'Zapisane urządzenie'));
+        }
+        final missing = out.searched && !out.devices.any((d) => d.id == selected);
+        String name(AudioDevice d) {
+          final (n, kind) = deviceLabel(d);
+          final suffix = [?kind, if (d.id == selected && missing) 'niedostępne'].join(', ');
+          return suffix.isEmpty ? n : '$n ($suffix)';
+        }
+
+        final yamaha = kindOf(selected) == DeviceKind.dlna &&
+            '${s.output?['name'] ?? ''} ${all.firstWhere((d) => d.id == selected).name}'.toLowerCase().contains('yamaha');
+        final muted = app.volume <= 0;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SectionTitle('Wyjście', padding: EdgeInsets.only(bottom: Sp.s)),
+            _labelled(
+              'Urządzenie odtwarzania',
+              narrow: narrow,
+              Row(
                 children: [
-                  Text(
-                    defaultTargetPlatform == TargetPlatform.android
-                        ? 'Telefon, AirPlay lub amplituner w tej samej sieci Wi-Fi. Słuchawki i Bluetooth wybierzesz w panelu systemowym.'
-                        : 'Komputer, AirPlay lub amplituner w tej samej sieci. Zmiana wyjścia może na chwilę przerwać odsłuch.',
-                  ),
-                  const SizedBox(height: 18),
-                  DropdownButtonFormField<String>(
-                    key: ValueKey(state.selectedDevice),
-                    initialValue: state.selectedDevice,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Wyjście audio',
-                    ),
-                    items: options
-                        .map(
-                          (d) => DropdownMenuItem(
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      key: ValueKey('out:$selected:${all.length}'),
+                      initialValue: selected,
+                      isExpanded: true,
+                      isDense: true,
+                      style: Ctl.fieldText.copyWith(color: primaryText),
+                      dropdownColor: elevated,
+                      decoration: Ctl.field(),
+                      items: [
+                        for (final d in all)
+                          DropdownMenuItem(
                             value: d.id,
-                            child: Text(
-                              d.name,
-                              overflow: TextOverflow.ellipsis,
+                            child: Row(
+                              children: [
+                                Icon(deviceIcon(d.id, d.name), size: 18, color: secondaryText),
+                                const SizedBox(width: Sp.s),
+                                Expanded(child: Text(name(d), overflow: TextOverflow.ellipsis)),
+                              ],
                             ),
                           ),
+                      ],
+                      // Only an explicit choice switches the output.
+                      onChanged: out.connecting == null
+                          ? (v) {
+                              if (v != null) unawaited(out.choose(v));
+                            }
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: Sp.s),
+                  out.searching || out.connecting != null
+                      ? const SizedBox(
+                          width: 36,
+                          height: 36,
+                          child: Padding(padding: EdgeInsets.all(9), child: CircularProgressIndicator(strokeWidth: 2)),
                         )
-                        .toList(),
-                    onChanged: busy
-                        ? null
-                        : (v) {
-                            if (v != null) {
-                              choose(v);
-                            }
-                          },
-                  ),
-                  TextButton.icon(
-                    onPressed: busy ? null : refresh,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Odśwież urządzenia'),
-                  ),
-                  Text(
-                    state.selectedDevice.startsWith('airplay:')
-                        ? 'Poziom sygnału aplikacji. Głośność amplitunera bez zmian.'
-                        : state.volumeAvailable
-                        ? 'Głośność'
-                        : 'Odbiornik nie udostępnia odczytu głośności. Użyj jego pilota.',
-                  ),
-                  Slider(
-                    value: state.volume.clamp(0, 100),
-                    max: 100,
-                    label: '${state.volume.round()}%',
-                    onChanged: busy || !state.volumeAvailable
-                        ? null
-                        : (v) => widget.player.setVolume(v),
-                    onChangeEnd: busy || !state.volumeAvailable
-                        ? null
-                        : (v) async {
-                            try {
-                              await widget.player.commitVolume(v);
-                            } catch (e) {
-                              if (mounted) {
-                                setState(() => error = '$e');
-                              }
-                            }
-                          },
-                  ),
-                  if (state.pairingRequired) ...[
-                    const Text(
-                      'Wpisz PIN wyświetlony przez odbiornik AirPlay.',
-                    ),
-                    TextField(
-                      controller: pin,
-                      keyboardType: TextInputType.number,
-                      maxLength: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'PIN AirPlay',
-                      ),
-                    ),
-                    FilledButton(
-                      onPressed: busy
-                          ? null
-                          : () async {
-                              try {
-                                await widget.player.repository.audioCommand({
-                                  'action': 'pin',
-                                  'value': pin.text.trim(),
-                                });
-                              } catch (e) {
-                                if (mounted) setState(() => error = '$e');
-                              }
-                            },
-                      child: const Text('Połącz'),
-                    ),
-                  ],
-                  if (state.selectedDevice.startsWith('dlna:') &&
-                      (state.output?['name'] as String? ?? '')
-                          .toLowerCase()
-                          .contains('yamaha'))
-                    TextButton(
-                      onPressed: busy
-                          ? null
-                          : () async {
-                              try {
-                                await widget.player.repository.audioCommand({
-                                  'action': 'receiverPower',
-                                });
-                              } catch (e) {
-                                if (mounted) setState(() => error = '$e');
-                              }
-                            },
-                      child: const Text('Włącz Yamahę z trybu czuwania'),
-                    ),
-                  if (output != null) ...[
-                    Text(
-                      output['name'] as String,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    if (output['testSink'] == true)
-                      const Text(
-                        'Wyjście testowe, bez dźwięku',
-                        style: TextStyle(color: Colors.amber),
-                      ),
-                    Text(
-                      defaultTargetPlatform == TargetPlatform.android &&
-                              state.selectedDevice == 'auto'
-                          ? 'Media3 / AudioTrack · parametry wyjścia ustala Android'
-                          : state.selectedDevice.startsWith('dlna:')
-                          ? 'Oryginalny plik, dekoduje odbiornik DLNA'
-                          : '${output['backend']}\n${output['sampleRate']} Hz · ${output['sampleFormat']} · ${output['channels']} kanały',
-                    ),
-                    const SizedBox(height: 12),
-                  ] else
-                    const Text(
-                      'Wyjście zostanie otwarte przy pierwszym odtwarzaniu.',
-                    ),
-                  if (source != null &&
-                      (source['sampleRate'] as num? ?? 0) > 0) ...[
-                    const Divider(),
-                    Text(
-                      'Źródło: ${source['sampleRate']} Hz · ${source['channels']} kanały · ${(source['bitDepth'] as num? ?? 0) > 0 ? '${source['bitDepth']} bit' : 'kodek stratny / brak głębi'}',
-                    ),
-                    if (source['resampled'] == true)
-                      const Text('Konwersja częstotliwości filtrem sinc.'),
-                  ],
-                  const SizedBox(height: 14),
-                  const Text(
-                    'DLNA: oryginalny plik, odbiornik musi obsługiwać format. AirPlay: stereo 16 bit / 44,1 kHz z opóźnieniem. MusicCast: jeden odbiornik przez DLNA, grupy w aplikacji Yamahy.',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                  ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
-                    title: const Text('Diagnostyka odtwarzania'),
-                    children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          '${defaultTargetPlatform == TargetPlatform.android ? 'Licznik niedoborów niedostępny na Androidzie' : 'Niedobory bufora: ${state.underrunFrames} próbek'}\n${state.buffering
-                              ? 'Trwa buforowanie'
-                              : state.playing
-                              ? 'Odtwarzanie'
-                              : state.completed
-                              ? 'Koniec kolejki'
-                              : 'Pauza / gotowość'}${state.error == null ? '' : '\nOstatni błąd: ${state.error}'}',
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (error != null)
-                    Text(
-                      error!,
-                      style: const TextStyle(color: Colors.redAccent),
-                    ),
-                  if (busy) const LinearProgressIndicator(),
+                      : IconAction(Icons.refresh_rounded, 'Odśwież listę urządzeń', () => unawaited(out.refresh()), color: secondaryText),
                 ],
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: busy ? null : () => Navigator.pop(context),
-              child: const Text('Zamknij'),
+            if (out.connecting != null) const Padding(padding: EdgeInsets.only(left: 200), child: Text('Łączenie…', style: Ctl.label)),
+            if (s.pairingRequired)
+              _labelled(
+                'PIN AirPlay',
+                narrow: narrow,
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: pin,
+                        keyboardType: TextInputType.number,
+                        maxLength: 4,
+                        style: Ctl.fieldText,
+                        decoration: Ctl.field(hint: 'PIN z ekranu odbiornika').copyWith(counterText: ''),
+                        onSubmitted: (v) => unawaited(out.command({'action': 'pin', 'value': v.trim()})),
+                      ),
+                    ),
+                    const SizedBox(width: Sp.s),
+                    FilledButton(
+                      style: Ctl.filled,
+                      onPressed: () => unawaited(out.command({'action': 'pin', 'value': pin.text.trim()})),
+                      child: const Text('Połącz'),
+                    ),
+                  ],
+                ),
+              ),
+            if (yamaha)
+              Padding(
+                padding: EdgeInsets.only(left: narrow ? 0 : 200),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    style: Ctl.text,
+                    onPressed: () => unawaited(out.command({'action': 'receiverPower'})),
+                    icon: const Icon(Icons.power_settings_new_rounded, size: 18),
+                    label: const Text('Włącz amplituner'),
+                  ),
+                ),
+              ),
+            _labelled(
+              'Głośność',
+              narrow: narrow,
+              Row(
+                children: [
+                  IconAction(
+                    muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                    muted ? 'Przywróć dźwięk' : 'Wycisz',
+                    s.volumeAvailable ? () => unawaited(app.toggleMute()) : null,
+                    active: muted,
+                    color: muted ? accent : secondaryText,
+                  ),
+                  Expanded(
+                    child: Slider(
+                      value: app.volume.clamp(0.0, 100.0),
+                      max: 100,
+                      label: '${app.volume.round()}%',
+                      semanticFormatterCallback: (v) => '${v.round()}%',
+                      onChanged: s.volumeAvailable ? app.setVolumeLive : null,
+                      onChangeEnd: s.volumeAvailable ? (v) => unawaited(app.commitVolume(v)) : null,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 44,
+                    child: Text(
+                      s.volumeAvailable ? '${app.volume.round()}%' : '',
+                      textAlign: TextAlign.right,
+                      style: Ctl.label.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                    ),
+                  ),
+                ],
+              ),
             ),
+            if (!s.volumeAvailable)
+              Padding(
+                padding: EdgeInsets.only(left: narrow ? 0 : 200),
+                child: const Text('Ten odbiornik nie udostępnia głośności. Użyj jego pilota.', style: Ctl.label),
+              )
+            else if (kindOf(selected) == DeviceKind.airplay)
+              Padding(
+                padding: EdgeInsets.only(left: narrow ? 0 : 200),
+                child: const Text('Poziom sygnału wysyłanego z Mytify. Głośność odbiornika bez zmian.', style: Ctl.label),
+              ),
+            if (out.error != null)
+              Padding(
+                padding: EdgeInsets.only(left: narrow ? 0 : 200, top: Sp.s),
+                child: Text(out.error!, style: const TextStyle(fontSize: 13.5, color: Color(0xffffb4b4))),
+              ),
+            const SectionTitle('Zaawansowane'),
+            Collapsible(title: 'Diagnostyka dźwięku', child: _diagnostics(s)),
+            Collapsible(title: 'Protokoły i zgodność', child: _protocols()),
           ],
-        ),
-      );
-    },
+        );
+      },
+    ),
   );
+
+  Widget _diagnostics(AudioSnapshot s) {
+    final active = s.currentId != null && s.output != null;
+    final o = s.output ?? const <String, dynamic>{}, src = s.source;
+    final rate = (o['sampleRate'] as num?)?.toInt() ?? 0;
+    final channels = (o['channels'] as num?)?.toInt() ?? 0;
+    final format = o['sampleFormat']?.toString() ?? '';
+    final srcRate = (src?['sampleRate'] as num?)?.toInt() ?? 0;
+    final bits = (src?['bitDepth'] as num?)?.toInt() ?? 0;
+    final srcChannels = (src?['channels'] as num?)?.toInt() ?? 0;
+    final kind = kindOf(s.selectedDevice);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InfoRow(
+          'Stan',
+          !s.available
+              ? 'Odtwarzacz niedostępny'
+              : s.buffering
+              ? 'Buforowanie'
+              : s.playing
+              ? 'Odtwarzanie'
+              : s.completed
+              ? 'Koniec kolejki'
+              : s.currentId != null
+              ? 'Pauza'
+              : 'Nic nie jest odtwarzane',
+        ),
+        if (active) ...[
+          InfoRow('Wyjście', '${o['name'] ?? ''}'),
+          if (o['testSink'] == true) const InfoRow('Uwaga', 'Wyjście testowe, bez dźwięku', color: Color(0xffffb454)),
+          if (kind == DeviceKind.dlna)
+            const InfoRow('Dekodowanie', 'Odbiornik DLNA, z oryginalnego pliku')
+          else if (android && kind == DeviceKind.local)
+            const InfoRow('Silnik', 'Media3 / AudioTrack, format wyjścia wybiera Android')
+          else ...[
+            if ('${o['backend'] ?? ''}'.isNotEmpty) InfoRow('Silnik', '${o['backend']}'),
+            if (rate > 0) InfoRow('Częstotliwość wyjścia', sampleRateLabel(rate)),
+            if (format.isNotEmpty) InfoRow('Format próbek', format),
+            if (channels > 0) InfoRow('Kanały', '$channels'),
+          ],
+          if (srcRate > 0)
+            InfoRow(
+              'Źródło',
+              [
+                sampleRateLabel(srcRate),
+                bits > 0 ? '$bits bit' : 'kodek stratny',
+                if (srcChannels > 0) collectionCount(srcChannels, 'kanał', 'kanały', 'kanałów'),
+              ].join(' · '),
+            ),
+          if (src?['resampled'] == true) const InfoRow('Konwersja częstotliwości', 'Tak, filtr sinc'),
+        ],
+        if (!android && s.available) InfoRow('Niedobory bufora', '${s.underrunFrames} próbek od uruchomienia'),
+        if (s.error != null) InfoRow('Ostatni błąd', s.error!),
+        if (!active) ...[
+          const Divider(height: Sp.l, color: softBorder),
+          const Text('Parametry wyjścia i źródła są widoczne podczas odtwarzania.', style: Ctl.label),
+        ],
+      ],
+    );
+  }
+
+  Widget _protocols() {
+    Widget item(String title, String text) => Padding(
+      padding: const EdgeInsets.only(bottom: Sp.m),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: Sp.xs),
+          Text(text, style: const TextStyle(fontSize: 13, color: secondaryText, height: 1.45)),
+        ],
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        item(
+          'DLNA i Yamaha MusicCast',
+          'Odbiornik dostaje oryginalny plik i sam go dekoduje, więc musi obsługiwać jego format. '
+              'MusicCast działa jako pojedynczy odbiornik DLNA, grupy ustawisz w aplikacji Yamahy.',
+        ),
+        item(
+          'AirPlay',
+          'Mytify wysyła dźwięk stereo 16 bit / 44,1 kHz bez strat. Odbiornik gra z kilkusekundowym opóźnieniem, '
+              'dlatego wizualizacja w pasku postępu jest wtedy statyczna.',
+        ),
+        if (android)
+          item(
+            'Ten telefon',
+            'Odtwarzanie przez Media3. Słuchawki i głośniki Bluetooth wybierzesz w panelu multimediów Androida. '
+                'Ta wersja nie odczytuje poziomów dźwięku na Androidzie, więc wizualizacja w pasku postępu jest statyczna.',
+          )
+        else
+          item(
+            'Ten komputer',
+            'Dekodowanie w silniku Mytify, wyjście przez Windows WASAPI w trybie współdzielonym. '
+                'Bufor odtwarzania mieści około 3 sekund zdekodowanego dźwięku.',
+          ),
+      ],
+    );
+  }
 }

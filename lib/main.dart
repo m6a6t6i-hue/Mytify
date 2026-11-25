@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'audio_player.dart';
-import 'audio_settings.dart';
 import 'design.dart';
 import 'devices.dart';
 import 'ingest.dart';
@@ -224,6 +223,21 @@ class LibraryScreenState extends State<LibraryScreen> {
   List<String> networkProtocols = const [];
   /// Offline copies of network tracks (status, menus, confirmation).
   late final DownloadState downloads = DownloadState(this);
+
+  /// One state for the player's device popover and Settings → Audio.
+  late final OutputDevices outputs = OutputDevices(this);
+  IngestState? _ingest;
+
+  /// Audio CD and vinyl import. Kept for the whole session so leaving the view
+  /// keeps the form and a running job.
+  IngestState get ingest => _ingest ??= IngestState(
+    repository: repository as IngestRepository,
+    library: repository,
+    beforeCapture: () async {
+      if (player.state.playing) await player.command({'action': 'pause'});
+    },
+    onLibraryChanged: loadLibrary,
+  );
   Timer? _libraryRefresh;
   bool cancelling = false;
   String? startupError;
@@ -317,6 +331,8 @@ class LibraryScreenState extends State<LibraryScreen> {
     _libraryRefresh?.cancel();
     unawaited(repository.dispose());
     prefs.dispose();
+    _ingest?.dispose();
+    outputs.dispose();
     searchText.dispose();
     searchFocus.dispose();
     super.dispose();
@@ -1181,22 +1197,11 @@ class LibraryScreenState extends State<LibraryScreen> {
   bool get canTransfer => repository is TransferRepository;
   bool get isPhone => defaultTargetPlatform == TargetPlatform.android && !kIsWeb;
 
-  Future<void> openIngest(bool cd) async {
-    await player.command({'action': 'pause'});
-    if (!mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => Theme(
-          data: mytifyTheme(),
-          child: IngestScreen(
-            library: repository,
-            repository: repository as IngestRepository,
-            cd: cd,
-          ),
-        ),
-      ),
-    );
-    await loadLibrary();
+  /// Import from physical media opens in the normal layout. Nothing starts here.
+  void openIngest(bool cd) {
+    if (!canDigitize || isPhone) return;
+    ingest.setTab(cd ? 0 : 1);
+    go(const Nav('import'));
   }
 
   List<MenuEntry> addMusicEntries() => [
@@ -1223,8 +1228,8 @@ class LibraryScreenState extends State<LibraryScreen> {
     ],
     if (canDigitize && !isPhone) ...[
       MenuEntry.divider,
-      MenuEntry('Importuj Audio CD', icon: Icons.album_outlined, onTap: importing ? null : () => unawaited(openIngest(true))),
-      MenuEntry('Nagraj winyl lub kasetę', icon: Icons.radio_outlined, onTap: importing ? null : () => unawaited(openIngest(false))),
+      MenuEntry('Importuj Audio CD', icon: Icons.album_outlined, onTap: () => openIngest(true)),
+      MenuEntry('Nagraj winyl lub kasetę', icon: Icons.radio_outlined, onTap: () => openIngest(false)),
     ],
   ];
 
@@ -1234,11 +1239,6 @@ class LibraryScreenState extends State<LibraryScreen> {
   Future<void> editSource(LibrarySource source) => showNetworkSourceForm(this, source: source);
 
   void showDevices({Offset? at}) => unawaited(showDevicePicker(this, at: at));
-
-  void showAudioDiagnostics() => showDialog<void>(
-    context: context,
-    builder: (_) => AudioSettings(player: player),
-  );
 
   void openNowPlaying() {
     if (queue.current == null) return;
