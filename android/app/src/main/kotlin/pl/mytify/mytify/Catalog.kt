@@ -90,6 +90,7 @@ class Catalog(private val context: Context) :
     private fun createSyncTables(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE IF NOT EXISTS remote_art(source TEXT NOT NULL,art TEXT NOT NULL,cover TEXT NOT NULL,PRIMARY KEY(source,art))")
         db.execSQL("CREATE TABLE IF NOT EXISTS pending_sync(id INTEGER PRIMARY KEY AUTOINCREMENT,source TEXT NOT NULL,kind TEXT NOT NULL,item TEXT NOT NULL,value TEXT NOT NULL,created INTEGER NOT NULL)")
+        Downloads.create(db)
         db.execSQL("CREATE TABLE IF NOT EXISTS remote_playlists(source TEXT NOT NULL,remote TEXT NOT NULL,local TEXT NOT NULL,server_hash TEXT NOT NULL,local_hash TEXT NOT NULL,PRIMARY KEY(source,remote))")
     }
 
@@ -187,12 +188,13 @@ class Catalog(private val context: Context) :
                         .put("edited", patch.length() > 0)
                     readableDatabase
                         .rawQuery(
-                            "SELECT COUNT(DISTINCT l.uri),COALESCE(MAX(CASE WHEN l.available=1 AND COALESCE(s.state,'online')<>'offline' THEN 1 ELSE 0 END),0) FROM locations l LEFT JOIN sources s ON s.id=l.source WHERE l.track=?",
+                            "SELECT COUNT(DISTINCT l.uri),COALESCE(MAX(CASE WHEN l.available=1 AND COALESCE(s.state,'online')<>'offline' THEN 1 ELSE 0 END),0),COALESCE(MAX(CASE WHEN l.source LIKE 'offline:%' AND l.available=1 THEN 1 ELSE 0 END),0),COALESCE(MAX(CASE WHEN l.uri LIKE 'smb:%' OR l.uri LIKE 'dav:%' OR l.uri LIKE 'subsonic:%' THEN 1 ELSE 0 END),0) FROM locations l LEFT JOIN sources s ON s.id=l.source WHERE l.track=?",
                             arrayOf(c.getString(0)),
                         )
                         .use { n ->
                             n.moveToFirst()
                             raw.put("locationCount", n.getInt(0)).put("available", n.getInt(1) > 0)
+                                .put("offline", n.getInt(2) > 0).put("remote", n.getInt(3) > 0)
                         }
                     val hash = raw.optString("cover")
                     raw.put(

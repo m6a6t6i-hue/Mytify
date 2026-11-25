@@ -22,6 +22,8 @@ object NetworkSources {
 
     fun server(context: Context, id: String): SubsonicClient = catalog(context).server(id)
 
+    fun catalogOf(context: Context): Catalog = catalog(context)
+
     fun dav(context: Context, id: String): DavSettings =
         catalog(context).sourceSettings(id)?.let { DavSettings.parse(it) }
             ?: throw SourceException("Źródło zostało usunięte.")

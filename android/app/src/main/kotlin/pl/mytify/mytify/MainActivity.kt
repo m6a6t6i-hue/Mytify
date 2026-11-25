@@ -48,7 +48,12 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(engine)
         catalog = Catalog(applicationContext)
         online = OnlineMetadata(applicationContext, catalog)
-        sourceWorker.execute { runCatching { NetworkSources.probe(applicationContext) } }
+        sourceWorker.execute {
+            runCatching { NetworkSources.probe(applicationContext) }
+            // Downloads interrupted by closing the app continue now.
+            runCatching { Downloads(applicationContext, catalog).refreshKept() }
+            runCatching { Downloads.kick(applicationContext) }
+        }
         EventChannel(engine.dartExecutor.binaryMessenger, "pl.mytify/import")
             .setStreamHandler(
                 object : EventChannel.StreamHandler {
@@ -240,6 +245,27 @@ class MainActivity : FlutterActivity() {
                     )
                 }
                 "networkProtocols" -> r.success(JSONArray(NetworkSources.protocols).toString())
+                "downloads" -> {
+                    val args = JSONObject(call.arguments as String)
+                    background(r, sourceWorker) {
+                        val d = Downloads(applicationContext, catalog)
+                        val ids = args.optJSONArray("ids")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList()
+                        when (args.getString("action")) {
+                            "status" -> d.status()
+                            "estimate" -> d.estimate(ids)
+                            "add" -> obj("queued" to d.add(ids, "user"))
+                            "pause" -> obj("ok" to true).also { d.pause(args.optBoolean("paused")) }
+                            "cancel" -> obj("ok" to true).also { d.cancel(ids) }
+                            "remove" -> obj("ok" to true).also { d.remove(ids) }
+                            "keep" -> obj("ok" to true).also { d.keep(args.getString("playlist"), args.optBoolean("keep")) }
+                            "cellular" -> obj("ok" to true).also {
+                                d.cellular = args.optBoolean("cellular")
+                                Downloads.kick(applicationContext)
+                            }
+                            else -> error("Nieznana operacja.")
+                        }
+                    }
+                }
                 "played" -> {
                     val id = call.arguments as String
                     background(r, sourceWorker) {
@@ -451,6 +477,8 @@ class MainActivity : FlutterActivity() {
                                             call.argument<String>("name")!!,
                                             call.argument<List<String>>("ids")!!,
                                         )
+                                // A playlist kept offline downloads what was added to it.
+                                sourceWorker.execute { runCatching { Downloads(applicationContext, catalog).refreshKept() } }
                                 changed()
                                 JSONObject.quote(id)
                             }

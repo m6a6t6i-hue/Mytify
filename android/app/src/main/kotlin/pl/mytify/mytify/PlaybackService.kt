@@ -92,7 +92,13 @@ class PlaybackService : MediaLibraryService() {
 
     /** NAS reachability follows Wi-Fi changes, so offline shares fail fast and come back by themselves. */
     private fun watchNetwork() {
-        val probe = { prober.execute { runCatching { NetworkSources.probe(applicationContext) } } }
+        val probe = {
+            prober.execute {
+                runCatching { NetworkSources.probe(applicationContext) }
+                // Waiting downloads start when a suitable network appears (may need the app open).
+                runCatching { Downloads.kick(applicationContext) }
+            }
+        }
         val cm = getSystemService(android.net.ConnectivityManager::class.java) ?: return
         val callback =
             object : android.net.ConnectivityManager.NetworkCallback() {
