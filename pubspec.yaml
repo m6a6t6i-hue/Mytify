@@ -1,7 +1,7 @@
 name: mytify
-description: Lokalna biblioteka muzyki — iteracja 0.9.
+description: Lokalna biblioteka muzyki, iteracja 0.10.
 publish_to: none
-version: 0.9.0+12
+version: 0.10.0+13
 environment:
   sdk: '>=3.14.0 <4.0.0'
 dependencies:
@@ -9,6 +9,7 @@ dependencies:
     sdk: flutter
   path: 1.9.1
   material_ui: 1.11.1
+  shared_preferences: ^2.3.3
 dev_dependencies:
   flutter_test:
     sdk: flutter

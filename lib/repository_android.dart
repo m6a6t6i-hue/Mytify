@@ -14,6 +14,8 @@ class AndroidLibraryRepository extends LibraryRepository
         TransferRepository,
         LibraryChangesRepository {
   @override
+  bool get queueRestore => false;
+  @override
   bool get receivesTransfers => true;
   @override
   Future<dynamic> transfer(Map<String, dynamic> request) async =>

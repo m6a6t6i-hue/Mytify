@@ -4,8 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mytify/main.dart';
-import 'package:mytify/now_playing.dart';
-import 'package:mytify/playback_card.dart';
+import 'package:mytify/player_ui.dart';
+import 'package:mytify/shell_desktop.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mytify/repository_android.dart';
 
 void main() {
@@ -15,6 +16,7 @@ void main() {
   var trackTitle = 'Światło';
   var trackArtist = 'Łódź';
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     trackTitle = 'Światło';
     trackArtist = 'Łódź';
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -61,29 +63,24 @@ void main() {
           }),
         );
   });
-  testWidgets('Rapid navigation keeps the home feed and player usable', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(412, 915);
+  Future<void> start(WidgetTester tester, Size size, {double text = 1}) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = text;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     await tester.pumpWidget(MytifyApp(repository: AndroidLibraryRepository()));
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 200));
     }
-    for (var i = 0; i < 3; i++) {
-      await tester.tap(find.text('Dodaj').last);
-      await tester.pump(const Duration(milliseconds: 16));
-      await tester.tap(find.text('Start').last);
-      await tester.pump(const Duration(milliseconds: 16));
-    }
-    await tester.pump(const Duration(milliseconds: 500));
+  }
+
+  Future<void> finish(WidgetTester tester) async {
     expect(tester.takeException(), isNull);
-    expect(find.byType(PlaybackCard), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
-    await tester.pump();
-  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+    await tester.pump(const Duration(seconds: 3));
+  }
 
   for (final fixture in [
     (const Size(320, 700), 1.0),
@@ -91,122 +88,99 @@ void main() {
     (const Size(412, 915), 1.3),
   ]) {
     testWidgets(
-      'Home player is fully visible above library ${fixture.$1} text ${fixture.$2}',
+      'Home player is fully visible without scrolling ${fixture.$1} text ${fixture.$2}',
       (tester) async {
-        trackTitle = 'Cathedral of dawn';
+        trackTitle = 'Cathedral of dawn over the quiet river';
         trackArtist = 'Everything will echo';
-        tester.view.physicalSize = fixture.$1;
-        tester.view.devicePixelRatio = 1;
-        tester.platformDispatcher.textScaleFactorTestValue = fixture.$2;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-        await tester.pumpWidget(
-          MytifyApp(repository: AndroidLibraryRepository()),
-        );
-        for (var i = 0; i < 5; i++) {
-          await tester.pump(const Duration(milliseconds: 200));
-        }
-        final card = find.byType(PlaybackCard);
-        final cardBounds = tester.getRect(card);
-        expect(
-          cardBounds.top,
-          greaterThanOrEqualTo(
-            tester.getRect(find.byType(TextField).first).bottom,
-          ),
-        );
-        expect(
-          cardBounds.bottom,
-          lessThanOrEqualTo(tester.getRect(find.byType(NavigationBar)).top),
-        );
-        expect(
-          find
-              .descendant(of: card, matching: find.byType(Slider))
-              .hitTestable(),
-          findsOneWidget,
-        );
-        expect(
-          find
-              .descendant(of: card, matching: find.byTooltip('Odtwórz'))
-              .hitTestable(),
-          findsOneWidget,
-        );
-        expect(tester.takeException(), isNull);
-        await tester.pumpWidget(const SizedBox());
-        await tester.pump();
+        await start(tester, fixture.$1, text: fixture.$2);
+        final player = find.byType(HomePlayer);
+        expect(player, findsOneWidget);
+        final bounds = tester.getRect(player);
+        expect(bounds.bottom, lessThanOrEqualTo(tester.getRect(find.byType(NavigationBar)).top));
+        expect(find.descendant(of: player, matching: find.byTooltip('Odtwórz')).hitTestable(), findsOneWidget);
+        expect(find.descendant(of: player, matching: find.byTooltip('Losowa kolejność')).hitTestable(), findsOneWidget);
+        expect(find.byType(MiniPlayer), findsNothing, reason: 'never both players at once');
+        expect(find.text('Gotowe do słuchania'), findsNothing);
+        expect(find.text('Twoja muzyka.'), findsNothing);
+        await finish(tester);
       },
       variant: TargetPlatformVariant.only(TargetPlatform.android),
     );
   }
 
-  testWidgets(
-    'Tapping Start brings the player back to the top after browsing',
-    (tester) async {
-      tester.view.physicalSize = const Size(360, 800);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        MytifyApp(repository: AndroidLibraryRepository()),
-      );
-      for (var i = 0; i < 5; i++) {
-        await tester.pump(const Duration(milliseconds: 200));
-      }
-      final before = tester.getTopLeft(find.byType(PlaybackCard)).dy;
-      await tester.drag(
-        find.byType(CustomScrollView).first,
-        const Offset(0, -500),
-      );
-      await tester.pumpAndSettle();
-      expect(find.byType(PlaybackCard).hitTestable(), findsNothing);
-      await tester.tap(find.text('Start').last);
-      await tester.pump();
-      await tester.pumpAndSettle();
-      expect(
-        tester.getTopLeft(find.byType(PlaybackCard)).dy,
-        closeTo(before, 1),
-      );
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump();
-    },
-    variant: TargetPlatformVariant.only(TargetPlatform.android),
-  );
+  testWidgets('Mini-player replaces the home player after scrolling', (tester) async {
+    await start(tester, const Size(360, 480));
+    expect(find.byType(MiniPlayer), findsNothing);
+    await tester.drag(find.byType(ListView).first, const Offset(0, -700));
+    await tester.pumpAndSettle();
+    expect(find.byType(MiniPlayer), findsOneWidget);
+    await tester.tap(find.text('Start').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(MiniPlayer), findsNothing);
+    await finish(tester);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
-  for (final size in [
-    const Size(360, 800),
-    const Size(320, 700),
-    const Size(780, 360),
-  ]) {
-    testWidgets('Mobile navigation and player ${size.width}x${size.height}', (
-      tester,
-    ) async {
-      tester.view.physicalSize = size;
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        MytifyApp(repository: AndroidLibraryRepository()),
-      );
-      for (var i = 0; i < 5; i++) {
-        await tester.pump(const Duration(milliseconds: 200));
+  for (final size in [const Size(360, 800), const Size(320, 700), const Size(780, 360)]) {
+    testWidgets('Three-tab navigation and full player ${size.width}x${size.height}', (tester) async {
+      await start(tester, size);
+      expect(find.text('Szukaj'), findsWidgets);
+      expect(find.text('Źródła'), findsNothing);
+      expect(find.text('Dodaj'), findsNothing);
+      for (var i = 0; i < 3; i++) {
+        await tester.tap(find.text('Biblioteka').last);
+        await tester.pump(const Duration(milliseconds: 16));
+        await tester.tap(find.text('Szukaj').last);
+        await tester.pump(const Duration(milliseconds: 16));
       }
-      expect(tester.takeException(), isNull);
-      await tester.tap(find.text('Dodaj').last);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('Wybierz folder'), findsOneWidget);
-      expect(find.text('Przenieś bibliotekę z wersji 0.1'), findsNothing);
-      expect(tester.takeException(), isNull);
-      await tester.tap(find.text('Światło').last);
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(find.byType(NowPlaying), findsOneWidget);
+      await tester.tap(find.text('Biblioteka').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Albumy'), findsWidgets);
+      expect(find.text('Polubione'), findsWidgets);
+      await tester.tap(find.byTooltip('Dodaj muzykę'));
+      await tester.pumpAndSettle();
+      expect(find.text('Dodaj folder'), findsOneWidget);
+      expect(find.text('Importuj Audio CD'), findsNothing);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Start').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Światło').first);
+      await tester.pumpAndSettle();
+      expect(find.byType(NowPlayingScreen), findsOneWidget);
       expect(find.byTooltip('Poprzedni utwór'), findsOneWidget);
       expect(find.byTooltip('Losowa kolejność'), findsOneWidget);
       expect(find.byTooltip('Powtarzaj kolejkę'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump();
+      await finish(tester);
     }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+  }
+
+  testWidgets('Search finds tracks as you type', (tester) async {
+    await start(tester, const Size(390, 844));
+    await tester.tap(find.text('Szukaj').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'swiat');
+    await tester.pumpAndSettle();
+    expect(find.text('Najlepszy wynik'), findsOneWidget);
+    expect(find.text('Światło'), findsWidgets);
+    await tester.enterText(find.byType(TextField).first, 'zzzz');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Nic nie pasuje'), findsOneWidget);
+    await finish(tester);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  for (final size in [const Size(1440, 900), const Size(1000, 700), const Size(860, 600)]) {
+    testWidgets('Desktop layout ${size.width}x${size.height}', (tester) async {
+      await start(tester, size);
+      expect(find.byType(Sidebar), findsOneWidget);
+      expect(find.byType(PlayerBar), findsOneWidget);
+      expect(find.byType(NavigationBar), findsNothing);
+      await tester.tap(find.byTooltip('Albumy').evaluate().isEmpty ? find.text('Albumy').first : find.byTooltip('Albumy'));
+      await tester.pumpAndSettle();
+      expect(find.text('Album'), findsWidgets);
+      await tester.tap(find.byTooltip('Wstecz (Alt+←)'));
+      await tester.pumpAndSettle();
+      expect(find.text('Ostatnio dodane'), findsWidgets);
+      await finish(tester);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   }
 }

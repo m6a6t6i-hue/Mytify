@@ -205,6 +205,8 @@ abstract class LibraryRepository {
   Future<AudioSnapshot> audioCommand(Map<String, dynamic> action);
   Future<List<AudioDevice>> audioDevices();
   Future<void> dispose() async {}
+  /// Rust player accepts an atomic queue restore; Android Media3 does not.
+  bool get queueRestore => true;
 }
 
 class LibrarySource {

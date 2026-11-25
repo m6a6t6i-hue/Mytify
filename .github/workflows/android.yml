@@ -18,6 +18,8 @@ jobs:
         with:
           flutter-version: '3.50.1'
           channel: stable
+      - name: Install CMake 3.31.6 for the native AirPlay module
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "cmake;3.31.6" > /dev/null
       - run: flutter pub get
       - run: flutter analyze --no-pub
       - run: flutter test --no-pub
@@ -25,5 +27,5 @@ jobs:
       - run: cd android && ./gradlew --no-daemon -Ptarget-platform=android-arm64 :app:testReleaseUnitTest
       - uses: actions/upload-artifact@v4
         with:
-          name: Mytify-0.6-Android-test
+          name: Mytify-Android
           path: build/app/outputs/flutter-apk/app-release.apk
