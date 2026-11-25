@@ -448,34 +448,44 @@ class Sidebar extends StatelessWidget {
               ],
             ),
           ),
-          _item(Icons.home_outlined, Icons.home_rounded, 'Start', Nav.home),
-          _item(Icons.search_rounded, Icons.manage_search_rounded, 'Szukaj', Nav.search),
-          _label('Biblioteka'),
-          _item(Icons.album_outlined, Icons.album_rounded, 'Albumy', const Nav('library', 'albums'), active: _active('library', 'albums') || _active('library', 'all') || _active('album')),
-          _item(Icons.person_outline_rounded, Icons.person_rounded, 'Artyści', const Nav('library', 'artists'), active: _active('library', 'artists') || _active('artist')),
-          _item(Icons.music_note_outlined, Icons.music_note_rounded, 'Utwory', const Nav('library', 'tracks')),
-          _item(Icons.favorite_border_rounded, Icons.favorite_rounded, 'Polubione', const Nav('liked')),
-          _item(Icons.schedule_rounded, Icons.schedule_rounded, 'Ostatnio dodane', const Nav('recent')),
-          if (app.playlistRepo != null)
-            _label(
-              'Playlisty',
-              trailing: IconAction(Icons.add_rounded, 'Nowa playlista (Ctrl+N)', () => unawaited(app.createPlaylist()), size: 18, box: 28, color: secondaryText),
-            ),
           Expanded(
-            child: app.playlistRepo == null
-                ? const SizedBox()
-                : ListView.builder(
-                    padding: const EdgeInsets.only(bottom: Sp.s),
-                    itemCount: playlists.length + (collapsed ? 1 : 0),
-                    itemBuilder: (context, i) {
-                      if (collapsed && i == playlists.length) {
-                        return Center(
-                          child: IconAction(Icons.add_rounded, 'Nowa playlista', () => unawaited(app.createPlaylist()), color: secondaryText),
-                        );
-                      }
-                      return _PlaylistItem(app: app, playlist: playlists[i], collapsed: collapsed);
-                    },
-                  ),
+            child: LayoutBuilder(
+              builder: (context, box) {
+                final nav = <Widget>[
+                  _item(Icons.home_outlined, Icons.home_rounded, 'Start', Nav.home),
+                  _item(Icons.search_rounded, Icons.manage_search_rounded, 'Szukaj', Nav.search),
+                  _label('Biblioteka'),
+                  _item(Icons.album_outlined, Icons.album_rounded, 'Albumy', const Nav('library', 'albums'), active: _active('library', 'albums') || _active('library', 'all') || _active('album')),
+                  _item(Icons.person_outline_rounded, Icons.person_rounded, 'Artyści', const Nav('library', 'artists'), active: _active('library', 'artists') || _active('artist')),
+                  _item(Icons.music_note_outlined, Icons.music_note_rounded, 'Utwory', const Nav('library', 'tracks')),
+                  _item(Icons.favorite_border_rounded, Icons.favorite_rounded, 'Polubione', const Nav('liked')),
+                  _item(Icons.schedule_rounded, Icons.schedule_rounded, 'Ostatnio dodane', const Nav('recent')),
+                  if (app.playlistRepo != null)
+                    _label(
+                      'Playlisty',
+                      trailing: IconAction(Icons.add_rounded, 'Nowa playlista (Ctrl+N)', () => unawaited(app.createPlaylist()), size: 18, box: 28, color: secondaryText),
+                    ),
+                ];
+                final items = [
+                  for (final p in playlists) _PlaylistItem(app: app, playlist: p, collapsed: collapsed),
+                  if (collapsed && app.playlistRepo != null)
+                    Center(child: IconAction(Icons.add_rounded, 'Nowa playlista', () => unawaited(app.createPlaylist()), color: secondaryText)),
+                ];
+                // Tall windows: playlists scroll on their own under fixed navigation.
+                if (box.maxHeight >= 520) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ...nav,
+                      Expanded(
+                        child: ListView(padding: const EdgeInsets.only(bottom: Sp.s), children: items),
+                      ),
+                    ],
+                  );
+                }
+                return ListView(padding: const EdgeInsets.only(bottom: Sp.s), children: [...nav, ...items]);
+              },
+            ),
           ),
           const Divider(height: 1, color: softBorder),
           const SizedBox(height: Sp.xs),

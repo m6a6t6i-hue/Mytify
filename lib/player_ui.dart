@@ -311,7 +311,8 @@ class SidePanel extends StatelessWidget {
                     ('queue', 'Kolejka'),
                     ('info', 'Informacje'),
                   ])
-                    Padding(
+                    Flexible(
+                      child: Padding(
                       padding: const EdgeInsets.only(right: 2),
                       child: TextButton(
                         onPressed: () => onTab(key),
@@ -322,8 +323,9 @@ class SidePanel extends StatelessWidget {
                           minimumSize: const Size(0, 32),
                           textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                         ),
-                        child: Text(label),
+                        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
+                    ),
                     ),
                   const Spacer(),
                   IconAction(Icons.close_rounded, 'Zamknij panel', onClose, size: 18, color: secondaryText),
@@ -767,7 +769,46 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   );
 
   Widget _mobile(BuildContext context, LibraryScreenState app, Track t, AudioSnapshot s, Size size) {
-    final art = (size.width - Sp.xxl).clamp(160.0, size.height * .45);
+    if (size.width > size.height) {
+      final art = (size.height - 96).clamp(96.0, size.width * .4);
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Sp.l),
+        child: Column(
+          children: [
+            _top(context, app, t),
+            Expanded(
+              child: Row(
+                children: [
+                  Artwork(t.cover, size: art, radius: 10),
+                  const SizedBox(width: Sp.xl),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _titleRow(app, t, 20),
+                          const SizedBox(height: Sp.s),
+                          SeekBar(position: s.position, duration: s.duration, onSeek: (d) => unawaited(app.seek(d))),
+                          TransportControls(app: app, play: 56, icon: 26, gap: Sp.m),
+                          Row(
+                            children: [
+                              DeviceButton(app: app, size: 22),
+                              const Spacer(),
+                              IconAction(Icons.queue_music_rounded, 'Kolejka', () => showQueueSheet(app), color: secondaryText),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    final art = (size.width - Sp.xxl).clamp(120.0, size.height - 420 < 120 ? 120.0 : size.height - 420);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Sp.l),
       child: Column(
@@ -940,6 +981,11 @@ class MiniPlayer extends StatelessWidget {
   }
 }
 
+double homeArtSize(Size size) {
+  final cap = size.height * .36;
+  return (size.width - Sp.xxl).clamp(120.0, cap < 120 ? 120.0 : cap);
+}
+
 /// Large player at the top of mobile Home.
 class HomePlayer extends StatelessWidget {
   final LibraryScreenState app;
@@ -949,7 +995,7 @@ class HomePlayer extends StatelessWidget {
     final t = app.current;
     if (t == null) return const SizedBox.shrink();
     final size = MediaQuery.sizeOf(context);
-    final art = (size.width - Sp.xxl).clamp(120.0, size.height * .36);
+    final art = homeArtSize(size);
     return Padding(
       padding: const EdgeInsets.fromLTRB(Sp.l, Sp.s, Sp.l, 0),
       child: Column(

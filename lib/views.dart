@@ -137,7 +137,7 @@ class HomePage extends StatelessWidget {
       onNotification: (n) {
         if (!desktop && n.depth == 0) {
           final size = MediaQuery.sizeOf(context);
-          final threshold = (size.width - Sp.xxl).clamp(120.0, size.height * .36) + 100;
+          final threshold = homeArtSize(size) + 100;
           final visible = n.metrics.pixels < threshold;
           if (visible != app.homePlayerVisible) {
             app.refresh(() => app.homePlayerVisible = visible);
