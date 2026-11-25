@@ -33,9 +33,9 @@ pub struct NetworkConfig {
 /// Protocols that really work in this build. The UI shows nothing else.
 pub fn protocols() -> Vec<&'static str> {
     if cfg!(windows) {
-        vec!["smb", "webdav"]
+        vec!["smb", "webdav", "subsonic"]
     } else {
-        vec!["webdav"]
+        vec!["webdav", "subsonic"]
     }
 }
 
@@ -44,6 +44,8 @@ pub fn capabilities(kind: &str) -> Vec<&'static str> {
     match kind {
         "folder" | "smb" | "webdav" => vec!["browse", "scan", "tags", "artwork", "stream", "seek", "refresh"],
         "files" | "managed" => vec!["tags", "artwork", "stream", "seek", "refresh"],
+        // The server keeps its own index: no folders, but favourites, playlists and plays.
+        "subsonic" => vec!["search", "tags", "artwork", "stream", "seek", "refresh", "syncLikes", "syncPlaylists", "scrobble"],
         _ => vec!["stream", "seek"],
     }
 }
@@ -162,10 +164,85 @@ pub fn clean_webdav(config: &NetworkConfig) -> Result<NetworkConfig> {
     })
 }
 
+/// Normalised OpenSubsonic / Subsonic settings.
+pub fn clean_subsonic(config: &NetworkConfig) -> Result<NetworkConfig> {
+    let url = crate::subsonic::clean_url(&config.url)?;
+    let user = config.user.trim().to_string();
+    if user.is_empty() {
+        bail!("Podaj nazwę użytkownika.");
+    }
+    if user.len() > 256 {
+        bail!("Nazwa użytkownika jest nieprawidłowa.");
+    }
+    let name = match config.name.trim() {
+        "" => url.host_str().unwrap_or("Serwer muzyczny").to_string(),
+        n => n.chars().take(80).collect(),
+    };
+    Ok(NetworkConfig {
+        protocol: "subsonic".into(),
+        name,
+        url: url.to_string(),
+        user,
+        password: config.password.clone(),
+        ..Default::default()
+    })
+}
+
+fn subsonic_clients() -> &'static std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<crate::subsonic::Subsonic>>> {
+    static CLIENTS: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<crate::subsonic::Subsonic>>>> =
+        std::sync::OnceLock::new();
+    CLIENTS.get_or_init(Default::default)
+}
+
+/// Client of a saved server (cached) or of a form that is not saved yet.
+pub fn subsonic(source_id: Option<&str>, config: &NetworkConfig) -> Result<std::sync::Arc<crate::subsonic::Subsonic>> {
+    let password = match (&config.password, source_id) {
+        (Some(p), _) => p.clone(),
+        (None, Some(id)) => crate::secrets::load(id)?.unwrap_or_default(),
+        (None, None) => String::new(),
+    };
+    let make = || -> Result<_> {
+        Ok(std::sync::Arc::new(crate::subsonic::Subsonic::new(
+            crate::subsonic::clean_url(&config.url)?,
+            &config.user,
+            &password,
+        )?))
+    };
+    match source_id {
+        Some(id) if config.password.is_none() => {
+            if let Some(c) = subsonic_clients().lock().unwrap().get(id) {
+                return Ok(c.clone());
+            }
+            let c = make()?;
+            subsonic_clients().lock().unwrap().insert(id.to_string(), c.clone());
+            Ok(c)
+        }
+        _ => make(),
+    }
+}
+
+pub fn forget_clients(id: &str) {
+    crate::webdav::forget_client(id);
+    subsonic_clients().lock().unwrap().remove(id);
+}
+
+/// Logs in and describes the server ("navidrome 0.58", OpenSubsonic extensions).
+pub fn describe(source_id: Option<&str>, config: &NetworkConfig) -> Result<String> {
+    let config = clean_subsonic(config)?;
+    let password = config.password.clone().or(source_id.and_then(|id| crate::secrets::load(id).ok().flatten()));
+    let (name, extensions) = subsonic(None, &NetworkConfig { password, ..config })?.ping()?;
+    Ok(if extensions.is_empty() {
+        format!("Połączono z {name}.")
+    } else {
+        format!("Połączono z {name} (OpenSubsonic).")
+    })
+}
+
 pub fn clean(config: &NetworkConfig) -> Result<NetworkConfig> {
     match config.protocol.as_str() {
         "smb" => clean_smb(config),
         "webdav" => clean_webdav(config),
+        "subsonic" => clean_subsonic(config),
         _ => bail!("Ten rodzaj źródła nie jest dostępny w tej wersji."),
     }
 }
@@ -253,6 +330,7 @@ pub fn connect(source_id: Option<&str>, config: &NetworkConfig) -> Result<()> {
             let dav = dav(source_id, config)?;
             dav.list(dav.base()).map(|_| ())
         }
+        "subsonic" => subsonic(source_id, config)?.ping().map(|_| ()),
         _ => bail!("Ten rodzaj źródła nie jest dostępny w tej wersji."),
     }
 }

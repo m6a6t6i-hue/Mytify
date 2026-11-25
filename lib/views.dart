@@ -1809,7 +1809,9 @@ class SettingsPage extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            source.protocol == 'webdav'
+            source.protocol == 'subsonic'
+                ? Icons.dns_outlined
+                : source.protocol == 'webdav'
                 ? (offline ? Icons.cloud_off_outlined : Icons.cloud_outlined)
                 : source.network
                 ? (offline ? Icons.portable_wifi_off_rounded : Icons.lan_outlined)

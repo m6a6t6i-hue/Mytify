@@ -381,6 +381,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (!_histCounted && id != null && _histMs >= needed) {
         _histCounted = true;
         prefs.history.counted(id);
+        unawaited(repository.played(id).catchError((Object _) {}));
         if (prefs.history.recent.firstOrNull != id) prefs.history.started(id);
         prefs.saveHistory();
       }

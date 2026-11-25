@@ -225,6 +225,9 @@ impl Catalog {
           CREATE VIRTUAL TABLE IF NOT EXISTS tracks_search USING fts5(track_id UNINDEXED,text,tokenize='unicode61 remove_diacritics 2');
           CREATE TABLE IF NOT EXISTS metadata_overrides(track_id TEXT PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,patch TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS source_settings(source_id TEXT PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,protocol TEXT NOT NULL,settings TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS remote_art(source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,art_id TEXT NOT NULL,cover TEXT,PRIMARY KEY(source_id,art_id));
+          CREATE TABLE IF NOT EXISTS pending_sync(id INTEGER PRIMARY KEY AUTOINCREMENT,source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,kind TEXT NOT NULL,item TEXT NOT NULL,value TEXT NOT NULL,created INTEGER NOT NULL);
+          CREATE TABLE IF NOT EXISTS remote_playlists(source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,remote_id TEXT NOT NULL,local_id TEXT NOT NULL,server_hash TEXT NOT NULL,local_hash TEXT NOT NULL,PRIMARY KEY(source_id,remote_id));
           PRAGMA user_version=4;
           UPDATE sources SET state='partial' WHERE state='scanning';")?;
         Ok(Self {
@@ -274,7 +277,7 @@ impl Catalog {
         for source in self.sources()? {
             // Network shares are probed in the background, never while listing the library:
             // an unreachable NAS must not freeze the UI.
-            if matches!(source.kind.as_str(), "files" | "smb" | "webdav") {
+            if matches!(source.kind.as_str(), "files" | "smb" | "webdav" | "subsonic") {
                 continue;
             }
             let path = Path::new(&source.path);
@@ -371,6 +374,7 @@ impl Catalog {
                 let root = crate::sources::smb_scan_root(&config);
                 (root.to_string_lossy().into_owned(), path_key(&root))
             }
+            "subsonic" => (config.url.clone(), format!("{}|{}", config.url.to_lowercase(), config.user)),
             _ => {
                 let root = crate::sources::webdav_root(&config, "")?;
                 (root.to_string(), root.to_string().to_lowercase())
@@ -396,7 +400,7 @@ impl Catalog {
         if let Some(password) = &config.password {
             crate::secrets::store(&id, &crate::sources::login_name(&config), password)?;
         }
-        crate::webdav::forget_client(&id);
+        crate::sources::forget_clients(&id);
         let settings = serde_json::to_string(&config)?;
         let mut db = self.db()?;
         let tx = db.transaction()?;
@@ -422,9 +426,9 @@ impl Catalog {
     }
     /// Background reachability check, so the library shows the real state of a NAS.
     pub fn probe_network_sources(&self) -> Result<()> {
-        for source in self.sources()?.into_iter().filter(|s| s.kind == "smb" || s.kind == "webdav") {
+        for source in self.sources()?.into_iter().filter(|s| matches!(s.kind.as_str(), "smb" | "webdav" | "subsonic")) {
             let reachable = self.reconnect(&source.id).is_ok()
-                && (source.kind == "webdav" || self
+                && (source.kind != "smb" || self
                     .db()?
                     .query_row("SELECT path FROM sources WHERE id=?", [&source.id], |r| {
                         r.get::<_, String>(0)
@@ -441,6 +445,9 @@ impl Catalog {
                 "UPDATE sources SET state=?1 WHERE id=?2 AND state<>'scanning'",
                 params![state, source.id],
             )?;
+            if reachable && source.kind == "subsonic" {
+                let _ = self.flush_pending(&source.id);
+            }
         }
         Ok(())
     }
@@ -501,8 +508,21 @@ impl Catalog {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
     pub fn like(&self, id: &str, liked: bool) -> Result<()> {
-        self.db()?
-            .execute("UPDATE tracks SET liked=?1 WHERE id=?2", params![liked, id])?;
+        let mut db = self.db()?;
+        let tx = db.transaction()?;
+        tx.execute("UPDATE tracks SET liked=?1 WHERE id=?2", params![liked, id])?;
+        // A music server keeps its own favourites: remember the change and send it when
+        // the server is reachable. The newest local choice replaces an unsent older one.
+        let remote: Vec<(String, String)> = {
+            let mut stmt = tx.prepare("SELECT l.source_id,l.path FROM locations l JOIN sources s ON s.id=l.source_id WHERE l.track_id=?1 AND s.kind='subsonic'")?;
+            let rows = stmt.query_map([id], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
+            rows
+        };
+        for (source, song) in &remote {
+            tx.execute("DELETE FROM pending_sync WHERE source_id=?1 AND kind='star' AND item=?2", params![source, song])?;
+            tx.execute("INSERT INTO pending_sync(source_id,kind,item,value,created) VALUES(?1,'star',?2,?3,?4)", params![source, song, if liked { "1" } else { "0" }, now_ms()])?;
+        }
+        tx.commit()?;
         Ok(())
     }
     pub fn forget_track(&self, id: &str) -> Result<()> {
@@ -518,7 +538,7 @@ impl Catalog {
         self.db()?.execute("DELETE FROM sources WHERE id=?", [id])?;
         if let Some(config) = network {
             crate::secrets::delete(id);
-            crate::webdav::forget_client(id);
+            crate::sources::forget_clients(id);
             if config.protocol == "smb" {
                 crate::smb::disconnect(&crate::sources::share_root(&config));
             }
@@ -590,7 +610,7 @@ impl Catalog {
         // Local copies first, network shares last; available locations before stale ones.
         let paths: Vec<(String, String, String)> = {
             let db = self.db()?;
-            let mut stmt = db.prepare("SELECT l.path,s.id,s.kind FROM locations l JOIN sources s ON s.id=l.source_id WHERE l.track_id=?1 AND s.kind<>'webdav' ORDER BY CASE WHEN s.kind='smb' THEN 1 ELSE 0 END,l.available DESC")?;
+            let mut stmt = db.prepare("SELECT l.path,s.id,s.kind FROM locations l JOIN sources s ON s.id=l.source_id WHERE l.track_id=?1 AND s.kind NOT IN ('webdav','subsonic') ORDER BY CASE WHEN s.kind='smb' THEN 1 ELSE 0 END,l.available DESC")?;
             let values = stmt
                 .query_map([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -669,6 +689,10 @@ impl Catalog {
                 break;
             }
             let generation = format!("{}-{}", now_ms(), hex(getrandom_bytes()?));
+            if source.kind == "subsonic" {
+                self.scan_subsonic(&source, &generation, cancel, &mut progress, &mut report)?;
+                continue;
+            }
             if source.kind == "webdav" {
                 self.scan_webdav(&source, &generation, request.force, cancel, &mut progress, &mut report)?;
                 continue;

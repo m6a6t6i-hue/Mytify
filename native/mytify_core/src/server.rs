@@ -201,12 +201,22 @@ fn start_job(app: &Arc<App>, scan: ScanRequest) -> Result<String> {
     let app = app.clone();
     let worker_id = id.clone();
     thread::spawn(move || {
+        let only = scan.source_id.clone();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            app.catalog.scan(scan, &cancel, |progress| {
+            let mut report = app.catalog.scan(scan, &cancel, |progress| {
                 if let Some(job) = app.jobs.lock().unwrap().get_mut(&worker_id) {
                     job.progress = progress;
                 }
-            })
+            })?;
+            // Music servers: playlists follow the library.
+            for s in app.catalog.sources()?.into_iter().filter(|s| {
+                s.kind == "subsonic" && s.state == "online" && only.as_ref().is_none_or(|o| *o == s.id)
+            }) {
+                if let Err(e) = crate::playlist_sync::sync(&app.catalog, &app.transfer, &s.id) {
+                    report.errors.push(format!("{}: playlisty: {e}", s.name));
+                }
+            }
+            Ok::<_, anyhow::Error>(report)
         }));
         if let Some(job) = app.jobs.lock().unwrap().get_mut(&worker_id) {
             job.finished = true;
@@ -225,6 +235,15 @@ fn start_job(app: &Arc<App>, scan: ScanRequest) -> Result<String> {
         app.busy.store(false, Ordering::Release);
     });
     Ok(id)
+}
+
+fn flush_servers(app: &Arc<App>) {
+    let catalog = app.catalog.clone();
+    thread::spawn(move || {
+        for s in catalog.sources().unwrap_or_default().into_iter().filter(|s| s.kind == "subsonic") {
+            let _ = catalog.flush_pending(&s.id);
+        }
+    });
 }
 
 fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
@@ -531,9 +550,23 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
                     .catalog
                     .like(id, args["liked"].as_bool().unwrap_or(false))
                 {
-                    Ok(_) => send_json(request, 200, json!({"ok":true})),
+                    Ok(_) => {
+                        // Music servers get the change in the background; offline it waits.
+                        flush_servers(&app);
+                        send_json(request, 200, json!({"ok":true}))
+                    }
                     Err(e) => send_error(request, 400, e),
                 };
+            }
+        }
+        if let Some(id) = path.strip_prefix("/api/played/") {
+            if method == Method::Post {
+                let catalog = app.catalog.clone();
+                let id = id.to_owned();
+                thread::spawn(move || {
+                    let _ = catalog.played(&id);
+                });
+                return send_json(request, 200, json!({"ok":true}));
             }
         }
         if let Some(id) = path.strip_prefix("/api/tracks/") {
@@ -560,6 +593,10 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
                 };
             // Network calls can take a while; this request has its own thread.
             let result = match path.as_str() {
+                "/api/sources/test" if config.protocol == "subsonic" => {
+                    crate::sources::describe(id.as_deref(), &config)
+                        .map(|message| json!({"ok":true,"folders":[],"message":message}))
+                }
                 "/api/sources/test" => crate::sources::test(id.as_deref(), &config)
                     .map(|folders| json!({"ok":true,"folders":folders})),
                 "/api/sources/browse" => crate::sources::browse(

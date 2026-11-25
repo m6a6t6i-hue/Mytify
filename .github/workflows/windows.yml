@@ -68,6 +68,19 @@ jobs:
           nohup python "$GITHUB_WORKSPACE/tools/dav_test_server.py" "$d/root" 18444 self.pem self.key mat Haslo-123 > dav2.log 2>&1 &
           nohup python "$GITHUB_WORKSPACE/tools/norange_test_server.py" "$d/root" 18445 server.pem server.key > nr.log 2>&1 &
           for i in $(seq 1 30); do curl -s -o /dev/null --ssl-no-revoke -k https://localhost:18443/dav/ && break; sleep 1; done
+      - name: Local Navidrome for the music server tests
+        shell: bash
+        run: |
+          d="$RUNNER_TEMP/navidrome"; mkdir -p "$d/music/Polskie ąę albumy" "$d/data"; cd "$d"
+          curl -sSL -o nd.zip https://github.com/navidrome/navidrome/releases/download/v0.58.0/navidrome_0.58.0_windows_amd64.zip
+          unzip -q nd.zip navidrome.exe
+          cp "$GITHUB_WORKSPACE/test/fixtures/sample.flac" "music/Polskie ąę albumy/a.flac"
+          cp "$GITHUB_WORKSPACE/test/fixtures/sample.mp3" "music/Polskie ąę albumy/Zażółć gęślą jaźń.mp3"
+          ND_MUSICFOLDER="$d/music" ND_DATAFOLDER="$d/data" ND_PORT=14533 ND_ADDRESS=127.0.0.1 ND_SCANNER_SCHEDULE=0 nohup ./navidrome.exe > nd.log 2>&1 &
+          for i in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:14533/ping && break; sleep 1; done
+          curl -s -X POST http://127.0.0.1:14533/auth/createAdmin -H 'Content-Type: application/json' -d '{"username":"mat","password":"Haslo-123"}' > /dev/null
+          for i in $(seq 1 60); do n=$(curl -s "http://127.0.0.1:14533/rest/search3?u=mat&p=Haslo-123&v=1.16.1&c=ci&f=json&query=&songCount=10" | grep -o '"suffix"' | wc -l); [ "$n" -ge 2 ] && break; sleep 1; done
+          echo "songs indexed: $n"
       - run: cargo test --locked -- --nocapture --test-threads=1
         working-directory: native/mytify_core
         env:
@@ -80,6 +93,9 @@ jobs:
           MYTIFY_DAV_UNTRUSTED_URL: https://localhost:18444/dav/
           MYTIFY_NORANGE_URL: https://localhost:18445/
           MYTIFY_DAV_PASSWORD: Haslo-123
+          MYTIFY_SUBSONIC_URL: http://127.0.0.1:14533
+          MYTIFY_SUBSONIC_USER: mat
+          MYTIFY_SUBSONIC_PASSWORD: Haslo-123
       - run: cargo build --locked --release --features desktop,embed-ui
         working-directory: native/mytify_core
         env:

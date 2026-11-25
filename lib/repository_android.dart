@@ -167,8 +167,14 @@ class AndroidLibraryRepository extends LibraryRepository
   Future<List<String>> networkProtocols() async =>
       [for (final p in await _call('networkProtocols') as List) p as String];
   @override
-  Future<List<String>> testSource(Map<String, dynamic> config, {String? id}) async =>
-      [for (final f in _map(await _call('testSource', jsonEncode({'id': id, 'config': config})))['folders'] as List) f as String];
+  Future<({List<String> folders, String? message})> testSource(Map<String, dynamic> config, {String? id}) async {
+    final r = _map(await _call('testSource', jsonEncode({'id': id, 'config': config})));
+    return (folders: [for (final f in r['folders'] as List? ?? const []) f as String], message: r['message'] as String?);
+  }
+  @override
+  Future<void> played(String id) async {
+    await _call('played', id);
+  }
   @override
   Future<List<String>> browseSource(Map<String, dynamic> config, String path, {String? id}) async => [
     for (final f in _map(await _call('browseSource', jsonEncode({'id': id, 'config': config, 'path': path})))['folders'] as List)

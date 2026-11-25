@@ -58,8 +58,14 @@ class WebLibraryRepository extends LibraryRepository
   @override
   Future<List<String>> networkProtocols() async => [for (final p in await _net('protocols', '') as List) p as String];
   @override
-  Future<List<String>> testSource(Map<String, dynamic> config, {String? id}) async =>
-      [for (final f in (await _net('test', {'id': id, 'config': config}) as Map)['folders'] as List) f as String];
+  Future<({List<String> folders, String? message})> testSource(Map<String, dynamic> config, {String? id}) async {
+    final r = await _net('test', {'id': id, 'config': config}) as Map;
+    return (folders: [for (final f in r['folders'] as List? ?? const []) f as String], message: r['message'] as String?);
+  }
+  @override
+  Future<void> played(String id) async {
+    await _net('played', id);
+  }
   @override
   Future<List<String>> browseSource(Map<String, dynamic> config, String path, {String? id}) async =>
       [for (final f in (await _net('browse', {'id': id, 'config': config, 'path': path}) as Map)['folders'] as List) f as String];

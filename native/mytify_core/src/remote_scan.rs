@@ -303,6 +303,11 @@ impl Catalog {
             rows
         };
         let mut last = None;
+        match self.subsonic_input(id) {
+            Ok(Some(input)) => return Ok(input),
+            Ok(None) => {}
+            Err(e) => last = Some(e),
+        }
         for (source, href, size, version, name) in remote {
             let attempt = (|| -> Result<AudioInput> {
                 let config = self
@@ -334,7 +339,7 @@ impl Catalog {
             return Ok(());
         }
         let remote: bool = self.db()?.query_row(
-            "SELECT EXISTS(SELECT 1 FROM locations l JOIN sources s ON s.id=l.source_id WHERE l.track_id=?1 AND s.kind='webdav')",
+            "SELECT EXISTS(SELECT 1 FROM locations l JOIN sources s ON s.id=l.source_id WHERE l.track_id=?1 AND s.kind IN ('webdav','subsonic'))",
             [id],
             |r| r.get(0),
         )?;
@@ -343,5 +348,261 @@ impl Catalog {
         } else {
             bail!("Plik jest niedostępny. Podłącz źródło i wykonaj ponowny skan.")
         }
+    }
+}
+
+/// Songs per search3 page.
+const PAGE: usize = 500;
+
+impl Catalog {
+    pub(crate) fn subsonic_client(&self, source: &str) -> Result<Arc<crate::subsonic::Subsonic>> {
+        let config = self
+            .network_settings(source)?
+            .ok_or_else(|| anyhow!("Brak ustawień źródła."))?;
+        crate::sources::subsonic(Some(source), &config)
+    }
+
+    /// Imports the server's library through its API (no folder rescans), then sends
+    /// waiting favourites and applies the server's ones where nothing local is waiting.
+    pub(crate) fn scan_subsonic(
+        &self,
+        source: &crate::catalog::Source,
+        generation: &str,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+        report: &mut Report,
+    ) -> Result<()> {
+        progress(Progress { done: 0, total: 0, name: format!("Łączenie z {}…", source.name) });
+        let client = match self.subsonic_client(&source.id).and_then(|c| c.ping().map(|_| c)) {
+            Ok(c) => c,
+            Err(e) => {
+                // Unreachable server: keep the collection, only the state changes.
+                self.db()?.execute("UPDATE sources SET state='offline' WHERE id=?", [&source.id])?;
+                report.offline_sources += 1;
+                report.error(format!("{}: {e}", source.name));
+                return Ok(());
+            }
+        };
+        self.db()?.execute("UPDATE sources SET state='scanning' WHERE id=?", [&source.id])?;
+        // Local changes first, so the server state read below already contains them.
+        if let Err(e) = self.flush_pending(&source.id) {
+            report.error(format!("{}: {e}", source.name));
+        }
+        let mut complete = true;
+        let mut count = 0usize;
+        let mut covers = std::collections::HashMap::<String, Option<String>>::new();
+        let mut handle = |catalog: &Catalog, songs: Vec<crate::subsonic::Song>, report: &mut Report| -> Result<()> {
+            for song in songs {
+                if cancel.load(Ordering::Relaxed) {
+                    report.cancelled = true;
+                    return Ok(());
+                }
+                count += 1;
+                progress(Progress { done: count, total: 0, name: song.title.clone() });
+                let cover = match &song.cover {
+                    Some(art) => match covers.get(art) {
+                        Some(c) => c.clone(),
+                        None => {
+                            let c = catalog.remote_cover(&source.id, &client, art);
+                            covers.insert(art.clone(), c.clone());
+                            c
+                        }
+                    },
+                    None => None,
+                };
+                if let Err(e) = catalog.upsert_song(&source.id, &song, cover, generation, report) {
+                    report.error(format!("{}: {e}", song.title));
+                }
+            }
+            Ok(())
+        };
+        let mut offset = 0;
+        loop {
+            if report.cancelled {
+                break;
+            }
+            match client.songs(offset, PAGE) {
+                Ok(page) if page.is_empty() => break,
+                Ok(page) => {
+                    offset += page.len();
+                    handle(self, page, report)?;
+                }
+                Err(e) => {
+                    complete = false;
+                    report.error(format!("{}: {e}", source.name));
+                    break;
+                }
+            }
+        }
+        if offset == 0 && complete && !report.cancelled {
+            // Servers whose search3 does not list everything: walk the albums instead.
+            if let Err(e) = client.songs_by_albums(|songs| handle(self, songs, report)) {
+                complete = false;
+                report.error(format!("{}: {e}", source.name));
+            }
+        }
+        if complete && !report.cancelled {
+            report.missing += self.db()?.execute(
+                "UPDATE locations SET available=0 WHERE source_id=?1 AND seen<>?2 AND available=1",
+                params![source.id, generation],
+            )? as u32;
+        }
+        self.db()?.execute(
+            "UPDATE sources SET state=?1,last_scan=?2 WHERE id=?3",
+            params![if complete && !report.cancelled { "online" } else { "partial" }, now_ms(), source.id],
+        )?;
+        progress(Progress { done: count, total: count, name: source.name.clone() });
+        Ok(())
+    }
+
+    /// Cover of an album/song, downloaded once per server art id.
+    fn remote_cover(&self, source: &str, client: &crate::subsonic::Subsonic, art: &str) -> Option<String> {
+        let known: Option<Option<String>> = self
+            .db()
+            .ok()?
+            .query_row("SELECT cover FROM remote_art WHERE source_id=?1 AND art_id=?2", params![source, art], |r| r.get(0))
+            .optional()
+            .ok()?;
+        if let Some(c) = known {
+            return c;
+        }
+        let cover = client.cover(art, 600).ok().and_then(|bytes| {
+            let cover = hex(Sha256::digest(&bytes));
+            let target = self.root.join("artwork").join(&cover);
+            if !target.exists() {
+                let temporary = target.with_extension("partial");
+                fs::write(&temporary, &bytes).ok()?;
+                fs::rename(temporary, &target).ok()?;
+            }
+            Some(cover)
+        });
+        let _ = self.db().map(|db| {
+            db.execute(
+                "INSERT OR REPLACE INTO remote_art(source_id,art_id,cover) VALUES(?1,?2,?3)",
+                params![source, art, cover],
+            )
+        });
+        cover
+    }
+
+    fn upsert_song(
+        &self,
+        source: &str,
+        song: &crate::subsonic::Song,
+        cover: Option<String>,
+        generation: &str,
+        report: &mut Report,
+    ) -> Result<()> {
+        let id = remote_id(source, &song.id);
+        let name = song.file_name();
+        let mut db = self.db()?;
+        let tx = db.transaction()?;
+        let prior: Option<String> = tx
+            .query_row("SELECT modified FROM locations WHERE source_id=?1 AND path_key=?2", params![source, song.id], |r| r.get(0))
+            .optional()?;
+        let exists: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM tracks WHERE id=?)", [&id], |r| r.get(0))?;
+        let args = params![
+            id, song.title, song.artist, song.album, song.album_artist, name, song.format(), song.size,
+            song.duration_ms, song.track, song.disc, song.sample_rate, song.bit_depth(), cover
+        ];
+        if exists {
+            tx.execute("UPDATE tracks SET title=?2,artist=?3,album=?4,album_artist=?5,file_name=?6,format=?7,size=?8,duration_ms=?9,track_number=?10,disc_number=?11,sample_rate=?12,bit_depth=?13,cover=COALESCE(?14,cover) WHERE id=?1", args)?;
+            crate::metadata::reindex(&tx, &id)?;
+        } else {
+            tx.execute("INSERT INTO tracks(id,title,artist,album,album_artist,file_name,format,size,duration_ms,track_number,disc_number,sample_rate,bit_depth,cover,added_at,liked) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,0)",
+                params![id, song.title, song.artist, song.album, song.album_artist, name, song.format(), song.size, song.duration_ms, song.track, song.disc, song.sample_rate, song.bit_depth(), cover, now_ms()])?;
+            tx.execute(
+                "INSERT INTO tracks_search(track_id,text) VALUES(?1,?2)",
+                params![id, search_key(&format!("{} {} {} {} {name}", song.title, song.artist, song.album, song.album_artist))],
+            )?;
+        }
+        // The server's favourite wins unless a local change is still waiting to be sent.
+        let waiting: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM pending_sync WHERE source_id=?1 AND kind='star' AND item=?2)",
+            params![source, song.id],
+            |r| r.get(0),
+        )?;
+        if !waiting {
+            tx.execute("UPDATE tracks SET liked=?1 WHERE id=?2", params![song.starred, id])?;
+        }
+        tx.execute("INSERT INTO locations(source_id,path_key,path,track_id,size,modified,seen,available,display_name) VALUES(?1,?2,?2,?3,?4,?5,?6,1,?7) ON CONFLICT(source_id,path_key) DO UPDATE SET track_id=excluded.track_id,size=excluded.size,modified=excluded.modified,seen=excluded.seen,available=1,display_name=excluded.display_name",
+            params![source, song.id, id, song.size, song.version(), generation, name])?;
+        tx.commit()?;
+        match prior {
+            None => report.added += 1,
+            Some(v) if v == song.version() => report.unchanged += 1,
+            Some(_) => report.updated += 1,
+        }
+        Ok(())
+    }
+
+    /// Sends waiting favourites and plays. Stops at the first network error and keeps the rest.
+    pub fn flush_pending(&self, source: &str) -> Result<usize> {
+        let rows: Vec<(i64, String, String, String, i64)> = {
+            let db = self.db()?;
+            let mut stmt = db.prepare("SELECT id,kind,item,value,created FROM pending_sync WHERE source_id=?1 ORDER BY id")?;
+            let rows = stmt
+                .query_map([source], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            rows
+        };
+        if rows.is_empty() {
+            return Ok(0);
+        }
+        let client = self.subsonic_client(source)?;
+        let mut sent = 0;
+        for (row, kind, item, value, created) in rows {
+            let result = match kind.as_str() {
+                "star" => client.star(&item, value == "1"),
+                "scrobble" => client.scrobble(&item, created),
+                _ => Ok(()),
+            };
+            match result {
+                Ok(()) => {
+                    self.db()?.execute("DELETE FROM pending_sync WHERE id=?", [row])?;
+                    sent += 1;
+                }
+                // The song is gone on the server: nothing to retry.
+                Err(e) if e.to_string() == "Nie znaleziono na serwerze." => {
+                    self.db()?.execute("DELETE FROM pending_sync WHERE id=?", [row])?;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(sent)
+    }
+
+    /// A finished play. Music servers get a scrobble (now or when reachable again).
+    pub fn played(&self, id: &str) -> Result<()> {
+        let remote: Vec<(String, String)> = {
+            let db = self.db()?;
+            let mut stmt = db.prepare("SELECT l.source_id,l.path FROM locations l JOIN sources s ON s.id=l.source_id WHERE l.track_id=?1 AND s.kind='subsonic'")?;
+            let rows = stmt.query_map([id], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
+            rows
+        };
+        for (source, song) in remote {
+            self.db()?.execute(
+                "INSERT INTO pending_sync(source_id,kind,item,value,created) VALUES(?1,'scrobble',?2,'',?3)",
+                params![source, song, now_ms()],
+            )?;
+            let _ = self.flush_pending(&source);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn subsonic_input(&self, id: &str) -> Result<Option<AudioInput>> {
+        let row: Option<(String, String, i64, String)> = self
+            .db()?
+            .query_row("SELECT l.source_id,l.path,l.size,l.display_name FROM locations l JOIN sources s ON s.id=l.source_id WHERE l.track_id=?1 AND s.kind='subsonic' ORDER BY l.available DESC LIMIT 1", [id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .optional()?;
+        let Some((source, song, size, name)) = row else { return Ok(None) };
+        let client = self.subsonic_client(&source)?;
+        // Original file, never re-encoded on the PC (wired or Wi-Fi network).
+        let stream = crate::subsonic::SongStream { client, id: song, transcode: None };
+        Ok(Some(AudioInput {
+            reader: Box::new(RemoteReader::from_source(Arc::new(stream), size.max(0) as u64, self.stream_cache())),
+            len: size.max(0) as u64,
+            name,
+        }))
     }
 }

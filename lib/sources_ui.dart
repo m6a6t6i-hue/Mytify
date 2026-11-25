@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -28,6 +29,8 @@ extension on String {
 List<({String protocol, String label, IconData icon})> networkKinds(List<String> protocols) => [
   if (protocols.contains('smb')) (protocol: 'smb', label: 'Folder sieciowy SMB', icon: Icons.lan_outlined),
   if (protocols.contains('webdav')) (protocol: 'webdav', label: 'WebDAV (HTTPS)', icon: Icons.cloud_outlined),
+  if (protocols.contains('subsonic'))
+    (protocol: 'subsonic', label: 'Serwer muzyczny OpenSubsonic / Navidrome', icon: Icons.dns_outlined),
 ];
 
 Future<void> showNetworkSourceForm(LibraryScreenState app, {LibrarySource? source, String protocol = 'smb'}) async {
@@ -80,7 +83,12 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
   Map<String, dynamic> original = const {};
 
   LibraryScreenState get app => widget.app;
-  bool get dav => widget.protocol == 'webdav';
+  bool get server => widget.protocol == 'subsonic';
+  bool get dav => widget.protocol == 'webdav' || server;
+
+  /// Conversion is offered only where a mobile network exists, and is off by default.
+  bool get mobileQuality => server && !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  String qualityWifi = 'original', qualityMobile = 'original';
   String? get id => widget.source?.id;
 
   @override
@@ -101,6 +109,8 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
             user.text = s['user'] as String? ?? '';
             domain.text = s['domain'] as String? ?? '';
             more = domain.text.isNotEmpty;
+            qualityWifi = s['qualityWifi'] as String? ?? 'original';
+            qualityMobile = s['qualityMobile'] as String? ?? 'original';
             hasPassword = s['hasPassword'] == true;
             loading = false;
           });
@@ -123,6 +133,8 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
     'protocol': widget.protocol,
     'name': name.text.trim(),
     if (dav) 'url': url.text.trim(),
+    if (mobileQuality) 'qualityWifi': qualityWifi,
+    if (mobileQuality) 'qualityMobile': qualityMobile,
     if (!dav) 'host': host.text.trim(),
     if (!dav) 'share': share.text.trim(),
     'folder': folder.text.trim(),
@@ -135,11 +147,12 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
   Future<void> test() async {
     setState(() {status = _Status.connecting; statusText = 'Łączenie…';});
     try {
-      final folders = await app.repository.testSource(config(), id: id);
+      final result = await app.repository.testSource(config(), id: id);
       if (!mounted) return;
       setState(() {
         status = _Status.ok;
-        statusText = folders.isEmpty ? 'Połączono.' : 'Połączono. Podfoldery: ${folders.length}.';
+        statusText = result.message ??
+            (result.folders.isEmpty ? 'Połączono.' : 'Połączono. Podfoldery: ${result.folders.length}.');
       });
     } catch (e) {
       if (mounted) setState(() {status = _Status.failed; statusText = readableError(e);});
@@ -189,6 +202,19 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
     ),
   );
 
+  Widget quality(String label, String value, ValueChanged<String> onChanged) => Padding(
+    padding: const EdgeInsets.only(bottom: Sp.m),
+    child: DropdownButtonFormField<String>(
+      initialValue: value,
+      decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+      items: const [
+        DropdownMenuItem(value: 'original', child: Text('Oryginalna (bez kompresji)')),
+        DropdownMenuItem(value: 'saver', child: Text('Oszczędzanie transferu (MP3 192 kb/s)')),
+      ],
+      onChanged: (v) => onChanged(v ?? 'original'),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final editing = id != null;
@@ -205,14 +231,18 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            dav
+            server
+                ? (editing ? 'Edytuj serwer muzyczny' : 'Serwer muzyczny')
+                : dav
                 ? (editing ? 'Edytuj WebDAV' : 'WebDAV')
                 : (editing ? 'Edytuj folder sieciowy' : 'Folder sieciowy SMB'),
             style: Txt.title,
           ),
           const SizedBox(height: 4),
           Text(
-            dav
+            server
+                ? 'OpenSubsonic, np. Navidrome. Biblioteka, polubienia i playlisty pochodzą z serwera.'
+                : dav
                 ? 'Folder na serwerze przez HTTPS, np. NAS z włączonym WebDAV. Mytify tylko odczytuje muzykę.'
                 : 'Udział z NAS-a lub komputera w tej samej sieci. Mytify tylko odczytuje muzykę.',
             style: Txt.sub,
@@ -222,11 +252,17 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
             const Padding(padding: EdgeInsets.all(Sp.xl), child: Center(child: CircularProgressIndicator()))
           else ...[
             if (dav)
-              field(url, 'Adres serwera', hint: 'https://nas.example.com:5006/music', type: TextInputType.url)
+              field(
+                url,
+                'Adres serwera',
+                hint: server ? 'https://music.example.com' : 'https://nas.example.com:5006/music',
+                type: TextInputType.url,
+              )
             else ...[
               field(host, 'Adres serwera', hint: 'np. nas.local lub 192.168.1.20', type: TextInputType.url),
               field(share, 'Udział', hint: 'np. music'),
             ],
+            if (!server)
             field(
               folder,
               'Folder (opcjonalnie)',
@@ -244,6 +280,15 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
                 onPressed: () => setState(() => hidden = !hidden),
               ),
             ),
+            if (mobileQuality) ...[
+              quality('Jakość przez Wi-Fi', qualityWifi, (v) => setState(() => qualityWifi = v)),
+              quality('Jakość w sieci komórkowej', qualityMobile, (v) => setState(() => qualityMobile = v)),
+            ],
+            if (server && url.text.trim().startsWith('http://'))
+              const Padding(
+                padding: EdgeInsets.only(bottom: Sp.m),
+                child: Text('Połączenie bez HTTPS nie jest szyfrowane. Używaj go tylko w sieci domowej.', style: Txt.meta),
+              ),
             if (more) ...[
               if (!dav) field(domain, 'Domena (jeśli wymagana)'),
               field(name, 'Nazwa w bibliotece', hint: 'domyślnie nazwa folderu'),

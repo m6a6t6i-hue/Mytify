@@ -295,6 +295,45 @@ impl Transfer {
         };
         Ok(self.status())
     }
+    /// Playlists as (id, name, track ids), for syncing with a music server.
+    pub fn playlist_entries(&self) -> Vec<(String, String, Vec<String>)> {
+        self.saved
+            .lock()
+            .unwrap()
+            .playlists
+            .iter()
+            .filter_map(|p| {
+                Some((
+                    p["id"].as_str()?.to_owned(),
+                    p["name"].as_str().unwrap_or("").to_owned(),
+                    serde_json::from_value(p["ids"].clone()).unwrap_or_default(),
+                ))
+            })
+            .collect()
+    }
+
+    /// Creates or replaces a playlist with tracks already in the catalog.
+    pub fn put_playlist(&self, key: Option<&str>, name: &str, ids: Vec<String>) -> Result<String> {
+        let mut seen = HashSet::new();
+        let ids: Vec<String> = ids.into_iter().filter(|t| id(t) && seen.insert(t.clone())).take(10000).collect();
+        let name: String = name.trim().chars().take(100).collect();
+        let mut s = self.saved.lock().unwrap();
+        let key = match key {
+            Some(k) => k.to_owned(),
+            None => {
+                ensure!(s.playlists.len() < 1000, "Za dużo playlist");
+                random()?
+            }
+        };
+        let name = if name.is_empty() { "Playlista".to_string() } else { name };
+        match s.playlists.iter_mut().find(|p| p["id"] == key.as_str()) {
+            Some(p) => *p = json!({"id":key,"name":name,"ids":ids}),
+            None => s.playlists.push(json!({"id":key,"name":name,"ids":ids})),
+        }
+        self.persist(&s)?;
+        Ok(key)
+    }
+
     pub fn stop(&self) {
         if let Some(l) = self.live.lock().unwrap().take() {
             l.stop.store(true, Ordering::Release)

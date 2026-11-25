@@ -279,13 +279,29 @@ pub fn parse_multistatus(text: &str, folder: &Url) -> Result<Vec<Entry>> {
     Ok(out)
 }
 
+/// Anything that can answer "bytes from `start`, about `len` of them" over HTTP.
+pub trait RangeSource: Send + Sync {
+    /// Returns the response and whether the server honoured the range.
+    fn read_range(&self, start: u64, len: u64) -> Result<(Response, bool)>;
+}
+
+struct DavFile {
+    dav: Arc<Dav>,
+    url: Url,
+    version: String,
+}
+
+impl RangeSource for DavFile {
+    fn read_range(&self, start: u64, len: u64) -> Result<(Response, bool)> {
+        self.dav.read(&self.url, start, len, &self.version)
+    }
+}
+
 /// Read + Seek over HTTP ranges with read-ahead. When the server ignores Range, the
 /// file is downloaded once to a private cache file (a slower, controlled fallback).
 pub struct RemoteReader {
-    dav: Arc<Dav>,
-    url: Url,
+    source: Arc<dyn RangeSource>,
     size: u64,
-    version: String,
     pos: u64,
     block: Vec<u8>,
     block_start: u64,
@@ -297,11 +313,13 @@ const BLOCK: u64 = 512 * 1024;
 
 impl RemoteReader {
     pub fn new(dav: Arc<Dav>, url: Url, size: u64, version: String, cache: PathBuf) -> Self {
+        Self::from_source(Arc::new(DavFile { dav, url, version }), size, cache)
+    }
+
+    pub fn from_source(source: Arc<dyn RangeSource>, size: u64, cache: PathBuf) -> Self {
         Self {
-            dav,
-            url,
+            source,
             size,
-            version,
             pos: 0,
             block: Vec::new(),
             block_start: 0,
@@ -321,7 +339,7 @@ impl RemoteReader {
     fn fill(&mut self) -> io::Result<()> {
         let want = BLOCK.min(self.size - self.pos);
         let to_io = |e: anyhow::Error| io::Error::other(e.to_string());
-        let (mut response, ranged) = self.dav.read(&self.url, self.pos, want, &self.version).map_err(to_io)?;
+        let (mut response, ranged) = self.source.read_range(self.pos, want).map_err(to_io)?;
         if ranged {
             let mut data = Vec::with_capacity(want as usize);
             response.read_to_end(&mut data)?;

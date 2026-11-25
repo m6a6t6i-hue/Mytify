@@ -95,6 +95,7 @@ window.mytifyBridge = {
     // Network sources (SMB on Windows). Passwords go to the Windows credential store.
     if(action==='protocols') return JSON.stringify((await session()).protocols||[]);
     if(action==='settings') return JSON.stringify(await api('/api/sources/'+encodeURIComponent(body)+'/settings'));
+    if(action==='played') return JSON.stringify(await api('/api/played/'+encodeURIComponent(body),{method:'POST',body:{}}));
     if(!['test','browse','save'].includes(action)) throw new Error('Nieznana operacja źródła.');
     return JSON.stringify(await api('/api/sources/'+action,{method:'POST',body:JSON.parse(body)}));
   },

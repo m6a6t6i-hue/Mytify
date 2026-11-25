@@ -210,8 +210,12 @@ abstract class LibraryRepository {
   Future<List<String>> networkProtocols() async => const [];
 
   /// Logs in and lists the chosen folder; nothing is saved. Throws a readable message.
-  Future<List<String>> testSource(Map<String, dynamic> config, {String? id}) =>
+  /// Music servers have no folders and describe themselves in [message].
+  Future<({List<String> folders, String? message})> testSource(Map<String, dynamic> config, {String? id}) =>
       Future.error(StateError('Źródła sieciowe nie są dostępne w tej wersji.'));
+
+  /// A finished play; music servers receive it as a scrobble.
+  Future<void> played(String id) async {}
 
   /// Subfolders of [path] inside the share, for the folder picker.
   Future<List<String>> browseSource(Map<String, dynamic> config, String path, {String? id}) =>
