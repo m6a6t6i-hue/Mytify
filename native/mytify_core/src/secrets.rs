@@ -69,7 +69,7 @@ mod imp {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(feature = "memory-secrets")))]
 mod imp {
     use anyhow::{bail, Result};
     pub fn store(_target: &str, _user: &str, _secret: &str) -> Result<()> {
@@ -79,6 +79,26 @@ mod imp {
         Ok(None)
     }
     pub fn delete(_target: &str) {}
+}
+
+/// Test builds only: nothing is written to disk.
+#[cfg(all(not(windows), feature = "memory-secrets"))]
+mod imp {
+    use anyhow::Result;
+    use std::{collections::HashMap, sync::Mutex};
+    static STORE: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
+    pub fn store(target: &str, _user: &str, secret: &str) -> Result<()> {
+        STORE.lock().unwrap().get_or_insert_with(HashMap::new).insert(target.into(), secret.into());
+        Ok(())
+    }
+    pub fn load(target: &str) -> Result<Option<String>> {
+        Ok(STORE.lock().unwrap().as_ref().and_then(|m| m.get(target).cloned()))
+    }
+    pub fn delete(target: &str) {
+        if let Some(m) = STORE.lock().unwrap().as_mut() {
+            m.remove(target);
+        }
+    }
 }
 
 pub fn store(id: &str, user: &str, secret: &str) -> Result<()> {

@@ -614,7 +614,11 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
             if method == Method::Get || method == Method::Head {
                 return match app.catalog.audio_path(id) {
                     Ok(file) => send_file(request, file, true),
-                    Err(e) => send_error(request, 404, e),
+                    // WebDAV tracks are streamed through, with ranges.
+                    Err(_) => match app.catalog.open_audio(id) {
+                        Ok(input) => send_input(request, input),
+                        Err(e) => send_error(request, 404, e),
+                    },
                 };
             }
         }
@@ -780,6 +784,31 @@ fn send_file(request: Request, path: PathBuf, ranges: bool) -> Result<()> {
         Some(count as usize),
         None,
     ))?;
+    Ok(())
+}
+
+fn send_input(request: Request, mut input: crate::remote_scan::AudioInput) -> Result<()> {
+    use std::io::{Seek, SeekFrom};
+    let length = input.len;
+    let mut headers = common_headers(mime(&input.name));
+    headers.push(Header::from_bytes("Accept-Ranges", "bytes").unwrap());
+    let (mut start, mut end, mut status) = (0, length.saturating_sub(1), 200);
+    if let Some(value) = header(&request, "Range") {
+        match parse_range(&value, length) {
+            Some((a, b)) => {
+                (start, end, status) = (a, b, 206);
+                headers.push(Header::from_bytes("Content-Range", format!("bytes {a}-{b}/{length}")).unwrap());
+            }
+            None => {
+                headers.push(Header::from_bytes("Content-Range", format!("bytes */{length}")).unwrap());
+                request.respond(Response::new(StatusCode(416), headers, Cursor::new(Vec::<u8>::new()), Some(0), None))?;
+                return Ok(());
+            }
+        }
+    }
+    let count = if length == 0 { 0 } else { end - start + 1 };
+    input.reader.seek(SeekFrom::Start(start))?;
+    request.respond(Response::new(StatusCode(status), headers, input.reader.take(count), Some(count as usize), None))?;
     Ok(())
 }
 

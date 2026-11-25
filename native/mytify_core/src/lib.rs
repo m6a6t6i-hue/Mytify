@@ -2,6 +2,8 @@ pub mod catalog;
 pub mod secrets;
 pub mod smb;
 pub mod sources;
+pub mod webdav;
+pub mod remote_scan;
 pub mod server;
 
 pub mod metadata;

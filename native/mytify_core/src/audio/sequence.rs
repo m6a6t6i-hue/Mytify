@@ -57,8 +57,8 @@ impl QueueInput {
             let index = *plan.order.get(cursor)?;
             let id = &plan.ids[index];
             let result = catalog
-                .audio_path(id)
-                .and_then(|p| NativeSource::open(&p, seek_ms))
+                .open_audio(id)
+                .and_then(|input| NativeSource::open_reader(input.reader, &input.name, seek_ms))
                 .and_then(|mut source| source.next().map(|first| (source, first)));
             match result {
                 Ok((source, Some(first))) => {

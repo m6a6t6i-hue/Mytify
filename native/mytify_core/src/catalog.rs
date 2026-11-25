@@ -90,7 +90,7 @@ pub struct Report {
     pub cancelled: bool,
 }
 impl Report {
-    fn error(&mut self, message: String) {
+    pub(crate) fn error(&mut self, message: String) {
         if self.errors.len() < 100 {
             self.errors.push(message);
         }
@@ -181,7 +181,7 @@ fn signature(path: &Path) -> Result<(i64, String)> {
         .to_string();
     Ok((i64::try_from(m.len())?, stamp))
 }
-fn riff_text(value: String, wav: bool) -> String {
+pub(crate) fn riff_text(value: String, wav: bool) -> String {
     if wav && value.chars().all(|c| c as u32 <= 255) {
         if let Ok(decoded) = String::from_utf8(value.chars().map(|c| c as u8).collect()) {
             return decoded.trim_matches('\0').trim().to_string();
@@ -274,7 +274,7 @@ impl Catalog {
         for source in self.sources()? {
             // Network shares are probed in the background, never while listing the library:
             // an unreachable NAS must not freeze the UI.
-            if source.kind == "files" || source.kind == "smb" {
+            if matches!(source.kind.as_str(), "files" | "smb" | "webdav") {
                 continue;
             }
             let path = Path::new(&source.path);
@@ -363,12 +363,20 @@ impl Catalog {
         id: Option<&str>,
         config: &crate::sources::NetworkConfig,
     ) -> Result<String> {
-        let config = crate::sources::clean_smb(config)?;
-        let root = crate::sources::smb_scan_root(&config);
-        let stored = root.to_string_lossy().into_owned();
-        let new_id = hex(Sha256::digest(
-            format!("smb\0{}", path_key(&root)).as_bytes(),
-        ));
+        let config = crate::sources::clean(config)?;
+        let kind = config.protocol.clone();
+        // Where the source lives and the key that makes two equal sources one.
+        let (stored, key) = match kind.as_str() {
+            "smb" => {
+                let root = crate::sources::smb_scan_root(&config);
+                (root.to_string_lossy().into_owned(), path_key(&root))
+            }
+            _ => {
+                let root = crate::sources::webdav_root(&config, "")?;
+                (root.to_string(), root.to_string().to_lowercase())
+            }
+        };
+        let new_id = hex(Sha256::digest(format!("{kind}\0{key}").as_bytes()));
         let adding = id.is_none();
         let id = id.map(str::to_owned).unwrap_or(new_id);
         let previous: Option<(String, String)> = self
@@ -380,7 +388,7 @@ impl Catalog {
             )
             .optional()?;
         match &previous {
-            Some((_, kind)) if kind != "smb" => bail!("To źródło nie jest folderem sieciowym."),
+            Some((_, k)) if *k != kind => bail!("To źródło jest innego rodzaju."),
             Some(_) if adding => bail!("Ten folder sieciowy jest już dodany."),
             None if !adding => bail!("Nie znaleziono źródła."),
             _ => {}
@@ -388,19 +396,20 @@ impl Catalog {
         if let Some(password) = &config.password {
             crate::secrets::store(&id, &crate::sources::login_name(&config), password)?;
         }
+        crate::webdav::forget_client(&id);
         let settings = serde_json::to_string(&config)?;
         let mut db = self.db()?;
         let tx = db.transaction()?;
-        tx.execute("INSERT INTO sources(id,name,path,kind,state) VALUES(?1,?2,?3,'smb','partial') ON CONFLICT(id) DO UPDATE SET name=excluded.name,path=excluded.path",params![id,config.name,stored])?;
+        tx.execute("INSERT INTO sources(id,name,path,kind,state) VALUES(?1,?2,?3,?4,'partial') ON CONFLICT(id) DO UPDATE SET name=excluded.name,path=excluded.path",params![id,config.name,stored,kind])?;
         if let Some((old_path, _)) = &previous {
-            if path_key(Path::new(old_path)) != path_key(&root) {
+            if old_path.to_lowercase() != stored.to_lowercase() {
                 // Another folder: old locations would only look like missing files.
                 // Tracks (content hash), likes and playlists stay; a rescan re-links them.
                 tx.execute("DELETE FROM locations WHERE source_id=?", [&id])?;
                 tx.execute("UPDATE sources SET state='partial',last_scan=0 WHERE id=?", [&id])?;
             }
         }
-        tx.execute("INSERT INTO source_settings(source_id,protocol,settings) VALUES(?1,'smb',?2) ON CONFLICT(source_id) DO UPDATE SET settings=excluded.settings",params![id,settings])?;
+        tx.execute("INSERT INTO source_settings(source_id,protocol,settings) VALUES(?1,?2,?3) ON CONFLICT(source_id) DO UPDATE SET settings=excluded.settings",params![id,kind,settings])?;
         tx.commit()?;
         Ok(id)
     }
@@ -413,15 +422,15 @@ impl Catalog {
     }
     /// Background reachability check, so the library shows the real state of a NAS.
     pub fn probe_network_sources(&self) -> Result<()> {
-        for source in self.sources()?.into_iter().filter(|s| s.kind == "smb") {
+        for source in self.sources()?.into_iter().filter(|s| s.kind == "smb" || s.kind == "webdav") {
             let reachable = self.reconnect(&source.id).is_ok()
-                && self
+                && (source.kind == "webdav" || self
                     .db()?
                     .query_row("SELECT path FROM sources WHERE id=?", [&source.id], |r| {
                         r.get::<_, String>(0)
                     })
                     .map(|p| Path::new(&p).is_dir())
-                    .unwrap_or(false);
+                    .unwrap_or(false));
             let state = match (reachable, source.state.as_str()) {
                 (_, "scanning") => continue,
                 (false, _) => "offline",
@@ -509,6 +518,7 @@ impl Catalog {
         self.db()?.execute("DELETE FROM sources WHERE id=?", [id])?;
         if let Some(config) = network {
             crate::secrets::delete(id);
+            crate::webdav::forget_client(id);
             if config.protocol == "smb" {
                 crate::smb::disconnect(&crate::sources::share_root(&config));
             }
@@ -580,7 +590,7 @@ impl Catalog {
         // Local copies first, network shares last; available locations before stale ones.
         let paths: Vec<(String, String, String)> = {
             let db = self.db()?;
-            let mut stmt = db.prepare("SELECT l.path,s.id,s.kind FROM locations l JOIN sources s ON s.id=l.source_id WHERE l.track_id=?1 ORDER BY CASE WHEN s.kind='smb' THEN 1 ELSE 0 END,l.available DESC")?;
+            let mut stmt = db.prepare("SELECT l.path,s.id,s.kind FROM locations l JOIN sources s ON s.id=l.source_id WHERE l.track_id=?1 AND s.kind<>'webdav' ORDER BY CASE WHEN s.kind='smb' THEN 1 ELSE 0 END,l.available DESC")?;
             let values = stmt
                 .query_map([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -659,6 +669,10 @@ impl Catalog {
                 break;
             }
             let generation = format!("{}-{}", now_ms(), hex(getrandom_bytes()?));
+            if source.kind == "webdav" {
+                self.scan_webdav(&source, &generation, request.force, cancel, &mut progress, &mut report)?;
+                continue;
+            }
             let mut files = Vec::new();
             let mut complete = true;
             if source.kind == "files" {

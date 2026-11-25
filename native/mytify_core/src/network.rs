@@ -524,7 +524,15 @@ impl Network {
                 d.token.clone(),
             )
         };
-        let path = self.catalog.audio_path(&id)?;
+        self.catalog.check_playable(&id)?;
+        let path = PathBuf::from(
+            self.catalog
+                .tracks()?
+                .into_iter()
+                .find(|v| v.id == id)
+                .map(|t| t.file_name)
+                .unwrap_or_default(),
+        );
         let track = self
             .catalog
             .tracks()?
@@ -585,7 +593,7 @@ impl Network {
                         bail!("Nieprawidłowa kolejka")
                     };
                     for id in &ids {
-                        self.catalog.audio_path(id)?;
+                        self.catalog.check_playable(id)?;
                     }
                     let mut d = self.data.lock().unwrap();
                     d.ids = ids;
@@ -843,9 +851,10 @@ fn stream(r: tiny_http::Request, data: &Mutex<Remote>, catalog: &Catalog) -> Res
         return Ok(());
     }
     let id = r.url().rsplit('/').next().unwrap();
-    let path = catalog.audio_path(id)?;
-    let mut f = std::fs::File::open(&path)?;
-    let len = f.metadata()?.len();
+    let input = catalog.open_audio(id)?;
+    let path = PathBuf::from(&input.name);
+    let len = input.len;
+    let mut f = input.reader;
     let header = r
         .headers()
         .iter()

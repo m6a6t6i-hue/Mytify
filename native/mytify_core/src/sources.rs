@@ -33,16 +33,16 @@ pub struct NetworkConfig {
 /// Protocols that really work in this build. The UI shows nothing else.
 pub fn protocols() -> Vec<&'static str> {
     if cfg!(windows) {
-        vec!["smb"]
+        vec!["smb", "webdav"]
     } else {
-        vec![]
+        vec!["webdav"]
     }
 }
 
 /// What a source of the given kind can do. Not every source does everything.
 pub fn capabilities(kind: &str) -> Vec<&'static str> {
     match kind {
-        "folder" | "smb" => vec!["browse", "scan", "tags", "artwork", "stream", "seek", "refresh"],
+        "folder" | "smb" | "webdav" => vec!["browse", "scan", "tags", "artwork", "stream", "seek", "refresh"],
         "files" | "managed" => vec!["tags", "artwork", "stream", "seek", "refresh"],
         _ => vec!["stream", "seek"],
     }
@@ -131,6 +131,77 @@ pub fn clean_smb(config: &NetworkConfig) -> Result<NetworkConfig> {
     })
 }
 
+/// Normalised WebDAV settings. The folder is kept apart from the server address.
+pub fn clean_webdav(config: &NetworkConfig) -> Result<NetworkConfig> {
+    let url = crate::webdav::clean_url(&config.url)?;
+    let folder = folder_segments(&config.folder)?.join("/");
+    let user = config.user.trim().to_string();
+    if user.len() > 256 {
+        bail!("Nazwa użytkownika jest nieprawidłowa.");
+    }
+    let name = match config.name.trim() {
+        "" => folder
+            .rsplit('/')
+            .next()
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| {
+                let last = crate::webdav::decoded_name(url.path());
+                if last.is_empty() { url.host_str().unwrap_or("WebDAV").to_string() } else { last }
+            }),
+        n => n.chars().take(80).collect(),
+    };
+    Ok(NetworkConfig {
+        protocol: "webdav".into(),
+        name,
+        url: url.to_string(),
+        folder,
+        user,
+        password: config.password.clone(),
+        ..Default::default()
+    })
+}
+
+pub fn clean(config: &NetworkConfig) -> Result<NetworkConfig> {
+    match config.protocol.as_str() {
+        "smb" => clean_smb(config),
+        "webdav" => clean_webdav(config),
+        _ => bail!("Ten rodzaj źródła nie jest dostępny w tej wersji."),
+    }
+}
+
+/// Folder URL of a WebDAV source: server address plus the chosen folder, trailing slash.
+pub fn webdav_root(config: &NetworkConfig, extra: &str) -> Result<url::Url> {
+    let mut url = crate::webdav::clean_url(&config.url)?;
+    {
+        let mut segments = url
+            .path_segments_mut()
+            .map_err(|_| anyhow::anyhow!("Adres serwera jest nieprawidłowy."))?;
+        segments.pop_if_empty();
+        for part in folder_segments(&config.folder)?.into_iter().chain(folder_segments(extra)?) {
+            segments.push(&part);
+        }
+        segments.push("");
+    }
+    Ok(url)
+}
+
+/// WebDAV client of a saved source (cached) or of a form that is not saved yet.
+pub fn dav(source_id: Option<&str>, config: &NetworkConfig) -> Result<std::sync::Arc<crate::webdav::Dav>> {
+    let make = || {
+        let password = match (&config.password, source_id) {
+            (Some(p), _) => p.clone(),
+            (None, Some(id)) => crate::secrets::load(id)?.unwrap_or_default(),
+            (None, None) => String::new(),
+        };
+        crate::webdav::Dav::new(webdav_root(config, "")?, &config.user, &password)
+    };
+    match source_id {
+        Some(id) if config.password.is_none() => crate::webdav::client(id, make),
+        _ => Ok(std::sync::Arc::new(make()?)),
+    }
+}
+
 /// "\\host\share" as Windows expects it for a network connection.
 pub fn share_root(config: &NetworkConfig) -> String {
     format!(r"\\{}\{}", config.host, config.share)
@@ -178,12 +249,28 @@ pub fn connect(source_id: Option<&str>, config: &NetworkConfig) -> Result<()> {
             };
             crate::smb::connect(&share_root(config), &login_name(config), &password)
         }
+        "webdav" => {
+            let dav = dav(source_id, config)?;
+            dav.list(dav.base()).map(|_| ())
+        }
         _ => bail!("Ten rodzaj źródła nie jest dostępny w tej wersji."),
     }
 }
 
 /// Lists subfolders of `path` (relative to the share) for the folder picker.
 pub fn browse(source_id: Option<&str>, config: &NetworkConfig, path: &str) -> Result<Vec<String>> {
+    if config.protocol == "webdav" {
+        let config = clean_webdav(&NetworkConfig { folder: String::new(), ..config.clone() })?;
+        let dav = dav(None, &NetworkConfig { password: config.password.clone().or(source_id.and_then(|id| crate::secrets::load(id).ok().flatten())), ..config.clone() })?;
+        let mut names: Vec<String> = dav
+            .list(&webdav_root(&config, path)?)?
+            .into_iter()
+            .filter(|e| e.dir && !e.name.starts_with('.') && !e.name.starts_with('#') && e.name != "@eaDir")
+            .map(|e| e.name)
+            .collect();
+        names.sort_by_key(|s| crate::catalog::search_key(s));
+        return Ok(names);
+    }
     let config = clean_smb(config)?;
     connect(source_id, &config)?;
     let mut root = smb_scan_root(&NetworkConfig {
@@ -214,6 +301,15 @@ fn list_dirs(path: &Path) -> Result<Vec<String>> {
 
 /// Connection test used by the form: logs in and reads the chosen folder.
 pub fn test(source_id: Option<&str>, config: &NetworkConfig) -> Result<Vec<String>> {
+    if config.protocol == "webdav" {
+        let config = clean_webdav(config)?;
+        let password = config.password.clone().or(source_id.and_then(|id| crate::secrets::load(id).ok().flatten()));
+        let dav = dav(None, &NetworkConfig { password, ..config.clone() })?;
+        let mut names: Vec<String> =
+            dav.list(dav.base())?.into_iter().filter(|e| e.dir).map(|e| e.name).collect();
+        names.sort_by_key(|s| crate::catalog::search_key(s));
+        return Ok(names);
+    }
     let config = clean_smb(config)?;
     connect(source_id, &config)?;
     list_dirs(&smb_scan_root(&config))

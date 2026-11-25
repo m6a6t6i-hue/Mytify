@@ -36,13 +36,21 @@ pub(crate) struct NativeSource {
 impl NativeSource {
     pub(crate) fn open(path: &Path, seek_ms: u64) -> Result<Self> {
         let file = File::open(path).context("Nie można otworzyć pliku audio")?;
+        Self::open_reader(Box::new(file), &path.to_string_lossy(), seek_ms)
+    }
+    /// Any seekable byte source: a local file or a network reader (WebDAV ranges).
+    pub(crate) fn open_reader(
+        reader: Box<dyn symphonia::core::io::MediaSource>,
+        name: &str,
+        seek_ms: u64,
+    ) -> Result<Self> {
         let mut hint = Hint::new();
-        if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+        if let Some(ext) = Path::new(name).extension().and_then(|s| s.to_str()) {
             hint.with_extension(ext);
         }
         let probed = symphonia::default::get_probe().format(
             &hint,
-            MediaSourceStream::new(Box::new(file), Default::default()),
+            MediaSourceStream::new(reader, Default::default()),
             &FormatOptions {
                 enable_gapless: true,
                 ..Default::default()

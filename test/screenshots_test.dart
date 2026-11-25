@@ -201,6 +201,9 @@ void main() {
     await settle(tester);
     await tester.tap(find.text('Biblioteka').last);
     await settle(tester);
+    // Second tap returns the tab to its root page, where the plus lives.
+    await tester.tap(find.text('Biblioteka').last);
+    await settle(tester);
     await tester.tap(find.byTooltip('Dodaj źródło'));
     await shot(tester, 'm8_add_source');
     await tester.tap(find.text('Folder sieciowy SMB'));
