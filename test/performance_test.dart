@@ -15,8 +15,8 @@ const size = 20000;
 Map<String, dynamic> raw(int i) => {
   'id': i.toRadixString(16).padLeft(64, '0'),
   'title': 'Utwór $i ${['Światło', 'Rzeka', 'Noc', 'Łąka'][i % 4]}',
-  'artist': 'Wykonawca ${i % 700}',
-  'albumArtist': 'Wykonawca ${i % 700}',
+  'artist': 'Wykonawca ${(i ~/ 12) % 700}',
+  'albumArtist': 'Wykonawca ${(i ~/ 12) % 700}',
   'album': 'Album ${i ~/ 12}',
   'fileName': 'track$i.flac',
   'format': i.isEven ? 'flac' : 'mp3',
