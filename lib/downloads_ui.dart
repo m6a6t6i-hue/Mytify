@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'design.dart';
 import 'main.dart';
 import 'model.dart';
+import 'playlists.dart';
 import 'sources_ui.dart';
 import 'widgets.dart';
 

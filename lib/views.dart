@@ -836,13 +836,14 @@ class _LibraryPageState extends State<LibraryPage> {
             itemBuilder: (context, i) => TrackRow(app: app, track: list[i], list: list, showCover: true, showAlbum: desktop),
           ),
         ));
-        if (list.isEmpty)
+        if (list.isEmpty) {
           slivers.add(const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(Sp.xl),
               child: Text('Brak pobranych utworów. Wybierz „Pobierz offline” w menu utworu, albumu lub playlisty.', style: Txt.sub, textAlign: TextAlign.center),
             ),
           ));
+        }
       case 'playlists':
         final list = _playlists();
         slivers.add(view == 'grid'

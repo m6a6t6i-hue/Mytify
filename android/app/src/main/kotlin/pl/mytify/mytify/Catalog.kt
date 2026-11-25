@@ -102,7 +102,7 @@ class Catalog(private val context: Context) :
         if (cancelled.get()) throw CancellationException()
     }
 
-    private fun cv(vararg fields: Pair<String, Any?>) =
+    internal fun cv(vararg fields: Pair<String, Any?>) =
         ContentValues().apply {
             fields.forEach { (k, v) ->
                 when (v) {

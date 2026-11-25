@@ -76,7 +76,7 @@ class Downloads(private val context: Context, private val catalog: Catalog) {
         catalog.writableDatabase.insertWithOnConflict(
             "sources",
             null,
-            cv("id" to SOURCE, "uri" to Uri.fromFile(dir).toString(), "name" to "Pobrane", "kind" to "downloads", "state" to "online", "scanned" to 0),
+            catalog.cv("id" to SOURCE, "uri" to Uri.fromFile(dir).toString(), "name" to "Pobrane", "kind" to "downloads", "state" to "online", "scanned" to 0),
             SQLiteDatabase.CONFLICT_IGNORE,
         )
     }
@@ -130,7 +130,7 @@ class Downloads(private val context: Context, private val catalog: Catalog) {
             if (!remote || offline) continue
             db.execSQL(
                 "INSERT INTO downloads(track,state,reason,added) VALUES(?,'queued',?,?) ON CONFLICT(track) DO UPDATE SET reason=CASE WHEN excluded.reason='user' THEN 'user' ELSE reason END,state=CASE WHEN state='failed' THEN 'queued' ELSE state END,attempts=CASE WHEN state='failed' THEN 0 ELSE attempts END",
-                arrayOf(id, reason, System.currentTimeMillis()),
+                arrayOf<Any>(id, reason, System.currentTimeMillis()),
             )
             added++
         }
@@ -196,7 +196,7 @@ class Downloads(private val context: Context, private val catalog: Catalog) {
 
     fun keep(playlist: String, keep: Boolean) {
         if (keep) {
-            catalog.writableDatabase.insertWithOnConflict("kept_playlists", null, cv("playlist" to playlist), SQLiteDatabase.CONFLICT_IGNORE)
+            catalog.writableDatabase.insertWithOnConflict("kept_playlists", null, catalog.cv("playlist" to playlist), SQLiteDatabase.CONFLICT_IGNORE)
             add(PlaylistStore(catalog).ids(playlist), "playlist:$playlist")
         } else {
             catalog.writableDatabase.delete("kept_playlists", "playlist=?", arrayOf(playlist))
@@ -217,7 +217,7 @@ class Downloads(private val context: Context, private val catalog: Catalog) {
     }
 
     private fun set(id: String, state: String, error: String) =
-        catalog.writableDatabase.update("downloads", cv("state" to state, "error" to error), "track=?", arrayOf(id))
+        catalog.writableDatabase.update("downloads", catalog.cv("state" to state, "error" to error), "track=?", arrayOf(id))
 
     /** Runs the queue until it is empty, paused or the network no longer allows it. */
     fun runQueue(progress: () -> Unit) {
@@ -273,7 +273,7 @@ class Downloads(private val context: Context, private val catalog: Catalog) {
         }
         var start = if (resumable) partial.length() else 0L
         if (total > 0 && free() < total - start + MARGIN) throw SourceException("Brak miejsca w pamięci telefonu.")
-        catalog.writableDatabase.update("downloads", cv("total" to total, "done" to start, "version" to version), "track=?", arrayOf(id))
+        catalog.writableDatabase.update("downloads", catalog.cv("total" to total, "done" to start, "version" to version), "track=?", arrayOf(id))
         val input: InputStream =
             when (location.scheme) {
                 "subsonic" -> {
@@ -322,7 +322,7 @@ class Downloads(private val context: Context, private val catalog: Catalog) {
                     val now = SystemClock.elapsedRealtime()
                     if (now - last > 500) {
                         last = now
-                        if (catalog.writableDatabase.update("downloads", cv("done" to done), "track=?", arrayOf(id)) == 0)
+                        if (catalog.writableDatabase.update("downloads", catalog.cv("done" to done), "track=?", arrayOf(id)) == 0)
                             throw SourceException("Anulowano.")
                         progress()
                     }
@@ -362,10 +362,10 @@ class Downloads(private val context: Context, private val catalog: Catalog) {
             db.insertWithOnConflict(
                 "locations",
                 null,
-                cv("uri" to Uri.fromFile(target).toString(), "source" to SOURCE, "track" to id, "name" to name, "available" to 1, "size" to target.length(), "modified" to version.toLong()),
+                catalog.cv("uri" to Uri.fromFile(target).toString(), "source" to SOURCE, "track" to id, "name" to name, "available" to 1, "size" to target.length(), "modified" to version.toLong()),
                 SQLiteDatabase.CONFLICT_REPLACE,
             )
-            db.update("downloads", cv("state" to "done", "done" to target.length(), "total" to target.length(), "error" to ""), "track=?", arrayOf(id))
+            db.update("downloads", catalog.cv("state" to "done", "done" to target.length(), "total" to target.length(), "error" to ""), "track=?", arrayOf(id))
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
