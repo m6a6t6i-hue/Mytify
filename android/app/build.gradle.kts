@@ -81,6 +81,7 @@ tasks.register("mytifyRuntimeArtifacts") {
 
 tasks.withType<Test>().configureEach {
     maxHeapSize = "1g"
+    testLogging { events("passed", "skipped", "failed") }
     // Real Samba share in CI for the network source tests.
     listOf("MYTIFY_SMB_HOST", "MYTIFY_SMB_SHARE", "MYTIFY_SMB_USER", "MYTIFY_SMB_PASSWORD").forEach { k ->
         System.getenv(k)?.let { environment(k, it) }

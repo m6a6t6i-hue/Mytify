@@ -71,8 +71,13 @@ class Catalog(private val context: Context) :
         if (old < 2) PlaylistStore.create(db)
         if (old < 3) {
             // 0.15: network sources. Additive only: existing tracks, likes and playlists stay.
-            db.execSQL("ALTER TABLE locations ADD COLUMN size INTEGER NOT NULL DEFAULT -1")
-            db.execSQL("ALTER TABLE locations ADD COLUMN modified INTEGER NOT NULL DEFAULT -1")
+            val columns =
+                db.rawQuery("PRAGMA table_info(locations)", null).use { c ->
+                    buildSet { while (c.moveToNext()) add(c.getString(1)) }
+                }
+            if ("size" !in columns) db.execSQL("ALTER TABLE locations ADD COLUMN size INTEGER NOT NULL DEFAULT -1")
+            if ("modified" !in columns)
+                db.execSQL("ALTER TABLE locations ADD COLUMN modified INTEGER NOT NULL DEFAULT -1")
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS source_settings(source TEXT PRIMARY KEY,protocol TEXT NOT NULL,settings TEXT NOT NULL)"
             )

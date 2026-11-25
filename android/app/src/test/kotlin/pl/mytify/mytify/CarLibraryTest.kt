@@ -70,7 +70,7 @@ class CarLibraryTest {
     @Test fun invalidPlaylistUpdateIsAtomic() { val id=add(1);val store=PlaylistStore(catalog);val p=store.save(null,"Name",listOf(id));assertThrows(IllegalArgumentException::class.java) { store.save(p,"Changed",listOf("missing")) };assertEquals("Name",store.list().getJSONObject(0).getString("name"));assertEquals(listOf(id),store.ids(p)) }
     @Test fun migrationFrom05PreservesTracksLikesAndSourceUris() {
         val id=add(1);catalog.like(id,true);val db=catalog.writableDatabase;db.execSQL("DROP TABLE playlist_tracks");db.execSQL("DROP TABLE playlists");db.version=1;catalog.close();catalog=Catalog(context)
-        assertTrue(catalog.track(id).getBoolean("liked"));assertEquals(Uri.parse("content://test/1"),catalog.uri(id));assertEquals(2,catalog.readableDatabase.version);assertEquals(0,PlaylistStore(catalog).list().length())
+        assertTrue(catalog.track(id).getBoolean("liked"));assertEquals(Uri.parse("content://test/1"),catalog.uri(id));assertEquals(3,catalog.readableDatabase.version);assertEquals(0,PlaylistStore(catalog).list().length())
     }
     @Test fun artworkUsesOnlyNarrowContentProviderPath() {
         val id=add(1);val bitmap=android.graphics.Bitmap.createBitmap(20,20,android.graphics.Bitmap.Config.ARGB_8888)

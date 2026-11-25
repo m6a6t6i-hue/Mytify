@@ -28,7 +28,7 @@ jobs:
       - run: flutter build apk --release --target-platform android-arm64 --no-pub
       - name: Local Samba share for the network source tests
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq samba > /dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq samba smbclient > /dev/null
           album="/srv/mytify-share/Polskie ąę albumy"
           sudo mkdir -p "$album"
           sudo cp test/fixtures/sample.flac "$album/a.flac"
