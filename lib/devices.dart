@@ -320,7 +320,7 @@ class _DevicePanelState extends State<DevicePanel> {
                 children: [
                   const Icon(Icons.error_outline_rounded, size: 18, color: Color(0xffff8a8a)),
                   const SizedBox(width: Sp.s),
-                  Expanded(child: Text(error!, style: const TextStyle(fontSize: 13))),
+                  Expanded(child: Text(error, style: const TextStyle(fontSize: 13))),
                 ],
               ),
             ),
