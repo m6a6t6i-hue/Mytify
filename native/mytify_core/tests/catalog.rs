@@ -98,10 +98,11 @@ fn links_without_copying_audio_and_detects_duplicate_names() {
             .count(),
         0
     );
+    // Windows returns verbatim (\\?\) canonical paths; compare in the same form.
     assert!(catalog
         .audio_path(&tracks[0].id)
         .unwrap()
-        .starts_with(source.path()));
+        .starts_with(fs::canonicalize(source.path()).unwrap()));
 }
 #[test]
 fn fast_rescan_does_not_reimport_unchanged_files() {
