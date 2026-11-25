@@ -49,16 +49,20 @@ jobs:
           Get-SmbShare music
       - name: Local HTTPS WebDAV servers for the network source tests
         shell: bash
+        env:
+          # Git Bash would turn "/CN=..." into a Windows path.
+          MSYS_NO_PATHCONV: '1'
         run: |
+          set -x
           pip install -q wsgidav cheroot
           d="$RUNNER_TEMP/dav"; mkdir -p "$d/root/Polskie ąę albumy"; cd "$d"
           cp "$GITHUB_WORKSPACE/test/fixtures/sample.flac" "root/Polskie ąę albumy/a.flac"
           cp "$GITHUB_WORKSPACE/test/fixtures/sample.mp3" "root/Polskie ąę albumy/Zażółć gęślą jaźń.mp3"
-          openssl req -x509 -newkey rsa:2048 -nodes -keyout ca.key -out ca.pem -days 2 -subj "/CN=Mytify Test CA" 2>/dev/null
-          openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj "/CN=localhost" 2>/dev/null
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout ca.key -out ca.pem -days 2 -subj "/CN=Mytify Test CA"
+          openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj "/CN=localhost"
           printf "subjectAltName=DNS:localhost\n" > ext.cnf
-          openssl x509 -req -in server.csr -CA ca.pem -CAkey ca.key -CAcreateserial -out server.pem -days 2 -extfile ext.cnf 2>/dev/null
-          openssl req -x509 -newkey rsa:2048 -nodes -keyout self.key -out self.pem -days 2 -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost" 2>/dev/null
+          openssl x509 -req -in server.csr -CA ca.pem -CAkey ca.key -CAcreateserial -out server.pem -days 2 -extfile ext.cnf
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout self.key -out self.pem -days 2 -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost"
           certutil -addstore -f Root ca.pem > /dev/null
           nohup python "$GITHUB_WORKSPACE/tools/dav_test_server.py" "$d/root" 18443 server.pem server.key mat Haslo-123 > dav1.log 2>&1 &
           nohup python "$GITHUB_WORKSPACE/tools/dav_test_server.py" "$d/root" 18444 self.pem self.key mat Haslo-123 > dav2.log 2>&1 &
