@@ -13,12 +13,14 @@ import org.json.JSONObject
  */
 object NetworkSources {
     /** Only protocols that really work in this build. The UI offers nothing else. */
-    val protocols = listOf("smb", "webdav")
+    val protocols = listOf("smb", "webdav", "subsonic")
 
     @Volatile internal var shared: Catalog? = null
 
     private fun catalog(context: Context): Catalog =
         shared ?: synchronized(this) { shared ?: Catalog(context.applicationContext).also { shared = it } }
+
+    fun server(context: Context, id: String): SubsonicClient = catalog(context).server(id)
 
     fun dav(context: Context, id: String): DavSettings =
         catalog(context).sourceSettings(id)?.let { DavSettings.parse(it) }
@@ -34,6 +36,10 @@ object NetworkSources {
 
     /** Logs in and lists the chosen folder. Nothing is saved. */
     fun test(context: Context, id: String?, config: JSONObject): JSONObject {
+        if (config.optString("protocol") == "subsonic") {
+            val message = SubsonicClient(ServerSettings.parse(config), password(context, id, config)).describe()
+            return obj("ok" to true, "folders" to JSONArray(), "message" to message)
+        }
         if (config.optString("protocol") == "webdav") {
             val s = DavSettings.parse(config)
             val folders = WebDav.list(s, password(context, id, config), s.root()).filter { it.dir }.map { Uri.decode(it.name) }
@@ -83,6 +89,18 @@ object NetworkSources {
 
     /** Sequential stream from [offset], for serving a NAS track to a DLNA renderer. */
     fun stream(context: Context, uri: Uri, offset: Long): InputStream {
+        if (uri.scheme == "subsonic") {
+            val id = uri.authority ?: throw SourceException("Nieprawidłowy adres pliku.")
+            val url = catalog(context).server(id).streamUrl(context, uri.pathSegments.first())
+            val r = WebDav.client.newCall(okhttp3.Request.Builder().url(url).header("Range", "bytes=$offset-").build()).execute()
+            if (!r.isSuccessful) {
+                r.close()
+                throw SourceException("Serwer nie udostępnił utworu.")
+            }
+            val input = r.body!!.byteStream()
+            if (r.code == 200 && offset > 0) input.skip(offset)
+            return input
+        }
         if (uri.scheme == "dav") {
             val id = uri.authority ?: throw SourceException("Nieprawidłowy adres pliku.")
             val s = dav(context, id)
@@ -117,7 +135,11 @@ object NetworkSources {
         for (id in c.networkSourceIds()) {
             val ok =
                 runCatching {
-                        if (c.sourceSettings(id)?.optString("protocol") == "webdav") {
+                        if (c.sourceSettings(id)?.optString("protocol") == "subsonic") {
+                            c.server(id).describe()
+                            runCatching { c.flushPending(id) }
+                            true
+                        } else if (c.sourceSettings(id)?.optString("protocol") == "webdav") {
                             val s = dav(context, id)
                             WebDav.list(s, Secrets.load(context, id) ?: "", s.root())
                             true

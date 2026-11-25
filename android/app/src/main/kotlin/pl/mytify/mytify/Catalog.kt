@@ -42,7 +42,7 @@ internal fun readLimited(stream: java.io.InputStream, limit: Int): ByteArray {
 private val offlineOwnershipLock = Any()
 
 class Catalog(private val context: Context) :
-    SQLiteOpenHelper(context, "catalog-android.sqlite3", null, 3) {
+    SQLiteOpenHelper(context, "catalog-android.sqlite3", null, 4) {
     val cancelled = AtomicBoolean(false)
     private val resolver = context.contentResolver
     private val covers = File(context.filesDir, "covers").apply { mkdirs() }
@@ -62,6 +62,7 @@ class Catalog(private val context: Context) :
         db.execSQL(
             "CREATE TABLE source_settings(source TEXT PRIMARY KEY,protocol TEXT NOT NULL,settings TEXT NOT NULL)"
         )
+        createSyncTables(db)
         db.execSQL("CREATE INDEX location_track ON locations(track)")
         db.execSQL("CREATE TABLE ignored(uri TEXT PRIMARY KEY)")
         PlaylistStore.create(db)
@@ -82,6 +83,14 @@ class Catalog(private val context: Context) :
                 "CREATE TABLE IF NOT EXISTS source_settings(source TEXT PRIMARY KEY,protocol TEXT NOT NULL,settings TEXT NOT NULL)"
             )
         }
+        // 0.17: music servers (favourites and plays waiting to be sent, linked playlists).
+        if (old < 4) createSyncTables(db)
+    }
+
+    private fun createSyncTables(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS remote_art(source TEXT NOT NULL,art TEXT NOT NULL,cover TEXT NOT NULL,PRIMARY KEY(source,art))")
+        db.execSQL("CREATE TABLE IF NOT EXISTS pending_sync(id INTEGER PRIMARY KEY AUTOINCREMENT,source TEXT NOT NULL,kind TEXT NOT NULL,item TEXT NOT NULL,value TEXT NOT NULL,created INTEGER NOT NULL)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS remote_playlists(source TEXT NOT NULL,remote TEXT NOT NULL,local TEXT NOT NULL,server_hash TEXT NOT NULL,local_hash TEXT NOT NULL,PRIMARY KEY(source,remote))")
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -119,10 +128,14 @@ class Catalog(private val context: Context) :
                         .use { n ->
                             n.moveToFirst()
                             val kind = c.getString(3)
-                            val network = if (kind == "smb" || kind == "webdav") sourceSettings(id) else null
+                            val network = if (kind == "smb" || kind == "webdav" || kind == "subsonic") sourceSettings(id) else null
                             val address =
                                 network?.let {
-                                    if (kind == "smb") SmbSettings.parse(it).address else DavSettings.parse(it).address
+                                    when (kind) {
+                                        "smb" -> SmbSettings.parse(it).address
+                                        "webdav" -> DavSettings.parse(it).address
+                                        else -> ServerSettings.parse(it).url
+                                    }
                                 }
                             out.put(
                                 obj(
@@ -131,7 +144,9 @@ class Catalog(private val context: Context) :
                                     "address" to address,
                                     "capabilities" to
                                         JSONArray(
-                                            if (kind == "smb" || kind == "webdav" || kind == "folder")
+                                            if (kind == "subsonic")
+                                                listOf("search", "tags", "artwork", "stream", "seek", "refresh", "syncLikes", "syncPlaylists", "scrobble")
+                                            else if (kind == "smb" || kind == "webdav" || kind == "folder")
                                                 listOf("browse", "scan", "tags", "artwork", "stream", "seek", "refresh")
                                             else listOf("tags", "artwork", "stream", "seek")
                                         ),
@@ -203,7 +218,7 @@ class Catalog(private val context: Context) :
             .rawQuery(
                 // Local copies first, the NAS last; a share known to be offline is skipped
                 // at once, so Android Auto never waits for an unreachable server.
-                "SELECT l.uri FROM locations l LEFT JOIN sources s ON s.id=l.source WHERE l.track=? AND l.available=1 AND COALESCE(s.state,'online')<>'offline' ORDER BY CASE WHEN l.source LIKE 'offline:%' THEN 0 WHEN l.uri LIKE 'smb:%' THEN 2 WHEN l.uri LIKE 'dav:%' THEN 3 ELSE 1 END,l.uri LIMIT 1",
+                "SELECT l.uri FROM locations l LEFT JOIN sources s ON s.id=l.source WHERE l.track=? AND l.available=1 AND COALESCE(s.state,'online')<>'offline' ORDER BY CASE WHEN l.source LIKE 'offline:%' THEN 0 WHEN l.uri LIKE 'smb:%' THEN 2 WHEN l.uri LIKE 'dav:%' OR l.uri LIKE 'subsonic:%' THEN 3 ELSE 1 END,l.uri LIMIT 1",
                 arrayOf(id),
             )
             .use { if (it.moveToFirst()) return Uri.parse(it.getString(0)) }
@@ -211,7 +226,70 @@ class Catalog(private val context: Context) :
     }
 
     fun like(id: String, value: Boolean) {
-        writableDatabase.update("tracks", cv("liked" to if (value) 1 else 0), "id=?", arrayOf(id))
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.update("tracks", cv("liked" to if (value) 1 else 0), "id=?", arrayOf(id))
+            // Music servers keep their own favourites: remember the change until it is sent.
+            serverLocations(id).forEach { (source, song) ->
+                db.delete("pending_sync", "source=? AND kind='star' AND item=?", arrayOf(source, song))
+                db.insertOrThrow(
+                    "pending_sync",
+                    null,
+                    cv("source" to source, "kind" to "star", "item" to song, "value" to if (value) "1" else "0", "created" to System.currentTimeMillis()),
+                )
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** (source, song id) of a track on music servers. */
+    fun serverLocations(id: String): List<Pair<String, String>> =
+        readableDatabase.rawQuery("SELECT source,uri FROM locations WHERE track=? AND uri LIKE 'subsonic:%'", arrayOf(id)).use { c ->
+            buildList { while (c.moveToNext()) add(c.getString(0) to Uri.parse(c.getString(1)).pathSegments.first()) }
+        }
+
+    /** A finished play: scrobbled now or when the server is reachable again. */
+    fun played(id: String) {
+        serverLocations(id).forEach { (source, song) ->
+            writableDatabase.insertOrThrow(
+                "pending_sync",
+                null,
+                cv("source" to source, "kind" to "scrobble", "item" to song, "value" to "", "created" to System.currentTimeMillis()),
+            )
+        }
+    }
+
+    fun server(id: String): SubsonicClient =
+        SubsonicClient(
+            ServerSettings.parse(sourceSettings(id) ?: throw SourceException("Źródło zostało usunięte.")),
+            Secrets.load(context, id) ?: "",
+        )
+
+    /** Sends waiting favourites and plays; stops at the first network error and keeps the rest. */
+    fun flushPending(source: String): Int {
+        val rows =
+            readableDatabase.rawQuery("SELECT id,kind,item,value,created FROM pending_sync WHERE source=? ORDER BY id", arrayOf(source)).use { c ->
+                buildList { while (c.moveToNext()) add(listOf(c.getString(0), c.getString(1), c.getString(2), c.getString(3), c.getString(4))) }
+            }
+        if (rows.isEmpty()) return 0
+        val client = server(source)
+        var sent = 0
+        for ((row, kind, item, value, created) in rows) {
+            try {
+                when (kind) {
+                    "star" -> client.star(item, value == "1")
+                    "scrobble" -> client.scrobble(item, created.toLong())
+                }
+                sent++
+            } catch (e: SourceException) {
+                if (e.message != "Nie znaleziono na serwerze.") throw e
+            }
+            writableDatabase.delete("pending_sync", "id=?", arrayOf(row))
+        }
+        return sent
     }
 
     fun remove(id: String) {
@@ -240,6 +318,7 @@ class Catalog(private val context: Context) :
         try {
             db.delete("locations", "source=?", arrayOf(id))
             db.delete("source_settings", "source=?", arrayOf(id))
+            for (t in listOf("pending_sync", "remote_playlists", "remote_art")) db.delete(t, "source=?", arrayOf(id))
             db.delete("sources", "id=?", arrayOf(id))
             db.execSQL("DELETE FROM tracks WHERE id NOT IN (SELECT track FROM locations)")
             db.setTransactionSuccessful()
@@ -460,7 +539,7 @@ class Catalog(private val context: Context) :
         }
 
     fun networkSourceIds(): List<String> =
-        readableDatabase.rawQuery("SELECT id FROM sources WHERE kind IN ('smb','webdav')", null).use { c ->
+        readableDatabase.rawQuery("SELECT id FROM sources WHERE kind IN ('smb','webdav','subsonic')", null).use { c ->
             buildList { while (c.moveToNext()) add(c.getString(0)) }
         }
 
@@ -486,7 +565,243 @@ class Catalog(private val context: Context) :
     /** Adds or edits an SMB share. The password goes to [Secrets], never to the catalog. */
     /** Adds or edits a network source of any supported protocol. */
     fun saveNetwork(existing: String?, config: JSONObject): String =
-        if (config.optString("protocol") == "webdav") saveDav(existing, config) else saveSmb(existing, config)
+        when (config.optString("protocol")) {
+            "webdav" -> saveDav(existing, config)
+            "subsonic" -> saveServer(existing, config)
+            else -> saveSmb(existing, config)
+        }
+
+    private fun saveServer(existing: String?, config: JSONObject): String {
+        val s = ServerSettings.parse(config)
+        val id = existing ?: sha("subsonic\u0000${s.url.lowercase()}|${s.user}".toByteArray())
+        val db = writableDatabase
+        val previous =
+            db.rawQuery("SELECT kind FROM sources WHERE id=?", arrayOf(id)).use { if (it.moveToFirst()) it.getString(0) else null }
+        if (existing == null) require(previous == null) { "Ten serwer jest już dodany." }
+        else require(previous == "subsonic") { "Nie znaleziono źródła." }
+        if (config.has("password") && !config.isNull("password")) Secrets.store(context, id, config.getString("password"))
+        db.beginTransaction()
+        try {
+            if (previous == null)
+                db.insertOrThrow(
+                    "sources",
+                    null,
+                    cv("id" to id, "uri" to "subsonic://$id", "name" to s.name, "kind" to "subsonic", "state" to "partial", "scanned" to 0),
+                )
+            else db.update("sources", cv("name" to s.name), "id=?", arrayOf(id))
+            db.insertWithOnConflict(
+                "source_settings",
+                null,
+                cv("source" to id, "protocol" to "subsonic", "settings" to s.json().toString()),
+                SQLiteDatabase.CONFLICT_REPLACE,
+            )
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return id
+    }
+
+    /**
+     * Imports the server's library through its API (no folder rescans): ids from source and
+     * song id, tags and covers from the server, favourites reconciled with waiting changes.
+     */
+    private fun scanServer(id: String, name: String, report: JSONObject, bump: (String) -> Unit, progress: (Int, Int, String) -> Unit) {
+        val errors = report.getJSONArray("errors")
+        progress(0, 0, "Łączenie z $name…")
+        val client =
+            try {
+                server(id).also { it.describe() }
+            } catch (e: Exception) {
+                writableDatabase.update("sources", cv("state" to "offline"), "id=?", arrayOf(id))
+                bump("offlineSources")
+                errors.put("$name: ${WebDav.friendly(e).message}")
+                return
+            }
+        runCatching { flushPending(id) }.onFailure { errors.put("$name: ${it.message}") }
+        val seen = HashSet<String>()
+        val covers = HashMap<String, String>()
+        var count = 0
+        var complete = true
+        val handle = { songs: List<SubsonicClient.Song> ->
+            for (song in songs) {
+                checkCancel()
+                count++
+                progress(count, 0, song.title)
+                try {
+                    val u = SubsonicClient.uri(id, song.id).toString()
+                    seen.add(u)
+                    val cover =
+                        song.cover?.let { art ->
+                            covers.getOrPut(art) {
+                                readableDatabase.rawQuery("SELECT cover FROM remote_art WHERE source=? AND art=?", arrayOf(id, art)).use {
+                                    if (it.moveToFirst()) it.getString(0) else null
+                                }
+                                    ?: (client.cover(art)?.let { runCatching { storeCover(it).getString("hash") }.getOrNull() } ?: "").also {
+                                        writableDatabase.insertWithOnConflict(
+                                            "remote_art", null, cv("source" to id, "art" to art, "cover" to it), SQLiteDatabase.CONFLICT_REPLACE,
+                                        )
+                                    }
+                            }
+                        } ?: ""
+                    val track = sha("mytify-remote-v1\u0000$id\u0000${song.id}".toByteArray())
+                    val raw =
+                        obj(
+                            "title" to song.title.ifEmpty { song.fileName.substringBeforeLast('.') },
+                            "artist" to song.artist,
+                            "album" to song.album,
+                            "albumArtist" to song.albumArtist,
+                            "fileName" to song.fileName,
+                            "format" to song.format,
+                            "size" to song.size,
+                            "durationMs" to song.durationMs,
+                            "trackNumber" to song.track,
+                            "discNumber" to song.disc,
+                            "sampleRate" to song.sampleRate,
+                            "bitDepth" to song.pcmDepth,
+                            "managed" to false,
+                            "metadataSource" to "",
+                            "cover" to cover,
+                        )
+                    val version = song.version.hashCode().toLong()
+                    val prior =
+                        readableDatabase.rawQuery("SELECT track,modified FROM locations WHERE uri=? AND source=?", arrayOf(u, id)).use {
+                            if (it.moveToFirst()) it.getString(0) to it.getLong(1) else null
+                        }
+                    val exists = readableDatabase.rawQuery("SELECT id FROM tracks WHERE id=?", arrayOf(track)).use { it.moveToFirst() }
+                    if (exists) writableDatabase.update("tracks", cv("raw" to raw.toString()), "id=?", arrayOf(track))
+                    record(id, u, song.fileName, track, song.size, version, prior?.first, exists, raw)
+                    bump(if (prior == null) "added" else if (prior.second == version) "unchanged" else "updated")
+                    // The server's favourite wins unless a local change is still waiting.
+                    val waiting =
+                        readableDatabase.rawQuery("SELECT id FROM pending_sync WHERE source=? AND kind='star' AND item=?", arrayOf(id, song.id)).use {
+                            it.moveToFirst()
+                        }
+                    if (!waiting) writableDatabase.update("tracks", cv("liked" to if (song.starred) 1 else 0), "id=?", arrayOf(track))
+                } catch (x: CancellationException) {
+                    throw x
+                } catch (x: Exception) {
+                    if (errors.length() < 100) errors.put("${song.title}: ${WebDav.friendly(x).message}")
+                }
+            }
+        }
+        try {
+            var offset = 0
+            while (true) {
+                val page = client.songs(offset, 500)
+                if (page.isEmpty()) break
+                offset += page.size
+                handle(page)
+            }
+            if (offset == 0) client.songsByAlbums { handle(it) }
+        } catch (x: CancellationException) {
+            throw x
+        } catch (x: Exception) {
+            complete = false
+            errors.put("$name: ${WebDav.friendly(x).message}")
+        }
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            if (complete)
+                db.rawQuery("SELECT uri,available FROM locations WHERE source=?", arrayOf(id)).use { c ->
+                    while (c.moveToNext()) if (c.getString(0) !in seen) {
+                        if (c.getInt(1) > 0) bump("missing")
+                        db.update("locations", cv("available" to 0), "source=? AND uri=?", arrayOf(id, c.getString(0)))
+                    }
+                }
+            db.update("sources", cv("state" to if (complete) "online" else "partial", "scanned" to System.currentTimeMillis()), "id=?", arrayOf(id))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        if (complete) runCatching { syncPlaylists(id, client) }.onFailure { errors.put("$name: playlisty: ${WebDav.friendly(it).message}") }
+        progress(count, count, "Gotowe")
+    }
+
+    data class PlaylistSync(var imported: Int = 0, var updated: Int = 0, var sent: Int = 0, var conflicts: Int = 0)
+
+    private fun fingerprint(name: String, ids: List<String>) = sha((name + "\n" + ids.joinToString("\n")).toByteArray())
+
+    /**
+     * Server playlists appear as local ones and local edits go back. When both sides changed,
+     * nothing is overwritten: the server version arrives as a separate copy. Same rules as PC.
+     */
+    fun syncPlaylists(source: String, client: SubsonicClient = server(source)): PlaylistSync {
+        val result = PlaylistSync()
+        val store = PlaylistStore(this)
+        val server = client.playlists()
+        val songOf = HashMap<String, String>()
+        readableDatabase.rawQuery("SELECT track,uri FROM locations WHERE source=?", arrayOf(source)).use { c ->
+            while (c.moveToNext()) songOf[c.getString(0)] = Uri.parse(c.getString(1)).pathSegments.first()
+        }
+        val links = HashMap<String, Triple<String, String, String>>()
+        readableDatabase.rawQuery("SELECT remote,local,server_hash,local_hash FROM remote_playlists WHERE source=?", arrayOf(source)).use { c ->
+            while (c.moveToNext()) links[c.getString(0)] = Triple(c.getString(1), c.getString(2), c.getString(3))
+        }
+        val locals = HashMap<String, Pair<String, List<String>>>()
+        val list = store.list()
+        for (i in 0 until list.length()) {
+            val p = list.getJSONObject(i)
+            val ids = p.getJSONArray("ids")
+            locals[p.getString("id")] = p.getString("name") to (0 until ids.length()).map { ids.getString(it) }
+        }
+        fun save(remote: String, local: String, serverHash: String, localHash: String) =
+            writableDatabase.insertWithOnConflict(
+                "remote_playlists", null,
+                cv("source" to source, "remote" to remote, "local" to local, "server_hash" to serverHash, "local_hash" to localHash),
+                SQLiteDatabase.CONFLICT_REPLACE,
+            )
+        val seen = HashSet<String>()
+        for (p in server) {
+            seen.add(p.id)
+            val ids = p.songs.map { sha("mytify-remote-v1\u0000$source\u0000${it.id}".toByteArray()) }.filter { it in songOf }.distinct()
+            val serverHash = fingerprint(p.name, ids)
+            val link = links.remove(p.id)
+            when {
+                link == null -> {
+                    val local = store.save(null, p.name.take(100).ifBlank { "Playlista" }, ids)
+                    save(p.id, local, serverHash, fingerprint(p.name.take(100).ifBlank { "Playlista" }, ids))
+                    result.imported++
+                }
+                link.first.isEmpty() -> save(p.id, "", serverHash, "")
+                else -> {
+                    val (local, oldServer, oldLocal) = link
+                    val current = locals[local]
+                    if (current == null) {
+                        // Deleted here on purpose: stays deleted, the server copy is not touched.
+                        save(p.id, "", serverHash, "")
+                        continue
+                    }
+                    val localHash = fingerprint(current.first, current.second)
+                    val serverChanged = serverHash != oldServer
+                    val localChanged = localHash != oldLocal
+                    when {
+                        !serverChanged && !localChanged -> {}
+                        serverChanged && !localChanged -> {
+                            store.save(local, p.name.take(100).ifBlank { "Playlista" }, ids)
+                            save(p.id, local, serverHash, fingerprint(p.name.take(100).ifBlank { "Playlista" }, ids))
+                            result.updated++
+                        }
+                        !serverChanged && localChanged -> {
+                            val sent = current.second.filter { it in songOf }
+                            client.savePlaylist(p.id, current.first, sent.map { songOf[it]!! })
+                            save(p.id, local, fingerprint(current.first, sent), localHash)
+                            result.sent++
+                        }
+                        else -> {
+                            val name = "${p.name} (z serwera)".take(100)
+                            val copy = store.save(null, name, ids)
+                            save(p.id, copy, serverHash, fingerprint(name, ids))
+                            result.conflicts++
+                        }
+                    }
+                }
+            }
+        }
+        for (remote in links.keys) if (remote !in seen) writableDatabase.delete("remote_playlists", "source=? AND remote=?", arrayOf(source, remote))
+        return result
+    }
 
     private fun saveDav(existing: String?, config: JSONObject): String {
         val s = DavSettings.parse(config)
@@ -888,6 +1203,10 @@ class Catalog(private val context: Context) :
                 }
                 if (source.getString("kind") == "webdav") {
                     scanDav(id, source.getString("name"), report, ::bump, progress)
+                    continue
+                }
+                if (source.getString("kind") == "subsonic") {
+                    scanServer(id, source.getString("name"), report, ::bump, progress)
                     continue
                 }
                 writableDatabase.update("sources", cv("state" to "partial"), "id=?", arrayOf(id))

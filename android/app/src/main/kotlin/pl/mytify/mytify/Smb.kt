@@ -403,6 +403,15 @@ class RoutingDataSource(private val context: Context) : androidx.media3.datasour
             current = http
             return http.open(dataSpec.buildUpon().setUri(Uri.parse(WebDav.https(s, dataSpec.uri).toString())).build())
         }
+        if (dataSpec.uri.scheme == "subsonic") {
+            // Music server: original file (or the chosen conversion) over HTTP with ranges.
+            val id = dataSpec.uri.authority ?: throw IOException("Nieprawidłowy adres pliku.")
+            val url = NetworkSources.server(context, id).streamUrl(context, dataSpec.uri.pathSegments.first())
+            val http = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(WebDav.client).createDataSource()
+            listeners.forEach { http.addTransferListener(it) }
+            current = http
+            return http.open(dataSpec.buildUpon().setUri(Uri.parse(url.toString())).build())
+        }
         val source = if (dataSpec.uri.scheme == "smb") smb else fallback
         current = source
         return source.open(dataSpec)

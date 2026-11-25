@@ -89,6 +89,7 @@ tasks.withType<Test>().configureEach {
     listOf(
         "MYTIFY_SMB_HOST", "MYTIFY_SMB_SHARE", "MYTIFY_SMB_USER", "MYTIFY_SMB_PASSWORD",
         "MYTIFY_DAV_URL", "MYTIFY_DAV_UNTRUSTED_URL", "MYTIFY_NORANGE_URL", "MYTIFY_DAV_PASSWORD",
+        "MYTIFY_SUBSONIC_URL", "MYTIFY_SUBSONIC_USER", "MYTIFY_SUBSONIC_PASSWORD",
     ).forEach { k ->
         System.getenv(k)?.let { environment(k, it) }
     }

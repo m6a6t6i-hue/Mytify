@@ -240,6 +240,15 @@ class MainActivity : FlutterActivity() {
                     )
                 }
                 "networkProtocols" -> r.success(JSONArray(NetworkSources.protocols).toString())
+                "played" -> {
+                    val id = call.arguments as String
+                    background(r, sourceWorker) {
+                        catalog.played(id)
+                        // Sent now if the server is reachable, otherwise kept for later.
+                        catalog.serverLocations(id).map { it.first }.distinct().forEach { runCatching { catalog.flushPending(it) } }
+                        obj("ok" to true)
+                    }
+                }
                 "testSource", "browseSource", "saveSource" -> {
                     val args = JSONObject(call.arguments as String)
                     val id = args.optString("id").ifEmpty { null }
@@ -402,10 +411,14 @@ class MainActivity : FlutterActivity() {
                             "uri" ->
                                 JSONObject.quote(catalog.uri(call.arguments as String).toString())
                             "like" -> {
-                                catalog.like(
-                                    call.argument<String>("id")!!,
-                                    call.argument<Boolean>("value") == true,
-                                )
+                                val liked = call.argument<String>("id")!!
+                                catalog.like(liked, call.argument<Boolean>("value") == true)
+                                // Music servers get the change now if reachable, otherwise later.
+                                sourceWorker.execute {
+                                    catalog.serverLocations(liked).map { it.first }.distinct().forEach {
+                                        runCatching { catalog.flushPending(it) }
+                                    }
+                                }
                                 changed()
                                 JSONObject.NULL
                             }
