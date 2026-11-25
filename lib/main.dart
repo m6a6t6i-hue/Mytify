@@ -95,7 +95,7 @@ ThemeData mytifyTheme() => ThemeData(
     style: FilledButton.styleFrom(
       foregroundColor: onAccent,
       backgroundColor: accent,
-      textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      textStyle: const TextStyle(fontFamily: 'Arial', fontWeight: FontWeight.w700),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.control)),
     ),
@@ -103,6 +103,7 @@ ThemeData mytifyTheme() => ThemeData(
   outlinedButtonTheme: OutlinedButtonThemeData(
     style: OutlinedButton.styleFrom(
       foregroundColor: primaryText,
+      textStyle: const TextStyle(fontFamily: 'Arial', fontWeight: FontWeight.w600),
       side: const BorderSide(color: softBorder),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.control)),
@@ -111,6 +112,7 @@ ThemeData mytifyTheme() => ThemeData(
   textButtonTheme: TextButtonThemeData(
     style: TextButton.styleFrom(
       foregroundColor: primaryText,
+      textStyle: const TextStyle(fontFamily: 'Arial', fontWeight: FontWeight.w600),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.control)),
     ),
   ),

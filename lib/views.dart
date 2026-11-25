@@ -154,12 +154,12 @@ class HomePage extends StatelessWidget {
   }
 
   static EdgeInsets _hp(bool desktop) =>
-      EdgeInsets.fromLTRB(desktop ? Sp.xl : Sp.l, Sp.xl, Sp.s, Sp.xs);
+      EdgeInsets.fromLTRB(desktop ? Sp.xl : Sp.l, 20, Sp.s, Sp.xs);
 }
 
 Widget _albumShelf(LibraryScreenState app, List<AlbumGroup> albums, double card) => Shelf(
   itemCount: albums.length,
-  height: card + 58,
+  height: card + 52,
   itemWidth: card,
   gap: 0,
   padding: EdgeInsets.symmetric(horizontal: app.desktopMode ? Sp.l : Sp.s),
@@ -830,6 +830,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         controller: filterText,
                         autofocus: filtering && !desktop,
                         onChanged: (_) => setState(() {}),
+                        style: const TextStyle(fontSize: 13.5),
                         decoration: InputDecoration(
                           hintText: 'Filtruj',
                           prefixIcon: const Icon(Icons.filter_list_rounded, size: 18),
@@ -881,7 +882,7 @@ class _LibraryPageState extends State<LibraryPage> {
     ),
   );
 
-  Widget _grid(int count, double size, Widget Function(int) item, {double extraHeight = 58}) => SliverPadding(
+  Widget _grid(int count, double size, Widget Function(int) item, {double extraHeight = 46}) => SliverPadding(
     padding: EdgeInsets.symmetric(horizontal: app.desktopMode ? Sp.l : Sp.s),
     sliver: SliverLayoutBuilder(
       builder: (context, c) {
@@ -890,7 +891,7 @@ class _LibraryPageState extends State<LibraryPage> {
         return SliverGrid.builder(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            mainAxisExtent: w + extraHeight + MediaQuery.textScalerOf(context).scale(14),
+            mainAxisExtent: w + extraHeight + MediaQuery.textScalerOf(context).scale(16),
           ),
           itemCount: count,
           itemBuilder: (context, i) => LayoutBuilder(builder: (context, b) => SizedBox(width: b.maxWidth, child: _sized(item(i), b.maxWidth))),
@@ -1480,7 +1481,7 @@ class _SearchPageState extends State<SearchPage> {
     final playlists = app.orderedPlaylists.where((p) => words.every(searchKey(p.name).contains)).toList();
     app.visibleList = tracks;
     app.visiblePlaylist = null;
-    final pad = EdgeInsets.fromLTRB(desktop ? Sp.xl : Sp.l, Sp.xl, Sp.s, Sp.xs);
+    final pad = EdgeInsets.fromLTRB(desktop ? Sp.xl : Sp.l, 20, Sp.s, Sp.xs);
     final card = desktop ? 184.0 : 148.0;
     if (tracks.isEmpty && albums.isEmpty && artists.isEmpty && playlists.isEmpty) {
       return ListView(children: [

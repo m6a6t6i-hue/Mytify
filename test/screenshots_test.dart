@@ -172,7 +172,7 @@ void main() {
     await settle(tester);
     await tester.tap(find.text('Albumy').first);
     await shot(tester, 'm3_library_albums');
-    await tester.tap(find.text('Nocne pociągi').first);
+    await tester.tap(find.text('Signal Fire').first);
     await shot(tester, 'm4_album');
     await tester.tap(find.text('Szukaj').last);
     await settle(tester);
@@ -190,7 +190,7 @@ void main() {
       final w = size.width.round();
       await open(tester, size);
       await shot(tester, 'd${w}_1_home');
-      await tester.tap(find.text('Cathedral of Dawn').first);
+      await tester.tap(find.text('Signal Fire').first);
       await shot(tester, 'd${w}_2_album');
       await tester.tap(find.byTooltip('Utwory').evaluate().isEmpty ? find.text('Utwory').first : find.byTooltip('Utwory'));
       await shot(tester, 'd${w}_3_tracks');

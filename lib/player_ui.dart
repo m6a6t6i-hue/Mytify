@@ -321,9 +321,8 @@ class SidePanel extends StatelessWidget {
                           backgroundColor: tab == key ? hoverFill : null,
                           padding: const EdgeInsets.symmetric(horizontal: 10),
                           minimumSize: const Size(0, 32),
-                          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                         ),
-                        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                       ),
                     ),
                     ),
@@ -336,6 +335,10 @@ class SidePanel extends StatelessWidget {
           Expanded(
             child: AnimatedSwitcher(
               duration: motion(context, Dur.standard),
+              layoutBuilder: (current, previous) => Stack(
+                fit: StackFit.expand,
+                children: [...previous, ?current],
+              ),
               child: KeyedSubtree(
                 key: ValueKey(tab),
                 child: switch (tab) {
