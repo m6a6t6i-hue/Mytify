@@ -1192,6 +1192,8 @@ class Catalog(private val context: Context) :
                 val source = sources.getJSONObject(s)
                 val id = source.getString("id")
                 if (sourceId != null && sourceId != id) continue
+                // Offline copies are written and verified by Downloads, never scanned.
+                if (source.getString("kind") == "downloads") continue
                 val root =
                     readableDatabase
                         .rawQuery("SELECT uri FROM sources WHERE id=?", arrayOf(id))

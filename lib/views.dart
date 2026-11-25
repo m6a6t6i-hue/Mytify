@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'cover_tint.dart';
 import 'design.dart';
+import 'downloads_ui.dart';
 import 'library_index.dart';
 import 'links.dart';
 import 'main.dart';
@@ -31,6 +32,7 @@ Widget pageFor(LibraryScreenState app, Nav nav) {
     'artist' => ArtistPage(app: app, artistKey: nav.arg!),
     'playlist' || 'liked' || 'recent' => CollectionPage(app: app, nav: nav),
     'settings' => SettingsPage(app: app, section: nav.arg),
+    'downloads' => DownloadsPage(app: app),
     'transfer' when app.canTransfer => app.transferScreen(),
     _ => HomePage(app: app),
   };
@@ -45,6 +47,7 @@ String pageTitle(LibraryScreenState app, Nav nav) => switch (nav.page) {
   'liked' => 'Polubione',
   'recent' => 'Ostatnio dodane',
   'settings' => settingsTitle(nav.arg) ?? 'Ustawienia',
+  'downloads' => 'Pobrane',
   'transfer' => app.isPhone ? 'Z komputera' : 'Połącz telefon',
   _ => 'Start',
 };
@@ -643,6 +646,7 @@ class _LibraryPageState extends State<LibraryPage> {
     ('artists', 'Artyści'),
     ('tracks', 'Utwory'),
     ('playlists', 'Playlisty'),
+    ('downloaded', 'Pobrane'),
   ];
 
   static const sorts = {
@@ -807,6 +811,38 @@ class _LibraryPageState extends State<LibraryPage> {
           ),
         ));
         if (list.isEmpty) slivers.add(_none());
+      case 'downloaded':
+        // Offline copies on this device; they play without any network.
+        final list = _tracks().where((t) => t.offline).toList();
+        app.visibleList = list;
+        app.visiblePlaylist = null;
+        slivers.add(SliverToBoxAdapter(
+          child: Padding(
+            padding: pad.copyWith(bottom: Sp.s),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => app.go(const Nav('downloads')),
+                icon: const Icon(Icons.download_for_offline_outlined, size: 18),
+                label: const Text('Kolejka i miejsce'),
+              ),
+            ),
+          ),
+        ));
+        slivers.add(SliverPadding(
+          padding: desktop ? pad : EdgeInsets.zero,
+          sliver: SliverList.builder(
+            itemCount: list.length,
+            itemBuilder: (context, i) => TrackRow(app: app, track: list[i], list: list, showCover: true, showAlbum: desktop),
+          ),
+        ));
+        if (list.isEmpty)
+          slivers.add(const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(Sp.xl),
+              child: Text('Brak pobranych utworów. Wybierz „Pobierz offline” w menu utworu, albumu lub playlisty.', style: Txt.sub, textAlign: TextAlign.center),
+            ),
+          ));
       case 'playlists':
         final list = _playlists();
         slivers.add(view == 'grid'
@@ -839,7 +875,7 @@ class _LibraryPageState extends State<LibraryPage> {
             Padding(
               padding: const EdgeInsets.only(bottom: Sp.m),
               child: Text(
-                switch (f) { 'artists' => 'Artyści', 'tracks' => 'Utwory', 'playlists' => 'Playlisty', _ => 'Albumy' },
+                switch (f) { 'artists' => 'Artyści', 'tracks' => 'Utwory', 'playlists' => 'Playlisty', 'downloaded' => 'Pobrane', _ => 'Albumy' },
                 style: Txt.display,
               ),
             ),
@@ -848,7 +884,8 @@ class _LibraryPageState extends State<LibraryPage> {
             child: Row(
               children: [
                 for (final (key, label) in tabs)
-                  if (!desktop || key != 'all')
+                  if ((!desktop || key != 'all') &&
+                      (key != 'downloaded' || app.networkProtocols.isNotEmpty || app.index.tracks.any((t) => t.offline)))
                     Padding(
                       padding: const EdgeInsets.only(right: Sp.s),
                       child: _FilterChip(
@@ -1785,7 +1822,18 @@ class SettingsPage extends StatelessWidget {
     ),
     const SizedBox(height: Sp.l),
     if (app.librarySources.isEmpty) const Text('Nie dodano jeszcze żadnego źródła.', style: Txt.sub),
-    for (final source in app.librarySources) _source(source),
+    // The download folder is managed by Mytify itself, not a source to scan or edit.
+    for (final source in app.librarySources)
+      if (source.kind != 'downloads') _source(source),
+    if (app.networkProtocols.isNotEmpty)
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.download_for_offline_outlined, color: secondaryText),
+        title: const Text('Pobrane i miejsce'),
+        subtitle: const Text('Kopie offline, kolejka pobierania, zajęte miejsce', style: Txt.meta),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => app.go(const Nav('downloads')),
+      ),
   ];
 
   Widget _source(LibrarySource source) {

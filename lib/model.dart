@@ -29,6 +29,9 @@ class Track {
       bitDepth,
       addedAt;
   final bool liked, available, managed, edited;
+
+  /// A complete copy on this device ("Pobrane") / lives on a network source.
+  final bool offline, remote;
   final String metadataSource;
   final String? releaseId;
   final int locationCount;
@@ -51,6 +54,8 @@ class Track {
     this.liked = false,
     this.available = true,
     this.managed = false,
+    this.offline = false,
+    this.remote = false,
     this.locationCount = 1,
     this.edited = false,
     this.metadataSource = '',
@@ -75,6 +80,8 @@ class Track {
     liked: j['liked'] == true,
     available: j['available'] != false,
     managed: j['managed'] == true,
+    offline: j['offline'] == true,
+    remote: j['remote'] == true,
     locationCount: (j['locationCount'] as num?)?.toInt() ?? 1,
     edited: j['edited'] == true,
     metadataSource: j['metadataSource'] as String? ?? '',
@@ -99,6 +106,8 @@ class Track {
     'liked': liked,
     'available': available,
     'managed': managed,
+    'offline': offline,
+    'remote': remote,
     'locationCount': locationCount,
     'edited': edited,
     'metadataSource': metadataSource,
@@ -216,6 +225,10 @@ abstract class LibraryRepository {
 
   /// A finished play; music servers receive it as a scrobble.
   Future<void> played(String id) async {}
+
+  /// Offline copies: status, estimate, add, pause, cancel, remove, keep, cellular.
+  Future<Map<String, dynamic>> downloads(String action, [Map<String, dynamic> args = const {}]) =>
+      Future.error(StateError('Pobieranie offline nie jest dostępne w tej wersji.'));
 
   /// Subfolders of [path] inside the share, for the folder picker.
   Future<List<String>> browseSource(Map<String, dynamic> config, String path, {String? id}) =>

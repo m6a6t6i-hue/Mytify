@@ -176,6 +176,9 @@ class AndroidLibraryRepository extends LibraryRepository
     await _call('played', id);
   }
   @override
+  Future<Map<String, dynamic>> downloads(String action, [Map<String, dynamic> args = const {}]) async =>
+      _map(await _call('downloads', jsonEncode({...args, 'action': action})));
+  @override
   Future<List<String>> browseSource(Map<String, dynamic> config, String path, {String? id}) async => [
     for (final f in _map(await _call('browseSource', jsonEncode({'id': id, 'config': config, 'path': path})))['folders'] as List)
       f as String,

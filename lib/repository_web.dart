@@ -67,6 +67,9 @@ class WebLibraryRepository extends LibraryRepository
     await _net('played', id);
   }
   @override
+  Future<Map<String, dynamic>> downloads(String action, [Map<String, dynamic> args = const {}]) async =>
+      Map<String, dynamic>.from(await _net('downloads', {...args, 'action': action}) as Map);
+  @override
   Future<List<String>> browseSource(Map<String, dynamic> config, String path, {String? id}) async =>
       [for (final f in (await _net('browse', {'id': id, 'config': config, 'path': path}) as Map)['folders'] as List) f as String];
   @override

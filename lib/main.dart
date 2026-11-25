@@ -19,6 +19,7 @@ import 'queue.dart';
 import 'repository.dart';
 import 'shell_desktop.dart';
 import 'shell_mobile.dart';
+import 'downloads_ui.dart';
 import 'sources_ui.dart';
 import 'transfer.dart';
 import 'ui_prefs.dart';
@@ -221,6 +222,8 @@ class LibraryScreenState extends State<LibraryScreen> {
   List<LibrarySource> librarySources = [];
   /// Network protocols this build really supports; the UI offers nothing else.
   List<String> networkProtocols = const [];
+  /// Offline copies of network tracks (status, menus, confirmation).
+  late final DownloadState downloads = DownloadState(this);
   Timer? _libraryRefresh;
   bool cancelling = false;
   String? startupError;
@@ -299,6 +302,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     unawaited(
       repository.networkProtocols().then((v) {
         if (mounted) setState(() => networkProtocols = v);
+        if (v.isNotEmpty) unawaited(downloads.refresh());
       }).catchError((Object _) {}),
     );
   }
@@ -827,6 +831,7 @@ class LibraryScreenState extends State<LibraryScreen> {
           shortcut: desktopMode && t.id == queue.current?.id ? 'Ctrl+L' : null,
           onTap: () => unawaited(toggleLike(t)),
         ),
+      ...downloads.entries(list),
       MenuEntry.divider,
       if (!many && album != null && album.tracks.length > 1)
         MenuEntry('Przejdź do albumu', icon: Icons.album_outlined, onTap: () => go(Nav('album', album.key))),
@@ -860,6 +865,7 @@ class LibraryScreenState extends State<LibraryScreen> {
         icon: Icons.push_pin_outlined,
         onTap: () => togglePin(pinId),
       ),
+      ...downloads.entries(a.tracks, title: 'Pobrać album offline?'),
       MenuEntry.divider,
       MenuEntry('Przejdź do artysty', icon: Icons.person_outline_rounded, onTap: () => go(Nav('artist', a.artistKey))),
       MenuEntry('Znajdź dane i okładkę', icon: Icons.auto_fix_high_outlined, onTap: importing ? null : () => unawaited(metadataFor(a.tracks, online: true))),
@@ -876,6 +882,13 @@ class LibraryScreenState extends State<LibraryScreen> {
       MenuEntry('Dodaj do kolejki', icon: Icons.queue_rounded, onTap: list.isEmpty ? null : () => unawaited(enqueue(list))),
       MenuEntry(prefs.pinned(pinId) ? 'Odepnij' : 'Przypnij', icon: Icons.push_pin_outlined, onTap: () => togglePin(pinId)),
       MenuEntry('Zmień nazwę', icon: Icons.edit_outlined, onTap: () => unawaited(renamePlaylist(p))),
+      ...downloads.entries(list, title: 'Pobrać playlistę offline?'),
+      if (list.any((t) => t.remote))
+        MenuEntry(
+          downloads.kept.contains(p.id) ? 'Nie utrzymuj offline' : 'Utrzymuj offline',
+          icon: Icons.offline_pin_outlined,
+          onTap: () => unawaited(downloads.keep(p, !downloads.kept.contains(p.id))),
+        ),
       MenuEntry.divider,
       MenuEntry('Usuń playlistę', icon: Icons.delete_outline_rounded, destructive: true, onTap: () => unawaited(deletePlaylist(p))),
     ]);
