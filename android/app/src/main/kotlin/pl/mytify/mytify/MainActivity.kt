@@ -251,7 +251,7 @@ class MainActivity : FlutterActivity() {
                                 NetworkSources.browse(applicationContext, id, config, args.optString("path"))
                             else -> {
                                 check(!importing.get() || id == null) { "Zaczekaj na zakończenie skanowania." }
-                                obj("id" to catalog.saveSmb(id, config)).also { changed() }
+                                obj("id" to catalog.saveNetwork(id, config)).also { changed() }
                             }
                         }
                     }

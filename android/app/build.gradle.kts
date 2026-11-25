@@ -65,6 +65,9 @@ dependencies {
     implementation("androidx.media3:media3-session:1.11.1")
     // SMB 2/3 client (no SMB1). Bouncy Castle supplies MD4/AES-CMAC missing from Android JCE.
     implementation("com.hierynomus:smbj:0.13.0")
+    // WebDAV: PROPFIND and HTTPS ranges; playback through the Media3 OkHttp source.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.16.1")
 }
@@ -83,7 +86,10 @@ tasks.withType<Test>().configureEach {
     maxHeapSize = "1g"
     testLogging { events("passed", "skipped", "failed") }
     // Real Samba share in CI for the network source tests.
-    listOf("MYTIFY_SMB_HOST", "MYTIFY_SMB_SHARE", "MYTIFY_SMB_USER", "MYTIFY_SMB_PASSWORD").forEach { k ->
+    listOf(
+        "MYTIFY_SMB_HOST", "MYTIFY_SMB_SHARE", "MYTIFY_SMB_USER", "MYTIFY_SMB_PASSWORD",
+        "MYTIFY_DAV_URL", "MYTIFY_DAV_UNTRUSTED_URL", "MYTIFY_NORANGE_URL", "MYTIFY_DAV_PASSWORD",
+    ).forEach { k ->
         System.getenv(k)?.let { environment(k, it) }
     }
     systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")

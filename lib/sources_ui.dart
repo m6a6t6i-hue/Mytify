@@ -27,6 +27,7 @@ extension on String {
 /// Entries of "Dodaj źródło". Only protocols that really work here are listed.
 List<({String protocol, String label, IconData icon})> networkKinds(List<String> protocols) => [
   if (protocols.contains('smb')) (protocol: 'smb', label: 'Folder sieciowy SMB', icon: Icons.lan_outlined),
+  if (protocols.contains('webdav')) (protocol: 'webdav', label: 'WebDAV (HTTPS)', icon: Icons.cloud_outlined),
 ];
 
 Future<void> showNetworkSourceForm(LibraryScreenState app, {LibrarySource? source, String protocol = 'smb'}) async {
@@ -66,6 +67,7 @@ enum _Status { idle, connecting, ok, failed }
 
 class _NetworkSourceFormState extends State<NetworkSourceForm> {
   final name = TextEditingController();
+  final url = TextEditingController();
   final host = TextEditingController();
   final share = TextEditingController();
   final folder = TextEditingController();
@@ -78,6 +80,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
   Map<String, dynamic> original = const {};
 
   LibraryScreenState get app => widget.app;
+  bool get dav => widget.protocol == 'webdav';
   String? get id => widget.source?.id;
 
   @override
@@ -91,6 +94,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
           setState(() {
             original = s;
             name.text = s['name'] as String? ?? '';
+            url.text = s['url'] as String? ?? '';
             host.text = s['host'] as String? ?? '';
             share.text = s['share'] as String? ?? '';
             folder.text = s['folder'] as String? ?? '';
@@ -109,7 +113,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
 
   @override
   void dispose() {
-    for (final c in [name, host, share, folder, user, password, domain]) {
+    for (final c in [name, url, host, share, folder, user, password, domain]) {
       c.dispose();
     }
     super.dispose();
@@ -118,8 +122,9 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
   Map<String, dynamic> config() => {
     'protocol': widget.protocol,
     'name': name.text.trim(),
-    'host': host.text.trim(),
-    'share': share.text.trim(),
+    if (dav) 'url': url.text.trim(),
+    if (!dav) 'host': host.text.trim(),
+    if (!dav) 'share': share.text.trim(),
     'folder': folder.text.trim(),
     'user': user.text.trim(),
     'domain': domain.text.trim(),
@@ -156,6 +161,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
       await app.repository.testSource(config(), id: id);
       final saved = await app.repository.saveSource(config(), id: id);
       final moved = id == null ||
+          (dav && original['url'] != url.text.trim()) ||
           original['host'] != host.text.trim() ||
           original['share'] != share.text.trim() ||
           original['folder'] != folder.text.trim();
@@ -198,15 +204,29 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(editing ? 'Edytuj folder sieciowy' : 'Folder sieciowy SMB', style: Txt.title),
+          Text(
+            dav
+                ? (editing ? 'Edytuj WebDAV' : 'WebDAV')
+                : (editing ? 'Edytuj folder sieciowy' : 'Folder sieciowy SMB'),
+            style: Txt.title,
+          ),
           const SizedBox(height: 4),
-          const Text('Udział z NAS-a lub komputera w tej samej sieci. Mytify tylko odczytuje muzykę.', style: Txt.sub),
+          Text(
+            dav
+                ? 'Folder na serwerze przez HTTPS, np. NAS z włączonym WebDAV. Mytify tylko odczytuje muzykę.'
+                : 'Udział z NAS-a lub komputera w tej samej sieci. Mytify tylko odczytuje muzykę.',
+            style: Txt.sub,
+          ),
           const SizedBox(height: Sp.l),
           if (loading)
             const Padding(padding: EdgeInsets.all(Sp.xl), child: Center(child: CircularProgressIndicator()))
           else ...[
-            field(host, 'Adres serwera', hint: 'np. nas.local lub 192.168.1.20', type: TextInputType.url),
-            field(share, 'Udział', hint: 'np. music'),
+            if (dav)
+              field(url, 'Adres serwera', hint: 'https://nas.example.com:5006/music', type: TextInputType.url)
+            else ...[
+              field(host, 'Adres serwera', hint: 'np. nas.local lub 192.168.1.20', type: TextInputType.url),
+              field(share, 'Udział', hint: 'np. music'),
+            ],
             field(
               folder,
               'Folder (opcjonalnie)',
@@ -225,7 +245,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
               ),
             ),
             if (more) ...[
-              field(domain, 'Domena (jeśli wymagana)'),
+              if (!dav) field(domain, 'Domena (jeśli wymagana)'),
               field(name, 'Nazwa w bibliotece', hint: 'domyślnie nazwa folderu'),
             ] else
               Align(
@@ -305,7 +325,7 @@ class _FolderPickerState extends State<_FolderPicker> {
 
   @override
   Widget build(BuildContext context) {
-    final share = widget.config['share'] as String? ?? '';
+    final share = widget.config['share'] as String? ?? Uri.tryParse(widget.config['url'] as String? ?? '')?.host ?? '';
     return AlertDialog(
       backgroundColor: panel,
       title: Text(path.isEmpty ? share : path.last, maxLines: 1, overflow: TextOverflow.ellipsis),

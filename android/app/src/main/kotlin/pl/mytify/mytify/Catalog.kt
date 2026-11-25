@@ -119,22 +119,24 @@ class Catalog(private val context: Context) :
                         .use { n ->
                             n.moveToFirst()
                             val kind = c.getString(3)
-                            val smb =
-                                if (kind == "smb") sourceSettings(id)?.let { SmbSettings.parse(it) }
-                                else null
+                            val network = if (kind == "smb" || kind == "webdav") sourceSettings(id) else null
+                            val address =
+                                network?.let {
+                                    if (kind == "smb") SmbSettings.parse(it).address else DavSettings.parse(it).address
+                                }
                             out.put(
                                 obj(
                                     "id" to id,
-                                    "protocol" to if (smb != null) "smb" else "local",
-                                    "address" to smb?.address,
+                                    "protocol" to if (network != null) kind else "local",
+                                    "address" to address,
                                     "capabilities" to
                                         JSONArray(
-                                            if (kind == "smb" || kind == "folder")
+                                            if (kind == "smb" || kind == "webdav" || kind == "folder")
                                                 listOf("browse", "scan", "tags", "artwork", "stream", "seek", "refresh")
                                             else listOf("tags", "artwork", "stream", "seek")
                                         ),
                                     "path" to
-                                        if (smb != null) smb.address
+                                        if (address != null) address
                                         else if (kind == "folder") c.getString(1)
                                         else "Pliki wybrane w telefonie",
                                     "name" to c.getString(2),
@@ -201,7 +203,7 @@ class Catalog(private val context: Context) :
             .rawQuery(
                 // Local copies first, the NAS last; a share known to be offline is skipped
                 // at once, so Android Auto never waits for an unreachable server.
-                "SELECT l.uri FROM locations l LEFT JOIN sources s ON s.id=l.source WHERE l.track=? AND l.available=1 AND COALESCE(s.state,'online')<>'offline' ORDER BY CASE WHEN l.source LIKE 'offline:%' THEN 0 WHEN l.uri LIKE 'smb:%' THEN 2 ELSE 1 END,l.uri LIMIT 1",
+                "SELECT l.uri FROM locations l LEFT JOIN sources s ON s.id=l.source WHERE l.track=? AND l.available=1 AND COALESCE(s.state,'online')<>'offline' ORDER BY CASE WHEN l.source LIKE 'offline:%' THEN 0 WHEN l.uri LIKE 'smb:%' THEN 2 WHEN l.uri LIKE 'dav:%' THEN 3 ELSE 1 END,l.uri LIMIT 1",
                 arrayOf(id),
             )
             .use { if (it.moveToFirst()) return Uri.parse(it.getString(0)) }
@@ -458,7 +460,7 @@ class Catalog(private val context: Context) :
         }
 
     fun networkSourceIds(): List<String> =
-        readableDatabase.rawQuery("SELECT id FROM sources WHERE kind='smb'", null).use { c ->
+        readableDatabase.rawQuery("SELECT id FROM sources WHERE kind IN ('smb','webdav')", null).use { c ->
             buildList { while (c.moveToNext()) add(c.getString(0)) }
         }
 
@@ -482,6 +484,51 @@ class Catalog(private val context: Context) :
     }
 
     /** Adds or edits an SMB share. The password goes to [Secrets], never to the catalog. */
+    /** Adds or edits a network source of any supported protocol. */
+    fun saveNetwork(existing: String?, config: JSONObject): String =
+        if (config.optString("protocol") == "webdav") saveDav(existing, config) else saveSmb(existing, config)
+
+    private fun saveDav(existing: String?, config: JSONObject): String {
+        val s = DavSettings.parse(config)
+        val root = s.root().toString().lowercase()
+        val id = existing ?: sha("webdav\u0000$root".toByteArray())
+        val db = writableDatabase
+        val previous =
+            db.rawQuery("SELECT kind FROM sources WHERE id=?", arrayOf(id)).use {
+                if (it.moveToFirst()) it.getString(0) else null
+            }
+        if (existing == null) require(previous == null) { "Ten folder WebDAV jest już dodany." }
+        else require(previous == "webdav") { "Nie znaleziono źródła." }
+        val old = sourceSettings(id)?.let { DavSettings.parse(it) }
+        if (config.has("password") && !config.isNull("password"))
+            Secrets.store(context, id, config.getString("password"))
+        db.beginTransaction()
+        try {
+            if (previous == null)
+                db.insertOrThrow(
+                    "sources",
+                    null,
+                    cv("id" to id, "uri" to "dav://$id", "name" to s.name, "kind" to "webdav", "state" to "partial", "scanned" to 0),
+                )
+            else db.update("sources", cv("name" to s.name), "id=?", arrayOf(id))
+            if (old != null && old.root() != s.root()) {
+                // Another folder: old locations would only look like missing files.
+                db.delete("locations", "source=?", arrayOf(id))
+                db.update("sources", cv("state" to "partial", "scanned" to 0), "id=?", arrayOf(id))
+            }
+            db.insertWithOnConflict(
+                "source_settings",
+                null,
+                cv("source" to id, "protocol" to "webdav", "settings" to s.json().toString()),
+                SQLiteDatabase.CONFLICT_REPLACE,
+            )
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return id
+    }
+
     fun saveSmb(existing: String?, config: JSONObject): String {
         val s = SmbSettings.parse(config)
         val root = "${s.host}\\${s.share}\\${s.folder}".lowercase()
@@ -690,6 +737,117 @@ class Catalog(private val context: Context) :
         progress(entries.size, entries.size, "Gotowe")
     }
 
+    /**
+     * WebDAV tracks get a stable id from source and server path (same rule as on the PC):
+     * hashing every file over the internet would be too costly. Tags come through ranges.
+     */
+    private fun scanDav(
+        id: String,
+        name: String,
+        report: JSONObject,
+        bump: (String) -> Unit,
+        progress: (Int, Int, String) -> Unit,
+    ) {
+        val errors = report.getJSONArray("errors")
+        val s = DavSettings.parse(sourceSettings(id) ?: error("Brak ustawień źródła"))
+        val password = Secrets.load(context, id) ?: ""
+        progress(0, 0, "Łączenie z $name…")
+        val files = mutableListOf<WebDav.Entry>()
+        val todo = ArrayDeque<okhttp3.HttpUrl>().apply { add(s.root()) }
+        var complete = true
+        while (todo.isNotEmpty()) {
+            checkCancel()
+            val folder = todo.removeLast()
+            val entries =
+                try {
+                    WebDav.list(s, password, folder)
+                } catch (e: Exception) {
+                    if (folder == s.root()) {
+                        writableDatabase.update("sources", cv("state" to "offline"), "id=?", arrayOf(id))
+                        bump("offlineSources")
+                        errors.put("$name: ${WebDav.friendly(e).message}")
+                        return
+                    }
+                    complete = false
+                    if (errors.length() < 100) errors.put("${Uri.decode(folder.encodedPath)}: ${WebDav.friendly(e).message}")
+                    continue
+                }
+            for (e in entries) {
+                if (e.dir) {
+                    if (!e.name.startsWith('.') && !e.name.startsWith('#') && e.name != "@eaDir")
+                        todo.add(folder.resolve(if (e.href.endsWith("/")) e.href else e.href + "/")!!)
+                } else if (isAudio(e.name)) files.add(e) else bump("ignored")
+            }
+            require(files.size <= 200000) { "Wybierz mniejszy folder" }
+            progress(0, 0, "Przeglądam $name… (${files.size} plików)")
+        }
+        files.sortBy { it.href }
+        val seen = HashSet<String>()
+        for ((i, e) in files.withIndex()) {
+            checkCancel()
+            val u = WebDav.uri(id, e.href).toString()
+            seen.add(u)
+            progress(i, files.size, e.name)
+            try {
+                if (readableDatabase.rawQuery("SELECT uri FROM ignored WHERE uri=?", arrayOf(u)).use { it.moveToFirst() }) {
+                    bump("ignored")
+                    continue
+                }
+                val version = e.version.hashCode().toLong()
+                val prior =
+                    readableDatabase
+                        .rawQuery("SELECT track,size,modified FROM locations WHERE uri=? AND source=?", arrayOf(u, id))
+                        .use { if (it.moveToFirst()) Triple(it.getString(0), it.getLong(1), it.getLong(2)) else null }
+                if (prior != null && prior.second == e.size && prior.third == version && e.version.isNotEmpty()) {
+                    writableDatabase.update("locations", cv("available" to 1), "uri=? AND source=?", arrayOf(u, id))
+                    bump("unchanged")
+                    continue
+                }
+                val track = sha("mytify-remote-v1\u0000$id\u0000${e.href}".toByteArray())
+                val cache = File(context.cacheDir, "dav-tags-${System.nanoTime()}")
+                val raw =
+                    DavMediaDataSource(s, password, WebDav.https(s, Uri.parse(u)), e.size, cache).use { src ->
+                        readTags(Doc(Uri.parse(u), Uri.decode(e.name), e.size), src)
+                    }
+                val exists =
+                    readableDatabase.rawQuery("SELECT id FROM tracks WHERE id=?", arrayOf(track)).use { it.moveToFirst() }
+                if (exists) {
+                    // Same place, new file version: fresh tags, likes and manual edits stay.
+                    writableDatabase.update("tracks", cv("raw" to raw.toString()), "id=?", arrayOf(track))
+                }
+                bump(record(id, u, Uri.decode(e.name), track, e.size, version, prior?.first, exists, raw).let {
+                    if (it == "unchanged" && prior != null) "updated" else it
+                })
+            } catch (x: CancellationException) {
+                throw x
+            } catch (x: Exception) {
+                complete = false
+                if (errors.length() < 100) errors.put("${Uri.decode(e.name)}: ${WebDav.friendly(x).message}")
+            }
+        }
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            if (complete)
+                db.rawQuery("SELECT uri,available FROM locations WHERE source=?", arrayOf(id)).use { c ->
+                    while (c.moveToNext()) if (c.getString(0) !in seen) {
+                        if (c.getInt(1) > 0) bump("missing")
+                        db.update("locations", cv("available" to 0), "source=? AND uri=?", arrayOf(id, c.getString(0)))
+                    }
+                }
+            db.update(
+                "sources",
+                cv("state" to if (complete) "online" else "partial", "scanned" to System.currentTimeMillis()),
+                "id=?",
+                arrayOf(id),
+            )
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        progress(files.size, files.size, "Gotowe")
+    }
+
     fun scan(
         sourceId: String?,
         explicit: Boolean = false,
@@ -726,6 +884,10 @@ class Catalog(private val context: Context) :
                         }
                 if (source.getString("kind") == "smb") {
                     scanSmb(id, source.getString("name"), report, ::bump, progress)
+                    continue
+                }
+                if (source.getString("kind") == "webdav") {
+                    scanDav(id, source.getString("name"), report, ::bump, progress)
                     continue
                 }
                 writableDatabase.update("sources", cv("state" to "partial"), "id=?", arrayOf(id))

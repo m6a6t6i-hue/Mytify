@@ -1809,7 +1809,9 @@ class SettingsPage extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            source.network
+            source.protocol == 'webdav'
+                ? (offline ? Icons.cloud_off_outlined : Icons.cloud_outlined)
+                : source.network
                 ? (offline ? Icons.portable_wifi_off_rounded : Icons.lan_outlined)
                 : (offline ? Icons.folder_off_outlined : Icons.folder_outlined),
             color: offline ? const Color(0xffffb454) : secondaryText,
@@ -1946,7 +1948,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', 'Wersja 0.15', icon: Icons.info_outline_rounded),
+    _row('Mytify', 'Wersja 0.16', icon: Icons.info_outline_rounded),
     _row('Autor', 'Mateusz Kanik', icon: Icons.person_outline_rounded),
     _row(
       'Strona',

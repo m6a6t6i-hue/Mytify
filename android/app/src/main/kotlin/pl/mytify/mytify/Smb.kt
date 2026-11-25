@@ -381,12 +381,28 @@ class RoutingDataSource(private val context: Context) : androidx.media3.datasour
     private val smb = SmbDataSource(context)
     private var current: androidx.media3.datasource.DataSource? = null
 
+    private val listeners = mutableListOf<androidx.media3.datasource.TransferListener>()
+
     override fun addTransferListener(listener: androidx.media3.datasource.TransferListener) {
+        listeners.add(listener)
         fallback.addTransferListener(listener)
         smb.addTransferListener(listener)
     }
 
     override fun open(dataSpec: DataSpec): Long {
+        if (dataSpec.uri.scheme == "dav") {
+            // WebDAV: plain HTTPS with ranges; the login header is added here, never stored in the URI.
+            val id = dataSpec.uri.authority ?: throw IOException("Nieprawidłowy adres pliku.")
+            val s = NetworkSources.dav(context, id)
+            val headers = WebDav.auth(s, Secrets.load(context, id) ?: "")?.let { mapOf("Authorization" to it) } ?: emptyMap()
+            val http =
+                androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(WebDav.client)
+                    .setDefaultRequestProperties(headers)
+                    .createDataSource()
+            listeners.forEach { http.addTransferListener(it) }
+            current = http
+            return http.open(dataSpec.buildUpon().setUri(Uri.parse(WebDav.https(s, dataSpec.uri).toString())).build())
+        }
         val source = if (dataSpec.uri.scheme == "smb") smb else fallback
         current = source
         return source.open(dataSpec)

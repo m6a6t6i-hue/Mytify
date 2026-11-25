@@ -13,12 +13,16 @@ import org.json.JSONObject
  */
 object NetworkSources {
     /** Only protocols that really work in this build. The UI offers nothing else. */
-    val protocols = listOf("smb")
+    val protocols = listOf("smb", "webdav")
 
     @Volatile internal var shared: Catalog? = null
 
     private fun catalog(context: Context): Catalog =
         shared ?: synchronized(this) { shared ?: Catalog(context.applicationContext).also { shared = it } }
+
+    fun dav(context: Context, id: String): DavSettings =
+        catalog(context).sourceSettings(id)?.let { DavSettings.parse(it) }
+            ?: throw SourceException("Źródło zostało usunięte.")
 
     fun settings(context: Context, id: String): SmbSettings =
         catalog(context).sourceSettings(id)?.let { SmbSettings.parse(it) }
@@ -30,6 +34,11 @@ object NetworkSources {
 
     /** Logs in and lists the chosen folder. Nothing is saved. */
     fun test(context: Context, id: String?, config: JSONObject): JSONObject {
+        if (config.optString("protocol") == "webdav") {
+            val s = DavSettings.parse(config)
+            val folders = WebDav.list(s, password(context, id, config), s.root()).filter { it.dir }.map { Uri.decode(it.name) }
+            return obj("ok" to true, "folders" to JSONArray(folders.sortedBy { it.lowercase() }))
+        }
         val s = SmbSettings.parse(config)
         val key = "test:" + sha("${s.host}\u0000${s.share}\u0000${s.user}".toByteArray())
         try {
@@ -41,6 +50,14 @@ object NetworkSources {
     }
 
     fun browse(context: Context, id: String?, config: JSONObject, path: String): JSONObject {
+        if (config.optString("protocol") == "webdav") {
+            val s = DavSettings.parse(config).copy(folder = "")
+            val folders =
+                WebDav.list(s, password(context, id, config), s.root(path))
+                    .filter { it.dir && !it.name.startsWith('.') && !it.name.startsWith('#') && it.name != "@eaDir" }
+                    .map { Uri.decode(it.name) }
+            return obj("folders" to JSONArray(folders.sortedBy { it.lowercase() }))
+        }
         val s = SmbSettings.parse(config).copy(folder = "")
         val key = "browse:" + sha("${s.host}\u0000${s.share}\u0000${s.user}".toByteArray())
         val relative = SmbSettings.segments(path).joinToString("/")
@@ -66,6 +83,11 @@ object NetworkSources {
 
     /** Sequential stream from [offset], for serving a NAS track to a DLNA renderer. */
     fun stream(context: Context, uri: Uri, offset: Long): InputStream {
+        if (uri.scheme == "dav") {
+            val id = uri.authority ?: throw SourceException("Nieprawidłowy adres pliku.")
+            val s = dav(context, id)
+            return WebDav.stream(s, Secrets.load(context, id) ?: "", WebDav.https(s, uri), offset)
+        }
         val (file, size) = open(context, uri)
         return object : InputStream() {
             var position = offset
@@ -95,8 +117,14 @@ object NetworkSources {
         for (id in c.networkSourceIds()) {
             val ok =
                 runCatching {
-                        val s = settings(context, id)
-                        Smb.with(id, s, Secrets.load(context, id) ?: "") { it.folderExists(s.inside()) || s.folder.isEmpty() }
+                        if (c.sourceSettings(id)?.optString("protocol") == "webdav") {
+                            val s = dav(context, id)
+                            WebDav.list(s, Secrets.load(context, id) ?: "", s.root())
+                            true
+                        } else {
+                            val s = settings(context, id)
+                            Smb.with(id, s, Secrets.load(context, id) ?: "") { it.folderExists(s.inside()) || s.folder.isEmpty() }
+                        }
                     }
                     .getOrDefault(false)
             changed = c.setReachable(id, ok) || changed
