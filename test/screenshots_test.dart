@@ -190,12 +190,12 @@ void main() {
       final w = size.width.round();
       await open(tester, size);
       await shot(tester, 'd${w}_1_home');
+      await tester.tap(find.byTooltip('Albumy').evaluate().isEmpty ? find.text('Albumy').first : find.byTooltip('Albumy'));
+      await shot(tester, 'd${w}_4_albums');
       await tester.tap(find.text('Signal Fire').first);
       await shot(tester, 'd${w}_2_album');
       await tester.tap(find.byTooltip('Utwory').evaluate().isEmpty ? find.text('Utwory').first : find.byTooltip('Utwory'));
       await shot(tester, 'd${w}_3_tracks');
-      await tester.tap(find.byTooltip('Albumy').evaluate().isEmpty ? find.text('Albumy').first : find.byTooltip('Albumy'));
-      await shot(tester, 'd${w}_4_albums');
       await tester.tap(find.byTooltip('Kolejka'));
       await shot(tester, 'd${w}_5_queue');
       await close(tester);

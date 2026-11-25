@@ -306,27 +306,33 @@ class SidePanel extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: Sp.s),
               child: Row(
                 children: [
-                  for (final (key, label) in const [
-                    ('now', 'Odtwarzane'),
-                    ('queue', 'Kolejka'),
-                    ('info', 'Informacje'),
-                  ])
-                    Flexible(
-                      child: Padding(
-                      padding: const EdgeInsets.only(right: 2),
-                      child: TextButton(
-                        onPressed: () => onTab(key),
-                        style: TextButton.styleFrom(
-                          foregroundColor: tab == key ? primaryText : secondaryText,
-                          backgroundColor: tab == key ? hoverFill : null,
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          minimumSize: const Size(0, 32),
-                        ),
-                        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final (key, label) in const [
+                            ('now', 'Odtwarzane'),
+                            ('queue', 'Kolejka'),
+                            ('info', 'Informacje'),
+                          ])
+                            Padding(
+                              padding: const EdgeInsets.only(right: 2),
+                              child: TextButton(
+                                onPressed: () => onTab(key),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: tab == key ? primaryText : secondaryText,
+                                  backgroundColor: tab == key ? hoverFill : null,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  minimumSize: const Size(0, 32),
+                                ),
+                                child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    ),
-                  const Spacer(),
+                  ),
                   IconAction(Icons.close_rounded, 'Zamknij panel', onClose, size: 18, color: secondaryText),
                 ],
               ),
@@ -818,12 +824,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         children: [
           _top(context, app, t),
           const Spacer(),
-          Hero(
-            tag: 'artwork',
-            child: AnimatedSwitcher(
-              duration: motion(context, Dur.shared),
-              child: Artwork(t.cover, key: ValueKey(t.cover), size: art, radius: 10),
-            ),
+          AnimatedSwitcher(
+            duration: motion(context, Dur.shared),
+            child: Artwork(t.cover, key: ValueKey(t.cover), size: art, radius: 10),
           ),
           const Spacer(),
           _titleRow(app, t, 22),
@@ -927,12 +930,9 @@ class MiniPlayer extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(Sp.s, Sp.s, Sp.xs, Sp.s),
                       child: Row(
                         children: [
-                          Hero(
-                            tag: 'artwork',
-                            child: AnimatedSwitcher(
-                              duration: motion(context, Dur.standard),
-                              child: Artwork(t.cover, key: ValueKey(t.cover), size: 44, radius: Rad.coverSmall),
-                            ),
+                          AnimatedSwitcher(
+                            duration: motion(context, Dur.standard),
+                            child: Artwork(t.cover, key: ValueKey(t.cover), size: 44, radius: Rad.coverSmall),
                           ),
                           const SizedBox(width: Sp.m),
                           Expanded(
