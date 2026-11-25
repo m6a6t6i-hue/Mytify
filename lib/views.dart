@@ -1112,7 +1112,7 @@ class AlbumPage extends StatelessWidget {
             'Więcej',
             () {
               final box = context.findRenderObject() as RenderBox?;
-              final at = box == null ? null : box.localToGlobal(box.size.bottomLeft(Offset.zero));
+              final at = box?.localToGlobal(box.size.bottomLeft(Offset.zero));
               unawaited(app.albumMenu(a, at: at));
             },
             box: desktop ? 40 : 48,
@@ -1373,7 +1373,7 @@ class CollectionPage extends StatelessWidget {
             padding: desktop ? pagePadding(app) : EdgeInsets.zero,
             sliver: SliverReorderableList(
               itemCount: list.length,
-              onReorder: (from, to) => unawaited(app.movePlaylistItem(playlist!, from, to > from ? to - 1 : to)),
+              onReorderItem: (from, to) => unawaited(app.movePlaylistItem(playlist, from, to)),
               itemBuilder: (context, i) => ReorderableDragStartListener(
                 key: ValueKey(list[i].id),
                 index: i,

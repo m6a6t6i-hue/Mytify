@@ -529,7 +529,7 @@ class QueueList extends StatelessWidget {
             buildDefaultDragHandles: false,
             padding: const EdgeInsets.only(bottom: Sp.l),
             itemCount: items.length,
-            onReorder: (from, to) => unawaited(app.moveInQueue(from, to > from ? to - 1 : to)),
+            onReorderItem: (from, to) => unawaited(app.moveInQueue(from, to)),
             itemBuilder: (context, i) {
               final t = items[i];
               final current = i == at;
