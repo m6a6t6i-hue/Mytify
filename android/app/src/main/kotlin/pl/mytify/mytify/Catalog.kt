@@ -42,7 +42,7 @@ internal fun readLimited(stream: java.io.InputStream, limit: Int): ByteArray {
 private val offlineOwnershipLock = Any()
 
 class Catalog(private val context: Context) :
-    SQLiteOpenHelper(context, "catalog-android.sqlite3", null, 2) {
+    SQLiteOpenHelper(context, "catalog-android.sqlite3", null, 3) {
     val cancelled = AtomicBoolean(false)
     private val resolver = context.contentResolver
     private val covers = File(context.filesDir, "covers").apply { mkdirs() }
@@ -57,7 +57,10 @@ class Catalog(private val context: Context) :
             "CREATE TABLE sources(id TEXT PRIMARY KEY,uri TEXT NOT NULL,name TEXT NOT NULL,kind TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'partial',scanned INTEGER NOT NULL DEFAULT 0)"
         )
         db.execSQL(
-            "CREATE TABLE locations(uri TEXT NOT NULL,source TEXT NOT NULL,track TEXT NOT NULL,name TEXT NOT NULL,available INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(uri,source))"
+            "CREATE TABLE locations(uri TEXT NOT NULL,source TEXT NOT NULL,track TEXT NOT NULL,name TEXT NOT NULL,available INTEGER NOT NULL DEFAULT 1,size INTEGER NOT NULL DEFAULT -1,modified INTEGER NOT NULL DEFAULT -1,PRIMARY KEY(uri,source))"
+        )
+        db.execSQL(
+            "CREATE TABLE source_settings(source TEXT PRIMARY KEY,protocol TEXT NOT NULL,settings TEXT NOT NULL)"
         )
         db.execSQL("CREATE INDEX location_track ON locations(track)")
         db.execSQL("CREATE TABLE ignored(uri TEXT PRIMARY KEY)")
@@ -66,6 +69,14 @@ class Catalog(private val context: Context) :
 
     override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {
         if (old < 2) PlaylistStore.create(db)
+        if (old < 3) {
+            // 0.15: network sources. Additive only: existing tracks, likes and playlists stay.
+            db.execSQL("ALTER TABLE locations ADD COLUMN size INTEGER NOT NULL DEFAULT -1")
+            db.execSQL("ALTER TABLE locations ADD COLUMN modified INTEGER NOT NULL DEFAULT -1")
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS source_settings(source TEXT PRIMARY KEY,protocol TEXT NOT NULL,settings TEXT NOT NULL)"
+            )
+        }
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -102,11 +113,24 @@ class Catalog(private val context: Context) :
                         )
                         .use { n ->
                             n.moveToFirst()
+                            val kind = c.getString(3)
+                            val smb =
+                                if (kind == "smb") sourceSettings(id)?.let { SmbSettings.parse(it) }
+                                else null
                             out.put(
                                 obj(
                                     "id" to id,
+                                    "protocol" to if (smb != null) "smb" else "local",
+                                    "address" to smb?.address,
+                                    "capabilities" to
+                                        JSONArray(
+                                            if (kind == "smb" || kind == "folder")
+                                                listOf("browse", "scan", "tags", "artwork", "stream", "seek", "refresh")
+                                            else listOf("tags", "artwork", "stream", "seek")
+                                        ),
                                     "path" to
-                                        if (c.getString(3) == "folder") c.getString(1)
+                                        if (smb != null) smb.address
+                                        else if (kind == "folder") c.getString(1)
                                         else "Pliki wybrane w telefonie",
                                     "name" to c.getString(2),
                                     "kind" to c.getString(3),
@@ -141,7 +165,7 @@ class Catalog(private val context: Context) :
                         .put("edited", patch.length() > 0)
                     readableDatabase
                         .rawQuery(
-                            "SELECT COUNT(DISTINCT uri),COALESCE(MAX(available),0) FROM locations WHERE track=?",
+                            "SELECT COUNT(DISTINCT l.uri),COALESCE(MAX(CASE WHEN l.available=1 AND COALESCE(s.state,'online')<>'offline' THEN 1 ELSE 0 END),0) FROM locations l LEFT JOIN sources s ON s.id=l.source WHERE l.track=?",
                             arrayOf(c.getString(0)),
                         )
                         .use { n ->
@@ -170,7 +194,9 @@ class Catalog(private val context: Context) :
     fun uri(id: String): Uri {
         readableDatabase
             .rawQuery(
-                "SELECT uri FROM locations WHERE track=? AND available=1 ORDER BY CASE WHEN source LIKE 'offline:%' THEN 0 ELSE 1 END,uri LIMIT 1",
+                // Local copies first, the NAS last; a share known to be offline is skipped
+                // at once, so Android Auto never waits for an unreachable server.
+                "SELECT l.uri FROM locations l LEFT JOIN sources s ON s.id=l.source WHERE l.track=? AND l.available=1 AND COALESCE(s.state,'online')<>'offline' ORDER BY CASE WHEN l.source LIKE 'offline:%' THEN 0 WHEN l.uri LIKE 'smb:%' THEN 2 ELSE 1 END,l.uri LIMIT 1",
                 arrayOf(id),
             )
             .use { if (it.moveToFirst()) return Uri.parse(it.getString(0)) }
@@ -198,10 +224,15 @@ class Catalog(private val context: Context) :
     }
 
     fun forget(id: String) {
+        if (sourceSettings(id) != null) {
+            Secrets.delete(context, id)
+            Smb.close(id)
+        }
         val db = writableDatabase
         db.beginTransaction()
         try {
             db.delete("locations", "source=?", arrayOf(id))
+            db.delete("source_settings", "source=?", arrayOf(id))
             db.delete("sources", "id=?", arrayOf(id))
             db.execSQL("DELETE FROM tracks WHERE id NOT IN (SELECT track FROM locations)")
             db.setTransactionSuccessful()
@@ -416,6 +447,244 @@ class Catalog(private val context: Context) :
         return id
     }
 
+    fun sourceSettings(id: String): JSONObject? =
+        readableDatabase.rawQuery("SELECT settings FROM source_settings WHERE source=?", arrayOf(id)).use {
+            if (it.moveToFirst()) JSONObject(it.getString(0)) else null
+        }
+
+    fun networkSourceIds(): List<String> =
+        readableDatabase.rawQuery("SELECT id FROM sources WHERE kind='smb'", null).use { c ->
+            buildList { while (c.moveToNext()) add(c.getString(0)) }
+        }
+
+    /** Stores reachability. Returns true when the state changed. */
+    fun setReachable(id: String, reachable: Boolean): Boolean {
+        val db = writableDatabase
+        val (state, scanned) =
+            db.rawQuery("SELECT state,scanned FROM sources WHERE id=?", arrayOf(id)).use {
+                if (!it.moveToFirst()) return false
+                it.getString(0) to it.getLong(1)
+            }
+        val next =
+            when {
+                !reachable -> "offline"
+                state == "offline" -> if (scanned > 0) "online" else "partial"
+                else -> state
+            }
+        if (next == state) return false
+        db.update("sources", cv("state" to next), "id=?", arrayOf(id))
+        return true
+    }
+
+    /** Adds or edits an SMB share. The password goes to [Secrets], never to the catalog. */
+    fun saveSmb(existing: String?, config: JSONObject): String {
+        val s = SmbSettings.parse(config)
+        val root = "${s.host}\\${s.share}\\${s.folder}".lowercase()
+        val id = existing ?: sha("smb\u0000$root".toByteArray())
+        val db = writableDatabase
+        val previous =
+            db.rawQuery("SELECT kind FROM sources WHERE id=?", arrayOf(id)).use {
+                if (it.moveToFirst()) it.getString(0) else null
+            }
+        if (existing == null) require(previous == null) { "Ten folder sieciowy jest już dodany." }
+        else require(previous == "smb") { "Nie znaleziono źródła." }
+        val old = sourceSettings(id)?.let { SmbSettings.parse(it) }
+        if (config.has("password") && !config.isNull("password"))
+            Secrets.store(context, id, config.getString("password"))
+        db.beginTransaction()
+        try {
+            if (previous == null)
+                db.insertOrThrow(
+                    "sources",
+                    null,
+                    cv("id" to id, "uri" to "smb://$id", "name" to s.name, "kind" to "smb", "state" to "partial", "scanned" to 0),
+                )
+            else db.update("sources", cv("name" to s.name), "id=?", arrayOf(id))
+            if (old != null && (old.host != s.host || old.share != s.share || old.folder != s.folder)) {
+                // Another folder: old locations would only look like missing files. Tracks
+                // (content hash), likes and playlists stay; the next scan links them again.
+                db.delete("locations", "source=?", arrayOf(id))
+                db.update("sources", cv("state" to "partial", "scanned" to 0), "id=?", arrayOf(id))
+                Smb.close(id)
+            }
+            if (old != null && (old.user != s.user || old.domain != s.domain)) Smb.close(id)
+            db.insertWithOnConflict(
+                "source_settings",
+                null,
+                cv("source" to id, "protocol" to "smb", "settings" to s.json().toString()),
+                SQLiteDatabase.CONFLICT_REPLACE,
+            )
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return id
+    }
+
+    private fun isAudio(name: String) = name.substringAfterLast('.').lowercase() in extensions
+
+    /**
+     * Stores one scanned file. Shared by phone folders and network shares, so a track has one
+     * identity (content hash) whatever its location.
+     */
+    private fun record(
+        source: String,
+        u: String,
+        name: String,
+        hash: String,
+        size: Long,
+        modified: Long,
+        old: String?,
+        exists: Boolean,
+        raw: JSONObject?,
+    ): String {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            if (raw != null && !exists) {
+                var patch = "{}"
+                var liked = 0
+                var added = System.currentTimeMillis()
+                if (old != null)
+                    db.rawQuery("SELECT patch,liked,added FROM tracks WHERE id=?", arrayOf(old)).use { c ->
+                        if (c.moveToFirst()) {
+                            patch = c.getString(0)
+                            liked = c.getInt(1)
+                            added = c.getLong(2)
+                        }
+                    }
+                db.insertOrThrow(
+                    "tracks",
+                    null,
+                    cv("id" to hash, "raw" to raw.toString(), "patch" to patch, "liked" to liked, "added" to added),
+                )
+            }
+            db.insertWithOnConflict(
+                "locations",
+                null,
+                cv(
+                    "uri" to u,
+                    "source" to source,
+                    "track" to hash,
+                    "name" to name,
+                    "available" to 1,
+                    "size" to size,
+                    "modified" to modified,
+                ),
+                SQLiteDatabase.CONFLICT_REPLACE,
+            )
+            if (old != null && old != hash)
+                db.execSQL(
+                    "DELETE FROM tracks WHERE id=? AND id NOT IN (SELECT track FROM locations)",
+                    arrayOf(old),
+                )
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return if (old == hash) "unchanged" else if (old != null) "updated" else if (exists) "duplicates" else "added"
+    }
+
+    private fun scanSmb(
+        id: String,
+        name: String,
+        report: JSONObject,
+        bump: (String) -> Unit,
+        progress: (Int, Int, String) -> Unit,
+    ) {
+        val errors = report.getJSONArray("errors")
+        val s = SmbSettings.parse(sourceSettings(id) ?: error("Brak ustawień źródła"))
+        val password = Secrets.load(context, id) ?: ""
+        progress(0, 0, "Łączenie z ${s.host}…")
+        val entries =
+            try {
+                Smb.with(id, s, password) { share -> Smb.walk(share, s, ::isAudio) { cancelled.get() } }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Unreachable NAS: keep the collection, only the state changes.
+                writableDatabase.update("sources", cv("state" to "offline"), "id=?", arrayOf(id))
+                bump("offlineSources")
+                errors.put("$name: ${Smb.friendly(e).message}")
+                return
+            }
+        val seen = HashSet<String>()
+        var complete = true
+        for ((i, e) in entries.withIndex()) {
+            checkCancel()
+            val u = Smb.uri(id, e.path).toString()
+            seen.add(u)
+            progress(i, entries.size, e.name)
+            try {
+                if (readableDatabase.rawQuery("SELECT uri FROM ignored WHERE uri=?", arrayOf(u)).use { it.moveToFirst() }) {
+                    bump("ignored")
+                    continue
+                }
+                val prior =
+                    readableDatabase
+                        .rawQuery("SELECT track,size,modified FROM locations WHERE uri=? AND source=?", arrayOf(u, id))
+                        .use { if (it.moveToFirst()) Triple(it.getString(0), it.getLong(1), it.getLong(2)) else null }
+                if (prior != null && prior.second == e.size && prior.third == e.modified) {
+                    // Same size and date: no need to read the whole file over the network again.
+                    writableDatabase.update("locations", cv("available" to 1), "uri=? AND source=?", arrayOf(u, id))
+                    bump("unchanged")
+                    continue
+                }
+                val result =
+                    Smb.with(id, s, password) { share ->
+                        Smb.openFile(share, e.path).use { f ->
+                            val digest = MessageDigest.getInstance("SHA-256")
+                            val buffer = ByteArray(1024 * 1024)
+                            var offset = 0L
+                            while (true) {
+                                checkCancel()
+                                val n = f.read(buffer, offset, 0, buffer.size)
+                                if (n <= 0) break
+                                digest.update(buffer, 0, n)
+                                offset += n
+                            }
+                            require(offset == e.size) { "Plik zmienił się podczas skanowania. Spróbuj ponownie." }
+                            val hash = digest.digest().joinToString("") { "%02x".format(it) }
+                            val exists =
+                                readableDatabase.rawQuery("SELECT id FROM tracks WHERE id=?", arrayOf(hash)).use {
+                                    it.moveToFirst()
+                                }
+                            val raw =
+                                if (!exists) readTags(Doc(Uri.parse(u), e.name, e.size), SmbMediaDataSource(f, e.size))
+                                else null
+                            Triple(hash, exists, raw)
+                        }
+                    }
+                bump(record(id, u, e.name, result.first, e.size, e.modified, prior?.first, result.second, result.third))
+            } catch (x: CancellationException) {
+                throw x
+            } catch (x: Exception) {
+                complete = false
+                if (errors.length() < 100) errors.put("${e.name}: ${Smb.friendly(x).message}")
+            }
+        }
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.rawQuery("SELECT uri,available FROM locations WHERE source=?", arrayOf(id)).use { c ->
+                while (c.moveToNext()) if (c.getString(0) !in seen) {
+                    if (c.getInt(1) > 0) bump("missing")
+                    db.update("locations", cv("available" to 0), "source=? AND uri=?", arrayOf(id, c.getString(0)))
+                }
+            }
+            db.update(
+                "sources",
+                cv("state" to if (complete) "online" else "partial", "scanned" to System.currentTimeMillis()),
+                "id=?",
+                arrayOf(id),
+            )
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        progress(entries.size, entries.size, "Gotowe")
+    }
+
     fun scan(
         sourceId: String?,
         explicit: Boolean = false,
@@ -450,6 +719,10 @@ class Catalog(private val context: Context) :
                             it.moveToFirst()
                             it.getString(0)
                         }
+                if (source.getString("kind") == "smb") {
+                    scanSmb(id, source.getString("name"), report, ::bump, progress)
+                    continue
+                }
                 writableDatabase.update("sources", cv("state" to "partial"), "id=?", arrayOf(id))
                 val docs: List<Doc>
                 try {
@@ -831,7 +1104,7 @@ class Catalog(private val context: Context) :
         }
     }
 
-    private fun readTags(d: Doc): JSONObject {
+    private fun readTags(d: Doc, source: android.media.MediaDataSource? = null): JSONObject {
         val raw =
             obj(
                 "title" to d.name.substringBeforeLast('.'),
@@ -852,7 +1125,7 @@ class Catalog(private val context: Context) :
             )
         val r = MediaMetadataRetriever()
         try {
-            r.setDataSource(context, d.uri)
+            if (source != null) r.setDataSource(source) else r.setDataSource(context, d.uri)
             listOf(
                     "title" to MediaMetadataRetriever.METADATA_KEY_TITLE,
                     "artist" to MediaMetadataRetriever.METADATA_KEY_ARTIST,

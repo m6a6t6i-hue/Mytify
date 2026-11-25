@@ -26,7 +26,25 @@ jobs:
       - run: flutter analyze --no-pub
       - run: flutter test --no-pub
       - run: flutter build apk --release --target-platform android-arm64 --no-pub
+      - name: Local Samba share for the network source tests
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq samba > /dev/null
+          album="/srv/mytify-share/Polskie ąę albumy"
+          sudo mkdir -p "$album"
+          sudo cp test/fixtures/sample.flac "$album/a.flac"
+          sudo cp test/fixtures/sample.mp3 "$album/Zażółć gęślą jaźń.mp3"
+          sudo useradd -M -s /usr/sbin/nologin mytifysmb
+          printf 'Mytify-Test-2026!\nMytify-Test-2026!\n' | sudo smbpasswd -s -a mytifysmb
+          sudo sed -i 's/^\[global\]/[global]\n   server min protocol = SMB2_10/' /etc/samba/smb.conf
+          printf '[music]\n   path = /srv/mytify-share\n   read only = yes\n   valid users = mytifysmb\n' | sudo tee -a /etc/samba/smb.conf > /dev/null
+          sudo systemctl restart smbd
+          smbclient -L 127.0.0.1 -U 'mytifysmb%Mytify-Test-2026!' | head -20 || true
       - run: cd android && ./gradlew --no-daemon -Ptarget-platform=android-arm64 :app:testReleaseUnitTest
+        env:
+          MYTIFY_SMB_HOST: 127.0.0.1
+          MYTIFY_SMB_SHARE: music
+          MYTIFY_SMB_USER: mytifysmb
+          MYTIFY_SMB_PASSWORD: Mytify-Test-2026!
       - uses: actions/upload-artifact@v4
         with:
           name: Mytify-Android

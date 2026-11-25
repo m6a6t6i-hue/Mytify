@@ -417,6 +417,27 @@ class NetworkFileServer(
             end = r.second
         }
         val uri = catalog.uri(id)
+        if (uri.scheme == "smb") {
+            // NAS track cast to a renderer: stream the requested range straight from the share.
+            NetworkSources.stream(context, uri, start).use { input ->
+                val mime = NetworkDevices.mime(track.optString("format"))
+                reply(
+                    if (range == null) 200 else 206,
+                    "Content-Type: $mime\r\nContent-Length: ${end-start+1}\r\nAccept-Ranges: bytes\r\ntransferMode.dlna.org: Streaming\r\n" +
+                        if (range != null) "Content-Range: bytes $start-$end/$len\r\n" else "",
+                ) { out ->
+                    var left = end - start + 1
+                    val buffer = ByteArray(65536)
+                    while (left > 0 && !closed) {
+                        val n = input.read(buffer, 0, minOf(buffer.size.toLong(), left).toInt())
+                        if (n < 0) break
+                        out.write(buffer, 0, n)
+                        left -= n
+                    }
+                }
+            }
+            return
+        }
         context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { fd ->
             FileInputStream(fd.fileDescriptor).use { file ->
                 file.channel.position(fd.startOffset + start)

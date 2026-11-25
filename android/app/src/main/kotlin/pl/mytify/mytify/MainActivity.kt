@@ -28,6 +28,8 @@ class MainActivity : FlutterActivity() {
     private val worker = Executors.newSingleThreadExecutor()
     private val networkWorker = Executors.newSingleThreadExecutor()
     private val audioWorker = Executors.newSingleThreadExecutor()
+    /** Connection tests and folder browsing may wait for a slow NAS; never block the library. */
+    private val sourceWorker = Executors.newCachedThreadPool()
     private val main = Handler(Looper.getMainLooper())
     private val uiExecutor = java.util.concurrent.Executor { main.post(it) }
     private var events: EventChannel.EventSink? = null
@@ -46,6 +48,7 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(engine)
         catalog = Catalog(applicationContext)
         online = OnlineMetadata(applicationContext, catalog)
+        sourceWorker.execute { runCatching { NetworkSources.probe(applicationContext) } }
         EventChannel(engine.dartExecutor.binaryMessenger, "pl.mytify/import")
             .setStreamHandler(
                 object : EventChannel.StreamHandler {
@@ -235,6 +238,30 @@ class MainActivity : FlutterActivity() {
                                 )
                                 .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true),
                     )
+                }
+                "networkProtocols" -> r.success(JSONArray(NetworkSources.protocols).toString())
+                "testSource", "browseSource", "saveSource" -> {
+                    val args = JSONObject(call.arguments as String)
+                    val id = args.optString("id").ifEmpty { null }
+                    val config = args.getJSONObject("config")
+                    background(r, sourceWorker) {
+                        when (call.method) {
+                            "testSource" -> NetworkSources.test(applicationContext, id, config)
+                            "browseSource" ->
+                                NetworkSources.browse(applicationContext, id, config, args.optString("path"))
+                            else -> {
+                                check(!importing.get() || id == null) { "Zaczekaj na zakończenie skanowania." }
+                                obj("id" to catalog.saveSmb(id, config)).also { changed() }
+                            }
+                        }
+                    }
+                }
+                "sourceSettings" -> {
+                    val id = call.arguments as String
+                    background(r) {
+                        (catalog.sourceSettings(id) ?: error("To źródło nie ma ustawień sieciowych."))
+                            .put("hasPassword", !Secrets.load(applicationContext, id).isNullOrEmpty())
+                    }
                 }
                 "openUrl" -> {
                     val url = call.argument<String>("url").orEmpty()

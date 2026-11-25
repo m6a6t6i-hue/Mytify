@@ -84,6 +84,28 @@ class PlaybackService : MediaLibraryService() {
         restore(p)
         handler.postDelayed(saver, 10000)
         handler.postDelayed(networkSaver, 1000)
+        watchNetwork()
+    }
+
+    private val prober = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
+
+    /** NAS reachability follows Wi-Fi changes, so offline shares fail fast and come back by themselves. */
+    private fun watchNetwork() {
+        val probe = { prober.execute { runCatching { NetworkSources.probe(applicationContext) } } }
+        val cm = getSystemService(android.net.ConnectivityManager::class.java) ?: return
+        val callback =
+            object : android.net.ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: android.net.Network) {
+                    probe()
+                }
+
+                override fun onLost(network: android.net.Network) {
+                    probe()
+                }
+            }
+        runCatching { cm.registerDefaultNetworkCallback(callback) }.onSuccess { networkCallback = callback }
+        probe()
     }
 
     private fun createPlayer(a: AirplaySession?): ExoPlayer {
@@ -101,7 +123,13 @@ class PlaybackService : MediaLibraryService() {
                             .setAudioProcessors(arrayOf<AudioProcessor>(AirplayProcessor(a)))
                             .build()
                 }
-        return ExoPlayer.Builder(this, factory).build().apply {
+        return ExoPlayer.Builder(this, factory)
+            // smb:// locations stream from the NAS, everything else as before.
+            .setMediaSourceFactory(
+                androidx.media3.exoplayer.source.DefaultMediaSourceFactory(RoutingDataSource.Factory(this))
+            )
+            .build()
+            .apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
@@ -287,6 +315,10 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        networkCallback?.let { cb ->
+            runCatching { getSystemService(android.net.ConnectivityManager::class.java)?.unregisterNetworkCallback(cb) }
+        }
+        prober.shutdown()
         handler.removeCallbacks(saver)
         handler.removeCallbacks(networkSaver)
         save()

@@ -37,7 +37,7 @@ jobs:
         shell: pwsh
         run: |
           $pw = 'Mytify-Test-2026!'
-          net user mytifysmb $pw /add | Out-Null
+          New-LocalUser -Name mytifysmb -Password (ConvertTo-SecureString $pw -AsPlainText -Force) -PasswordNeverExpires | Out-Null
           $album = Join-Path 'C:\mytify-share' 'Polskie ąę albumy'
           New-Item -ItemType Directory -Force $album | Out-Null
           New-Item -ItemType Directory -Force 'C:\mytify-local' | Out-Null
