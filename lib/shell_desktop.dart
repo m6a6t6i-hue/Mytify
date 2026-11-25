@@ -304,7 +304,7 @@ class Toolbar extends StatelessWidget {
           Builder(
             builder: (context) => IconAction(
               Icons.add_rounded,
-              'Dodaj muzykę',
+              'Dodaj źródło',
               () {
                 final box = context.findRenderObject() as RenderBox?;
                 app.showAddMusic(at: box?.localToGlobal(box.size.bottomLeft(Offset.zero)));
@@ -510,7 +510,7 @@ class Sidebar extends StatelessWidget {
                         const Icon(Icons.add_circle_outline_rounded, size: 21, color: secondaryText),
                         if (!collapsed) ...[
                           const SizedBox(width: Sp.m),
-                          const Text('Dodaj muzykę', style: TextStyle(fontSize: 13.5, color: secondaryText, fontWeight: FontWeight.w500)),
+                          const Text('Dodaj źródło', style: TextStyle(fontSize: 13.5, color: secondaryText, fontWeight: FontWeight.w500)),
                         ],
                       ],
                     ),
@@ -519,7 +519,7 @@ class Sidebar extends StatelessWidget {
               );
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: Sp.s, vertical: 1),
-                child: collapsed ? Tooltip(message: 'Dodaj muzykę', child: tile) : tile,
+                child: collapsed ? Tooltip(message: 'Dodaj źródło', child: tile) : tile,
               );
             },
           ),

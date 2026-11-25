@@ -117,7 +117,7 @@ class _Header extends StatelessWidget {
       if (route.page == 'home') DeviceButton(app: app, size: 22),
       if (route.page == 'library')
         Builder(
-          builder: (context) => IconAction(Icons.add_rounded, 'Dodaj muzykę', () => app.showAddMusic(), size: 24, box: 48),
+          builder: (context) => IconAction(Icons.add_rounded, 'Dodaj źródło', () => app.showAddMusic(), size: 24, box: 48),
         ),
       if (route.page == 'playlist' && app.playlistById(route.arg) != null)
         IconAction(Icons.more_vert_rounded, 'Więcej', () => app.playlistMenu(app.playlistById(route.arg)!), size: 22, box: 48),

@@ -199,7 +199,9 @@ void main() {
     await shot(tester, 'm6_now_playing');
     await tester.tap(find.byTooltip('Zamknij').evaluate().isEmpty ? find.byIcon(Icons.keyboard_arrow_down_rounded).first : find.byTooltip('Zamknij').first);
     await settle(tester);
-    await tester.tap(find.byTooltip('Dodaj muzykę'));
+    await tester.tap(find.text('Biblioteka').last);
+    await settle(tester);
+    await tester.tap(find.byTooltip('Dodaj źródło'));
     await shot(tester, 'm8_add_source');
     await tester.tap(find.text('Folder sieciowy SMB'));
     await shot(tester, 'm9_smb_form');
