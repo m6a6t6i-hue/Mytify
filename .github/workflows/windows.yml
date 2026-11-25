@@ -37,8 +37,6 @@ jobs:
       - run: flutter build web --release --no-pub --no-web-resources-cdn --no-wasm-dry-run
       - run: cargo test --locked
         working-directory: native/mytify_core
-        # Known: 3 TLS transfer tests fail on real Windows (os error 10053). Reported, not hidden.
-        continue-on-error: true
       - run: cargo build --locked --release --features desktop,embed-ui
         working-directory: native/mytify_core
         env:

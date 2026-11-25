@@ -343,6 +343,9 @@ impl Transfer {
         config: Arc<rustls::ServerConfig>,
         stop: &AtomicBool,
     ) -> Result<()> {
+        // Windows: sockets accepted from a non-blocking listener inherit non-blocking mode,
+        // so the first TLS read hit WouldBlock and the phone saw os error 10053.
+        socket.set_nonblocking(false)?;
         socket.set_read_timeout(Some(Duration::from_secs(15)))?;
         socket.set_write_timeout(Some(Duration::from_secs(15)))?;
         let conn = rustls::ServerConnection::new(config)?;
