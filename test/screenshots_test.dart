@@ -1,4 +1,5 @@
 // Visual review screenshots. Run with SCREENSHOTS=1 flutter test --update-goldens test/screenshots_test.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -109,7 +110,6 @@ class ShotRepo extends AndroidLibraryRepository implements IngestRepository {
       'discId': 'shot',
       'tracks': [for (var i = 0; i < 9; i++) {'number': i + 1, 'start': i * 75 * 230, 'end': (i + 1) * 75 * 230 - 75 * (i * 7 % 40)}],
     },
-    'monitor' => state = {'running': true, 'stage': 'monitor', 'channels': 2, 'peaks': [0.32, 0.27], 'clips': 0, 'dropouts': 0, 'rate': 48000},
     _ => {},
   };
 }
@@ -299,19 +299,15 @@ void main() {
       repo.drives = [
         {'id': 'E:', 'name': 'ASUS SDRW-08U9M-U'},
       ];
-      await tester.runAsync(() async {
-        await app.ingest.refresh();
-        await app.ingest.readCd();
-      });
+      unawaited(app.ingest.refresh().then((_) => app.ingest.readCd()));
       await shot(tester, '${tag}_5_cd_tracks');
       repo.inputs = [
         {'id': 'usb', 'name': 'Mikrofon (USB Audio CODEC)', 'rates': [44100, 48000, 96000], 'channels': 2},
       ];
       app.ingest.setTab(1);
-      await tester.runAsync(() async {
-        await app.ingest.refresh();
-        await app.ingest.monitor();
-      });
+      // Level check state as the engine reports it; the fixture does not pause playback.
+      repo.state = {'running': true, 'stage': 'monitor', 'channels': 2, 'peaks': [0.32, 0.27], 'clips': 0, 'dropouts': 0, 'rate': 48000};
+      unawaited(app.ingest.refresh());
       await shot(tester, '${tag}_6_vinyl');
       await close(tester);
     }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.windows));
