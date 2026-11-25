@@ -350,7 +350,8 @@ class _MotionTileState extends State<MotionTile> {
   );
 }
 
-class PlayButton extends StatelessWidget {
+/// Primary play control with a real play/pause morph and press feedback.
+class PlayButton extends StatefulWidget {
   final bool playing;
   final VoidCallback? onPressed;
   final double size;
@@ -361,46 +362,92 @@ class PlayButton extends StatelessWidget {
     this.size = 58,
   });
   @override
+  State<PlayButton> createState() => _PlayButtonState();
+}
+
+class _PlayButtonState extends State<PlayButton>
+    with SingleTickerProviderStateMixin {
+  late final controller = AnimationController(
+    vsync: this,
+    duration: Dur.standard,
+    value: widget.playing ? 1 : 0,
+  );
+
+  @override
+  void didUpdateWidget(PlayButton old) {
+    super.didUpdateWidget(old);
+    if (old.playing != widget.playing) {
+      controller.duration = motion(context, Dur.standard);
+      widget.playing ? controller.forward() : controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => Semantics(
     container: true,
     button: true,
-    enabled: onPressed != null,
-    label: playing ? 'Wstrzymaj' : 'Odtwórz',
-    onTap: onPressed,
+    enabled: widget.onPressed != null,
+    label: widget.playing ? 'Wstrzymaj' : 'Odtwórz',
+    onTap: widget.onPressed,
     excludeSemantics: true,
-    child: MotionTile(
-      onTap: null,
-      borderRadius: BorderRadius.circular(size),
+    child: Pressable(
+      enabled: widget.onPressed != null,
       child: AnimatedContainer(
-        duration: MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 280),
-        width: size,
-        height: size,
+        duration: motion(context, Dur.standard),
+        width: widget.size,
+        height: widget.size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: onPressed == null ? elevated : accent,
+          color: widget.onPressed == null ? elevated : accent,
         ),
         child: IconButton(
-          tooltip: playing ? 'Wstrzymaj' : 'Odtwórz',
-          onPressed: onPressed,
+          tooltip: widget.playing ? 'Wstrzymaj' : 'Odtwórz',
+          onPressed: widget.onPressed,
           color: onAccent,
-          iconSize: size * .58,
-          icon: AnimatedSwitcher(
-            duration: MediaQuery.disableAnimationsOf(context)
-                ? Duration.zero
-                : const Duration(milliseconds: 220),
-            transitionBuilder: (child, animation) => ScaleTransition(
-              scale: animation,
-              child: FadeTransition(opacity: animation, child: child),
-            ),
-            child: Icon(
-              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              key: ValueKey(playing),
-            ),
+          iconSize: widget.size * .5,
+          icon: AnimatedIcon(
+            icon: AnimatedIcons.play_pause,
+            progress: CurvedAnimation(parent: controller, curve: Curves.easeInOutCubic),
           ),
         ),
       ),
+    ),
+  );
+}
+
+/// Short spring-like squash on press. Never delays the action itself.
+class Pressable extends StatefulWidget {
+  final Widget child;
+  final bool enabled;
+  final double scale;
+  const Pressable({
+    super.key,
+    required this.child,
+    this.enabled = true,
+    this.scale = .9,
+  });
+  @override
+  State<Pressable> createState() => _PressableState();
+}
+
+class _PressableState extends State<Pressable> {
+  bool down = false;
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: widget.enabled ? (_) => setState(() => down = true) : null,
+    onPointerUp: (_) => setState(() => down = false),
+    onPointerCancel: (_) => setState(() => down = false),
+    child: AnimatedScale(
+      scale: down ? widget.scale : 1,
+      duration: motion(context, down ? Dur.tap : Dur.shared),
+      curve: down ? Curves.easeOut : Curves.elasticOut,
+      child: widget.child,
     ),
   );
 }

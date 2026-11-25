@@ -10,6 +10,7 @@ import 'main.dart';
 import 'model.dart';
 import 'player_ui.dart';
 import 'playlists.dart';
+import 'track_table.dart';
 import 'widgets.dart';
 
 Widget pageFor(LibraryScreenState app, Nav nav) {
@@ -419,7 +420,43 @@ class TrackRow extends StatelessWidget {
       box: desktop ? 32 : 44,
       color: secondaryText,
     );
-    final content = Row(
+    final table = desktop && showAlbum;
+    final compact = table && compactTable(app.prefs);
+    final artistColumn = table && visibleColumns(app.prefs).any((c) => c.key == 'artist');
+    final content = table
+        ? Row(
+            children: [
+              lead,
+              if (showCover && !compact) ...[
+                Artwork(t.cover, size: 40, radius: Rad.coverSmall),
+                const SizedBox(width: Sp.m),
+              ] else
+                const SizedBox(width: Sp.s),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: titleStyle),
+                    if (!compact && !artistColumn)
+                      Text(
+                        dim ? '${t.displayArtist} · niedostępny' : t.displayArtist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Txt.meta.copyWith(fontSize: 12.5),
+                      ),
+                  ],
+                ),
+              ),
+              ...tableCells(app, t),
+              Opacity(
+                opacity: t.liked ? 1 : 0,
+                child: LikeButton(liked: t.liked, onPressed: () => unawaited(app.toggleLike(t)), size: 16, box: 32),
+              ),
+              more,
+            ],
+          )
+        : Row(
       children: [
         if (number != null || !showCover) lead,
         if (showCover) ...[
@@ -467,7 +504,7 @@ class TrackRow extends StatelessWidget {
         more,
       ],
     );
-    final height = desktop ? (showCover ? 52.0 : 40.0) : 60.0;
+    final height = compact ? 34.0 : desktop ? (showCover ? 52.0 : 40.0) : 60.0;
     Widget row = HoverBuilder(
       builder: (context, hovered) => AnimatedContainer(
         duration: motion(context, Dur.hover),
@@ -626,32 +663,50 @@ class _LibraryPageState extends State<LibraryPage> {
     return words.every(key.contains);
   }
 
+  Object? _albumsKey, _tracksKey;
+  List<AlbumGroup> _albumsCache = const [];
+  List<Track> _tracksCache = const [];
+
   List<AlbumGroup> _albums() {
     final h = app.prefs.history;
-    final list = app.index.albums.where((a) => _match('${a.title} ${a.artist}')).toList();
-    int lastPlayed(AlbumGroup a) => a.tracks.fold(0, (m, t) => (h.lastPlayed[t.id] ?? 0) > m ? h.lastPlayed[t.id]! : m);
-    int plays(AlbumGroup a) => a.tracks.fold(0, (m, t) => m + h.count(t.id));
     final s = sortFor('albums');
+    final key = Object.hash(identityHashCode(app.index), s, filterText.text, h.revision);
+    if (key == _albumsKey) return _albumsCache;
+    final index = app.index;
+    final list = filterText.text.trim().isEmpty ? List.of(index.albums) : index.searchAlbums(filterText.text);
+    final last = <String, int>{}, count = <String, int>{};
+    if (s == 'played' || s == 'plays') {
+      for (final a in list) {
+        last[a.key] = a.tracks.fold(0, (m, t) => (h.lastPlayed[t.id] ?? 0) > m ? h.lastPlayed[t.id]! : m);
+        count[a.key] = a.tracks.fold(0, (m, t) => m + h.count(t.id));
+      }
+    }
     int cmp(AlbumGroup a, AlbumGroup b) => switch (s) {
-      'title' => searchKey(a.title).compareTo(searchKey(b.title)),
-      'artist' => searchKey('${a.artist} ${a.title}').compareTo(searchKey('${b.artist} ${b.title}')),
-      'played' => lastPlayed(b).compareTo(lastPlayed(a)),
-      'plays' => plays(b).compareTo(plays(a)),
+      'title' => index.albumTitleKey[a.key]!.compareTo(index.albumTitleKey[b.key]!),
+      'artist' => index.albumArtistKey[a.key]!.compareTo(index.albumArtistKey[b.key]!),
+      'played' => last[b.key]!.compareTo(last[a.key]!),
+      'plays' => count[b.key]!.compareTo(count[a.key]!),
       _ => b.addedAt.compareTo(a.addedAt),
     };
     list.sort(cmp);
-    return list;
+    _albumsKey = key;
+    return _albumsCache = list;
   }
 
   List<Track> _tracks() {
     final h = app.prefs.history;
-    final list = app.index.tracks.where((t) => _match('${t.title} ${t.artist} ${t.album}')).toList();
     final s = sortFor('tracks');
     final desc = descFor('tracks');
+    final key = Object.hash(identityHashCode(app.index), s, desc, filterText.text, h.revision);
+    if (key == _tracksKey) return _tracksCache;
+    final index = app.index;
+    final list = filterText.text.trim().isEmpty ? List.of(index.tracks) : index.searchTracks(filterText.text);
     int cmp(Track a, Track b) => switch (s) {
-      'title' => searchKey(a.title).compareTo(searchKey(b.title)),
-      'artist' => searchKey('${a.artist} ${a.album}').compareTo(searchKey('${b.artist} ${b.album}')),
-      'album' => searchKey(a.album).compareTo(searchKey(b.album)) != 0 ? searchKey(a.album).compareTo(searchKey(b.album)) : albumOrder(a, b),
+      'title' => index.titleKey[a.id]!.compareTo(index.titleKey[b.id]!),
+      'artist' => index.artistAlbumKey[a.id]!.compareTo(index.artistAlbumKey[b.id]!),
+      'album' => index.albumNameKey[a.id]!.compareTo(index.albumNameKey[b.id]!) != 0
+          ? index.albumNameKey[a.id]!.compareTo(index.albumNameKey[b.id]!)
+          : albumOrder(a, b),
       'duration' => a.durationMs.compareTo(b.durationMs),
       'played' => (h.lastPlayed[b.id] ?? 0).compareTo(h.lastPlayed[a.id] ?? 0),
       'plays' => h.count(b.id).compareTo(h.count(a.id)),
@@ -662,7 +717,8 @@ class _LibraryPageState extends State<LibraryPage> {
     } else {
       list.sort(cmp);
     }
-    return list;
+    _tracksKey = key;
+    return _tracksCache = list;
   }
 
   List<ArtistGroup> _artists() {
@@ -725,10 +781,8 @@ class _LibraryPageState extends State<LibraryPage> {
                 color: background,
                 child: Padding(
                   padding: pad,
-                  child: TrackListHeader(
+                  child: TrackTableHeader(
                     app: app,
-                    numbered: false,
-                    showAlbum: true,
                     sort: sortFor('tracks'),
                     descending: descFor('tracks'),
                     onSort: (k) => _setSort('tracks', k),
@@ -1373,7 +1427,7 @@ class CollectionPage extends StatelessWidget {
       slivers: [
         SliverToBoxAdapter(child: AmbientBackdrop(cover: list.where((t) => t.cover != null).firstOrNull?.cover, strength: .45, child: header)),
         if (desktop && list.isNotEmpty)
-          SliverToBoxAdapter(child: Padding(padding: pagePadding(app), child: TrackListHeader(app: app, showAlbum: true))),
+          SliverToBoxAdapter(child: Padding(padding: pagePadding(app), child: TrackTableHeader(app: app, numbered: true))),
         ?empty,
         if (reorderable)
           SliverPadding(
@@ -1854,6 +1908,13 @@ class SettingsPage extends StatelessWidget {
       divisions: 10,
       label: '${app.prefs.number('coverSize', 184).round()}',
       onChanged: (v) => app.refresh(() => app.prefs.set('coverSize', v)),
+    ),
+    SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Kompaktowa tabela utworów', style: TextStyle(fontSize: 14.5)),
+      subtitle: const Text('Niższe wiersze, bez okładek. Kolumny wybierzesz prawym przyciskiem na nagłówku tabeli.', style: Txt.meta),
+      value: compactTable(app.prefs),
+      onChanged: (v) => app.refresh(() => app.prefs.set('density', v ? 'compact' : 'normal')),
     ),
     SwitchListTile(
       contentPadding: EdgeInsets.zero,

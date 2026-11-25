@@ -116,6 +116,13 @@ class LibraryIndex {
       ),
   };
 
+  // Normalised sort keys, computed once per library version.
+  late final Map<String, String> titleKey = {for (final t in tracks) t.id: searchKey(t.title)};
+  late final Map<String, String> artistAlbumKey = {for (final t in tracks) t.id: searchKey('${t.artist} ${t.album}')};
+  late final Map<String, String> albumNameKey = {for (final t in tracks) t.id: searchKey(t.album)};
+  late final Map<String, String> albumTitleKey = {for (final a in albums) a.key: searchKey(a.title)};
+  late final Map<String, String> albumArtistKey = {for (final a in albums) a.key: searchKey('${a.artist} ${a.title}')};
+
   static List<String> terms(String query) =>
       searchKey(query).split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
 
@@ -170,14 +177,21 @@ class PlayHistory {
     'recent': recent,
   };
 
+  /// Bumped on every change, so cached sorts by plays or recency refresh.
+  int revision = 0;
+
   void started(String id) {
+    revision++;
     recent.remove(id);
     recent.insert(0, id);
     if (recent.length > 300) recent.removeRange(300, recent.length);
     lastPlayed[id] = DateTime.now().millisecondsSinceEpoch;
   }
 
-  void counted(String id) => plays[id] = (plays[id] ?? 0) + 1;
+  void counted(String id) {
+    revision++;
+    plays[id] = (plays[id] ?? 0) + 1;
+  }
 
   int count(String id) => plays[id] ?? 0;
 

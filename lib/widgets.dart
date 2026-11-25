@@ -84,7 +84,10 @@ class IconAction extends StatelessWidget {
     this.color,
   });
   @override
-  Widget build(BuildContext context) => IconButton(
+  Widget build(BuildContext context) => Pressable(
+    enabled: onPressed != null,
+    scale: .86,
+    child: IconButton(
     tooltip: tooltip,
     onPressed: onPressed,
     iconSize: size,
@@ -98,6 +101,7 @@ class IconAction extends StatelessWidget {
       ),
     ),
     icon: Icon(icon),
+  ),
   );
 }
 
