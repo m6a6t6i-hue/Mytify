@@ -26,6 +26,8 @@ class DownloadsTest {
         catalog = Catalog(context)
         NetworkSources.shared = catalog
         Downloads.assumeNetwork = true
+        // Robolectric reports no free space unless told otherwise.
+        org.robolectric.shadows.ShadowStatFs.registerStats(java.io.File(context.filesDir, "downloads"), 1_000_000, 1_000_000, 1_000_000)
     }
 
     @After
@@ -68,7 +70,7 @@ class DownloadsTest {
 
         assertEquals(before.size, d.add(ids, "user"))
         d.runQueue {}
-        assertEquals(0, d.status().getJSONArray("items").length())
+        assertEquals(d.status().toString(), 0, d.status().getJSONArray("items").length())
         val after = tracks()
         assertEquals("no second track", before.size, after.size)
         assertTrue(after.all { it.getBoolean("offline") })
@@ -103,7 +105,7 @@ class DownloadsTest {
         val d = Downloads(context, catalog)
         d.keep(playlist, true)
         d.runQueue {}
-        assertEquals(1, tracks().count { it.getBoolean("offline") })
+        assertEquals(d.status().toString(), 1, tracks().count { it.getBoolean("offline") })
         store.save(playlist, "W drogę", ids)
         d.refreshKept()
         d.runQueue {}

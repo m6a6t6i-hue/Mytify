@@ -47,7 +47,7 @@ fn download_is_a_location_not_a_new_track() {
     c.forget_source(&id).unwrap_or(());
     let flac = after.iter().find(|t| t.format == "FLAC").unwrap();
     let path = c.audio_path(&flac.id).unwrap();
-    assert!(path.starts_with(d.dir()));
+    assert!(path.starts_with(std::fs::canonicalize(d.dir()).unwrap()));
     assert_eq!(c.open_audio(&flac.id).unwrap().len, std::fs::metadata(&path).unwrap().len());
     // "Usuń pobranie" removes only the local copy.
     d.remove(&[flac.id.clone()]).unwrap();

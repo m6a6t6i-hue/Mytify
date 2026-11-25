@@ -237,10 +237,11 @@ impl Downloads {
                 let rows = stmt.query_map(params![SOURCE, id], |r| r.get(0))?.collect::<rusqlite::Result<Vec<_>>>()?;
                 rows
             };
+            let dir = fs::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
             for p in paths {
                 let path = PathBuf::from(&p);
                 // Only files inside our own folder are ever deleted.
-                if path.starts_with(&self.dir) {
+                if path.starts_with(&dir) || path.starts_with(&self.dir) {
                     let _ = fs::remove_file(&path);
                 }
             }
@@ -407,6 +408,8 @@ impl Downloads {
             bail!("Pobrany plik jest niekompletny albo zmienił się na serwerze. Pobieranie zacznie się od nowa.");
         }
         fs::rename(&partial, &target).context("Nie można zapisać pobranego pliku")?;
+        // Stored like every other local file: canonical (verbatim on Windows, long paths work).
+        let target = fs::canonicalize(&target)?;
         let _ = fs::remove_file(&marker);
         let mut db = self.catalog.db()?;
         let tx = db.transaction()?;
