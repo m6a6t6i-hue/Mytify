@@ -444,8 +444,71 @@ class SeekBar extends StatefulWidget {
   State<SeekBar> createState() => _SeekBarState();
 }
 
-class _SeekBarState extends State<SeekBar> {
+class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
   double? dragging, hover;
+  final _EqMotion eq = _EqMotion();
+  late final ticker = createTicker(_tick);
+  Duration last = Duration.zero;
+  bool reduced = false;
+
+  bool get _live => !widget.thin && widget.duration > Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    eq
+      ..seed = widget.seed
+      ..amp = widget.playing && _live ? 1 : 0
+      ..settle();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    reduced = MediaQuery.disableAnimationsOf(context);
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(SeekBar old) {
+    super.didUpdateWidget(old);
+    eq.seed = widget.seed;
+    _sync();
+  }
+
+  /// Runs only while playing or while the bars are still fading to the line.
+  void _sync() {
+    final playing = widget.playing && _live;
+    if (reduced) {
+      if (ticker.isActive) ticker.stop();
+      eq
+        ..amp = playing ? 1 : 0
+        ..settle();
+      return;
+    }
+    if ((playing || eq.amp > 0) && _live) {
+      if (!ticker.isActive) {
+        last = Duration.zero;
+        ticker.start();
+      }
+    } else if (ticker.isActive) {
+      ticker.stop();
+    }
+  }
+
+  void _tick(Duration elapsed) {
+    final dt = ((elapsed - last).inMicroseconds / 1e6).clamp(0.0, .1);
+    last = elapsed;
+    eq.step(dt, widget.playing && _live);
+    if (!widget.playing && eq.amp <= 0) ticker.stop();
+  }
+
+  @override
+  void dispose() {
+    ticker.dispose();
+    eq.dispose();
+    super.dispose();
+  }
 
   double get _height => widget.compact ? 26 : 38;
   double get _thumb => widget.compact ? 22 : 32;
@@ -498,19 +561,15 @@ class _SeekBarState extends State<SeekBar> {
             children: [
               Positioned.fill(
                 child: RepaintBoundary(
-                  child: PlaybackMotion(
-                    active: widget.playing && known,
-                    builder: (context, phase) => CustomPaint(
-                      painter: _WavePainter(
-                        value: value,
-                        phase: phase,
-                        seed: widget.seed,
-                        known: known,
-                        active: active,
-                        color: enabled ? color : secondaryText,
-                        thumb: _thumb,
-                        compact: widget.compact,
-                      ),
+                  child: CustomPaint(
+                    painter: _WavePainter(
+                      eq: eq,
+                      value: value,
+                      known: known,
+                      active: active,
+                      color: enabled ? color : secondaryText,
+                      thumb: _thumb,
+                      compact: widget.compact,
                     ),
                   ),
                 ),
@@ -610,31 +669,90 @@ class _SeekBarState extends State<SeekBar> {
   }
 }
 
-/// Waveform bars, remaining line and the record thumb. The bar heights are
-/// seeded per track and animated, they do not come from the audio signal.
+double _hash(int seed, int x, int y) {
+  var h = (seed * 0x27d4eb2d) ^ (x * 0x165667b1) ^ (y * 0x2f6b4c3d);
+  h = (h ^ (h >> 15)) * 0x85ebca6b & 0xffffffff;
+  h = (h ^ (h >> 13)) * 0xc2b2ae35 & 0xffffffff;
+  h ^= h >> 16;
+  return (h & 0xffffff) / 0x1000000;
+}
+
+/// Smooth 2D value noise: not periodic, so the bars never repeat a cycle.
+double _noise(int seed, double x, double y) {
+  final xi = x.floor(), yi = y.floor();
+  final fx = x - xi, fy = y - yi;
+  final u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  final a = _hash(seed, xi, yi), b = _hash(seed, xi + 1, yi);
+  final c = _hash(seed, xi, yi + 1), d = _hash(seed, xi + 1, yi + 1);
+  return (a + (b - a) * u) + ((c + (d - c) * u) - (a + (b - a) * u)) * v;
+}
+
+/// Live state of the decorative equalizer. Bars behave like a level meter:
+/// a beat with uneven accents, noisy bands, fast attack and slow release.
+/// It is driven by the clock, not by the audio signal.
+class _EqMotion extends ChangeNotifier {
+  static const _max = 360;
+  final List<double> levels = List.filled(_max, 0);
+  double time = 0, amp = 0, angle = 0;
+  int seed = 0, bars = 160;
+
+  double _target(int i) {
+    final t = time;
+    final x = i.toDouble();
+    final body = .55 * _noise(seed, x / 7, t * 1.1) +
+        .30 * _noise(seed + 1, x / 2.6, t * 2.7) +
+        .15 * _noise(seed + 2, x * .9, t * 6.3);
+    final shape = math.pow(body, 1.5).toDouble();
+    final bpm = 92 + 44 * _hash(seed, 7, 7);
+    final period = 60 / bpm;
+    final beat = (t / period).floor();
+    final since = t - beat * period;
+    final roll = _hash(seed, beat, 3);
+    final accent = roll < .14 ? .15 : .45 + .55 * roll;
+    final pulse = accent * math.exp(-since / .16);
+    final reach = _noise(seed + 3, x / 16, t * .35);
+    return (.06 + .62 * shape + .48 * pulse * (.35 + .65 * reach)).clamp(0.0, 1.0);
+  }
+
+  void settle() {
+    for (var i = 0; i < _max; i++) {
+      levels[i] = _target(i);
+    }
+    notifyListeners();
+  }
+
+  void step(double dt, bool playing) {
+    time += dt;
+    amp = (amp + (playing ? dt : -dt) / .45).clamp(0.0, 1.0);
+    final eased = amp * amp * (3 - 2 * amp);
+    // 33 1/3 rpm, slowing down with the fade like a turntable.
+    angle += dt * 3.49 * eased;
+    final rise = 1 - math.exp(-dt * 28), fall = 1 - math.exp(-dt * 7);
+    final n = math.min(bars, _max);
+    for (var i = 0; i < n; i++) {
+      final target = _target(i);
+      final cur = levels[i];
+      levels[i] = cur + (target - cur) * (target > cur ? rise : fall);
+    }
+    notifyListeners();
+  }
+}
+
+/// Equalizer bars, remaining line and the record thumb.
 class _WavePainter extends CustomPainter {
-  final double value, phase, thumb;
-  final int seed;
+  final _EqMotion eq;
+  final double value, thumb;
   final bool known, active, compact;
   final Color color;
   _WavePainter({
+    required this.eq,
     required this.value,
-    required this.phase,
-    required this.seed,
     required this.known,
     required this.active,
     required this.color,
     required this.thumb,
     required this.compact,
-  });
-
-  static double _noise(int seed, int i) {
-    var h = (seed ^ (i * 0x9e3779b1)) & 0x7fffffff;
-    h = ((h >> 15) ^ h) * 0x2c1b3c6d & 0x7fffffff;
-    h = ((h >> 12) ^ h) * 0x297a2d39 & 0x7fffffff;
-    h = (h >> 15) ^ h;
-    return (h & 0xffff) / 0xffff;
-  }
+  }) : super(repaint: eq);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -654,36 +772,32 @@ class _WavePainter extends CustomPainter {
       canvas.drawLine(Offset(x, cy), Offset(size.width - line / 2, cy), rest);
     }
 
-    // Played part: thin spine plus rounded bars.
+    // Played part: a green line that grows into equalizer bars while playing.
+    final amp = eq.amp * eq.amp * (3 - 2 * eq.amp);
     final end = x - r - 3;
-    if (end > 2) {
-      final wave = Paint()
+    if (end > line / 2) {
+      final paint = Paint()
         ..color = color
         ..strokeCap = StrokeCap.round;
-      canvas.drawLine(
-        Offset(1, cy),
-        Offset(end, cy),
-        wave..strokeWidth = 1.6,
-      );
-      final step = compact ? 4.5 : 5.5;
-      final width = compact ? 2.2 : 2.8;
-      final maxH = compact ? 18.0 : 26.0;
-      wave.strokeWidth = width;
-      var i = 0;
-      for (var bx = width / 2 + 1; bx <= end; bx += step, i++) {
-        final n = _noise(seed, i);
-        final swell = .5 + .5 * math.sin(2 * math.pi * (bx / 170 - phase));
-        final ripple = .5 + .5 * math.sin(2 * math.pi * (bx / 57 + 2 * phase));
-        final flicker = .62 + .38 * (.5 + .5 * math.sin(2 * math.pi * 9 * phase + n * 6.283));
-        final env = math.pow(swell, 2.4) * .78 + ripple * .22;
-        final h = math.max(width + 1, maxH * (.16 + .84 * env * (.5 + .5 * n) * flicker));
-        canvas.drawLine(Offset(bx, cy - h / 2), Offset(bx, cy + h / 2), wave);
+      final spine = line + (1.6 - line) * amp;
+      canvas.drawLine(Offset(line / 2, cy), Offset(end, cy), paint..strokeWidth = spine);
+      if (amp > 0) {
+        final step = compact ? 4.5 : 5.5;
+        final width = compact ? 2.2 : 2.8;
+        final maxH = compact ? 18.0 : 26.0;
+        paint.strokeWidth = width;
+        eq.bars = (end / step).ceil() + 1;
+        var i = 0;
+        for (var bx = width / 2 + 1; bx <= end && i < eq.levels.length; bx += step, i++) {
+          final h = maxH * eq.levels[i] * amp;
+          if (h <= spine) continue;
+          canvas.drawLine(Offset(bx, cy - h / 2), Offset(bx, cy + h / 2), paint);
+        }
       }
     }
 
     // Record thumb.
     final c = Offset(x, cy);
-    final angle = phase * 2 * math.pi * 4;
     canvas.drawCircle(
       c.translate(0, 1.5),
       r,
@@ -694,30 +808,22 @@ class _WavePainter extends CustomPainter {
     canvas.drawCircle(c, r, Paint()..color = const Color(0xff1b1d21));
     final groove = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = const Color(0xff2f3237);
+      ..strokeWidth = .8
+      ..color = const Color(0xff2c2f34);
     for (final f in const [.86, .72, .58]) {
       canvas.drawCircle(c, r * f, groove);
     }
     canvas.drawCircle(
       c,
-      r - .7,
+      r - .4,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = active ? color.withValues(alpha: .8) : const Color(0xff4a4e54),
+        ..strokeWidth = .7
+        ..color = active ? color.withValues(alpha: .7) : const Color(0xff3d4146),
     );
-    final shine = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round
-      ..color = Colors.white.withValues(alpha: .38);
-    final arc = Rect.fromCircle(center: c, radius: r * .79);
-    canvas.drawArc(arc, angle - .35, .7, false, shine);
-    canvas.drawArc(arc, angle + math.pi - .35, .7, false, shine);
     canvas.drawCircle(c, r * .36, Paint()..color = color);
     canvas.drawCircle(
-      c + Offset(math.cos(angle), math.sin(angle)) * r * .09,
+      c + Offset(math.cos(eq.angle), math.sin(eq.angle)) * r * .09,
       r * .11,
       Paint()..color = Colors.white,
     );
@@ -725,9 +831,8 @@ class _WavePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_WavePainter old) =>
+      old.eq != eq ||
       old.value != value ||
-      old.phase != phase ||
-      old.seed != seed ||
       old.known != known ||
       old.active != active ||
       old.color != color ||

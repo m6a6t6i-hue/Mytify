@@ -5,8 +5,10 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mytify/intro.dart';
 import 'package:mytify/main.dart';
 import 'package:mytify/repository_android.dart';
+import 'package:mytify/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const covers = [
@@ -211,4 +213,56 @@ void main() {
       await close(tester);
     }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   }
+
+  testWidgets('intro frames', (tester) async {
+    await loadFonts();
+    for (final (name, size) in [('i_phone', const Size(390, 844)), ('i_pc', const Size(960, 630))]) {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      for (final ms in [120, 450, 700, 1000]) {
+        await tester.pumpWidget(
+          MaterialApp(home: CustomPaint(painter: IntroPainter(ms.toDouble()), size: Size.infinite)),
+        );
+        await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/${name}_$ms.png'));
+      }
+    }
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  }, skip: !enabled);
+
+  testWidgets('seek bar playing and paused', (tester) async {
+    await loadFonts();
+    tester.view.physicalSize = const Size(420, 140);
+    tester.view.devicePixelRatio = 2;
+    Widget bar(bool playing) => MaterialApp(
+      theme: mytifyTheme(),
+      home: Scaffold(
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SeekBar(
+            position: const Duration(seconds: 84),
+            duration: const Duration(seconds: 162),
+            playing: playing,
+            seed: 7,
+            onSeek: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(bar(true));
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/w_seek_playing.png'));
+    await tester.pumpWidget(bar(false));
+    await tester.pump(const Duration(milliseconds: 200));
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/w_seek_fading.png'));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/w_seek_paused.png'));
+    await tester.pumpWidget(const SizedBox());
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  }, skip: !enabled);
 }

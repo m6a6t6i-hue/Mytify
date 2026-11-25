@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'cover_tint.dart';
 import 'design.dart';
 import 'library_index.dart';
+import 'links.dart';
 import 'main.dart';
 import 'model.dart';
 import 'player_ui.dart';
@@ -1925,7 +1926,15 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', 'Wersja 0.13', icon: Icons.info_outline_rounded),
+    _row('Mytify', 'Wersja 0.14', icon: Icons.info_outline_rounded),
+    _row('Autor', 'Mateusz Kanik', icon: Icons.person_outline_rounded),
+    _row(
+      'Strona',
+      'kanik.dev',
+      icon: Icons.language_rounded,
+      trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: secondaryText),
+      onTap: () => unawaited(openLink('https://kanik.dev').catchError((_) => app.message('Nie można otworzyć strony.'))),
+    ),
     _row('Biblioteka', '${trackCount(app.tracks.length)} · ${albumCount(app.index.albums.length)}', icon: Icons.library_music_outlined),
     _row('Skróty klawiaturowe', null, icon: Icons.keyboard_outlined, onTap: app.desktopMode ? () => showShortcuts(app.context) : null),
   ];

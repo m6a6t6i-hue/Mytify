@@ -9,6 +9,7 @@ import 'audio_settings.dart';
 import 'design.dart';
 import 'devices.dart';
 import 'ingest.dart';
+import 'intro.dart';
 import 'library_index.dart';
 import 'metadata_ui.dart';
 import 'model.dart';
@@ -25,6 +26,8 @@ export 'design.dart' show accent, background, panel, secondaryText;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Android plays the Winyl intro in Flutter; PC shows it in index.html.
+  introOnStart = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   runApp(const MytifyApp());
 }
 
@@ -220,6 +223,8 @@ class LibraryScreenState extends State<LibraryScreen> {
   String? startupError;
   String? _openedTrackId;
   bool loading = true, importing = false, playing = false;
+  /// Start animation runs once per app start, never on resume or navigation.
+  bool showIntro = introOnStart;
   ImportProgress progress = const ImportProgress(0, 0, '');
   ImportReport? lastImport;
   int playGeneration = 0;
@@ -1235,9 +1240,20 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (desktop != desktopMode) {
         desktopMode = desktop;
       }
-      return PageStorage(
+      final shell = PageStorage(
         bucket: pageStorage,
         child: desktop ? DesktopShell(app: this) : MobileShell(app: this),
+      );
+      if (!showIntro) return shell;
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          shell,
+          StartupIntro(
+            ready: !loading,
+            onDone: () => setState(() => showIntro = false),
+          ),
+        ],
       );
     },
   );

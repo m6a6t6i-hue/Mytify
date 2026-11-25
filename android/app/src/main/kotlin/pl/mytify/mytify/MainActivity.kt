@@ -236,6 +236,12 @@ class MainActivity : FlutterActivity() {
                                 .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true),
                     )
                 }
+                "openUrl" -> {
+                    val url = call.argument<String>("url").orEmpty()
+                    require(url.startsWith("https://") || url.startsWith("http://")) { "Nieprawidłowy adres" }
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    r.success(null)
+                }
                 "chooseCover" -> {
                     check(picker == null && !importing.get())
                     pickerKind = "cover"
