@@ -58,7 +58,7 @@ class MobileShell extends StatelessWidget {
                       ],
                     ),
                     child: KeyedSubtree(
-                      key: ValueKey('${app.tab}:${route.key}'),
+                      key: ValueKey(app.navSerial),
                       child: pageFor(app, route),
                     ),
                   ),
@@ -138,18 +138,14 @@ class _Header extends StatelessWidget {
               const Expanded(child: Align(alignment: Alignment.centerLeft, child: MytifyBrand(size: 28)))
             else
               Expanded(
-                child: AnimatedSwitcher(
-                  duration: motion(context, Dur.standard),
-                  child: Text(
+                child: Text(
                     // Album, artist and playlist names live in the page header; the bar stays quiet.
                     root || route.page == 'settings' || route.page == 'transfer'
                         ? pageTitle(app, route)
                         : '',
-                    key: ValueKey(route.key),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: root ? Txt.display.copyWith(fontSize: 24) : Txt.title.copyWith(fontSize: 18),
-                  ),
                 ),
               ),
             ...actions,

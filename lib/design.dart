@@ -78,12 +78,17 @@ class MytifyBrand extends StatelessWidget {
         ),
       ),
       const SizedBox(width: 10),
-      Text(
-        'Mytify',
-        style: TextStyle(
-          fontSize: size * .8,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -1,
+      Flexible(
+        child: Text(
+          'Mytify',
+          maxLines: 1,
+          overflow: TextOverflow.fade,
+          softWrap: false,
+          style: TextStyle(
+            fontSize: size * .8,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -1,
+          ),
         ),
       ),
     ],

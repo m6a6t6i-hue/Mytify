@@ -273,8 +273,8 @@ class _Shortcuts extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: SizedBox(
-            height: 56,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
             child: Row(
               children: [
                 lead,
@@ -285,7 +285,7 @@ class _Shortcuts extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                      if (sub != null) Text(sub, style: Txt.meta),
+                      if (sub != null) Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: Txt.meta),
                     ],
                   ),
                 ),

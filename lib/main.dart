@@ -237,6 +237,8 @@ class LibraryScreenState extends State<LibraryScreen> {
     [const Nav('library', 'all')],
   ];
   bool homePlayerVisible = true;
+  /// Bumped on every navigation; keys page transitions so rapid toggles never collide.
+  int navSerial = 0;
 
   // Desktop selection in track tables.
   final Set<String> selected = {};
@@ -910,6 +912,7 @@ class LibraryScreenState extends State<LibraryScreen> {
   void go(Nav next) {
     if (next == route) return;
     setState(() {
+      navSerial++;
       selected.clear();
       selectionAnchor = null;
       if (desktopMode) {
@@ -930,6 +933,7 @@ class LibraryScreenState extends State<LibraryScreen> {
   }
 
   void replaceRoute(Nav next) => setState(() {
+      navSerial++;
     if (desktopMode) {
       _route = next;
     } else {
@@ -940,6 +944,7 @@ class LibraryScreenState extends State<LibraryScreen> {
   void back() {
     if (!canGoBack) return;
     setState(() {
+      navSerial++;
       selected.clear();
       if (desktopMode) {
         _forward.add(_route);
@@ -953,6 +958,7 @@ class LibraryScreenState extends State<LibraryScreen> {
   void forward() {
     if (!canGoForward) return;
     setState(() {
+      navSerial++;
       selected.clear();
       _back.add(_route);
       _route = _forward.removeLast();
@@ -961,6 +967,7 @@ class LibraryScreenState extends State<LibraryScreen> {
 
   void selectTab(int t) {
     setState(() {
+      navSerial++;
       if (tab == t && _stacks[t].length > 1) {
         _stacks[t] = [_stacks[t].first];
       }

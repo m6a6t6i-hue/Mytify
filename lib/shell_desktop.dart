@@ -203,7 +203,7 @@ class _DesktopShellState extends State<DesktopShell> {
                                   ?current,
                                 ],
                               ),
-                              child: KeyedSubtree(key: ValueKey(route.key), child: pageFor(app, route)),
+                              child: KeyedSubtree(key: ValueKey(app.navSerial), child: pageFor(app, route)),
                             ),
                           ),
                         ),

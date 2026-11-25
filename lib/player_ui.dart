@@ -39,7 +39,10 @@ class TransportControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final has = app.current != null;
     final box = icon + 18;
-    return Row(
+    // Scales down instead of overflowing on very narrow screens or large text.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (showModes) ...[
@@ -90,6 +93,7 @@ class TransportControls extends StatelessWidget {
           ),
         ],
       ],
+    ),
     );
   }
 }
@@ -646,10 +650,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   bool chrome = true;
   Timer? idle;
 
+  bool _started = false;
+
   @override
-  void initState() {
-    super.initState();
-    _wake();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_started) {
+      _started = true;
+      _wake();
+    }
   }
 
   void _wake() {
