@@ -224,8 +224,8 @@ class _TransferScreenState extends State<TransferScreen> {
           const SizedBox(height: 10),
           Text(
             receiver
-                ? 'Zeskanuj kod w Mytify na komputerze, wybierz albumy i pobierz. Gotowe kopie odtworzysz bez PC i Wi-Fi.'
-                : 'Na telefonie otwórz Mytify, wybierz „Dodaj”, a potem „Z komputera”. Połącz oba urządzenia z tą samą siecią lokalną.',
+                ? 'Zeskanuj kod z Mytify na komputerze i wybierz albumy. Pobrane utwory działają bez PC i Wi-Fi.'
+                : 'Na telefonie: Ustawienia, potem Z komputera. Oba urządzenia muszą być w tej samej sieci.',
             style: const TextStyle(color: secondaryText, height: 1.5),
           ),
           const SizedBox(height: 22),
@@ -308,7 +308,7 @@ class _TransferScreenState extends State<TransferScreen> {
                 const Padding(
                   padding: EdgeInsets.all(20),
                   child: Text(
-                    'Kod został wykorzystany lub wygasł. Wybierz „Nowy kod QR”, aby sparować kolejny telefon.',
+                    'Kod wygasł lub został użyty. Wygeneruj nowy kod QR.',
                   ),
                 ),
               const SizedBox(height: 12),
@@ -450,7 +450,7 @@ class _TransferScreenState extends State<TransferScreen> {
                         ),
                       if (state['state'] == 'complete')
                         const Text(
-                          'Gotowe. Muzyka jest w Twojej bibliotece i działa offline.',
+                          'Gotowe. Muzyka działa offline.',
                           style: TextStyle(color: accent),
                         ),
                       if (['downloading', 'queued'].contains(state['state']))
@@ -548,7 +548,7 @@ class _TransferScreenState extends State<TransferScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: Text(
-            '${group.first.displayArtist} · ${group.length} utworów',
+            '${group.first.displayArtist} · ${collectionCount(group.length, 'utwór', 'utwory', 'utworów')}',
           ),
           secondary: const Icon(Icons.album_outlined, color: accent),
           onChanged: busy
@@ -575,7 +575,7 @@ class _TransferScreenState extends State<TransferScreen> {
           contentPadding: EdgeInsets.zero,
           value: playlists.contains(p['id']),
           title: Text(p['name'] as String),
-          subtitle: Text('${(p['ids'] as List).length} utworów'),
+          subtitle: Text(collectionCount((p['ids'] as List).length, 'utwór', 'utwory', 'utworów')),
           onChanged: busy
               ? null
               : (v) => setState(() {
@@ -588,7 +588,7 @@ class _TransferScreenState extends State<TransferScreen> {
         ),
       const SizedBox(height: 16),
       Text(
-        'Wybrano ${chosen.length} utworów · ${(bytes / 1048576).toStringAsFixed(1)} MB',
+        'Wybrano ${collectionCount(chosen.length, 'utwór', 'utwory', 'utworów')} · ${(bytes / 1048576).toStringAsFixed(1)} MB',
         style: const TextStyle(color: secondaryText),
       ),
       const SizedBox(height: 8),
@@ -609,7 +609,7 @@ class _TransferScreenState extends State<TransferScreen> {
       ),
       const SizedBox(height: 8),
       const Text(
-        'Oryginalne pliki, bez konwersji. Pliki częściowe nie trafiają do biblioteki; ukończone przechodzą kontrolę SHA-256.',
+        'Oryginalne pliki, bez konwersji. Każdy plik jest sprawdzany sumą SHA-256.',
         style: TextStyle(color: secondaryText, fontSize: 12, height: 1.5),
       ),
     ];

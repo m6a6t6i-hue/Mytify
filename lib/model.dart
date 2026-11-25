@@ -205,6 +205,8 @@ abstract class LibraryRepository {
   Future<AudioSnapshot> audioCommand(Map<String, dynamic> action);
   Future<List<AudioDevice>> audioDevices();
   Future<void> dispose() async {}
+  /// Rust player accepts an atomic queue restore; Android Media3 does not.
+  bool get queueRestore => true;
 }
 
 class LibrarySource {
@@ -233,7 +235,7 @@ class LibrarySource {
 }
 
 String durationLabel(int milliseconds) {
-  if (milliseconds <= 0) return '—';
+  if (milliseconds <= 0) return '--:--';
   final seconds = milliseconds ~/ 1000;
   return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
 }

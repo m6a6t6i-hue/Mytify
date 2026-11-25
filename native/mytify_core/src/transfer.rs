@@ -254,7 +254,7 @@ impl Transfer {
                 let name = v["name"].as_str().unwrap_or("").trim();
                 ensure!(
                     !name.is_empty() && name.chars().count() <= 100,
-                    "Nazwa playlisty: 1–100 znaków"
+                    "Nazwa playlisty: od 1 do 100 znaków"
                 );
                 let ids: Vec<String> = serde_json::from_value(v["ids"].clone())?;
                 ensure!(
@@ -343,6 +343,9 @@ impl Transfer {
         config: Arc<rustls::ServerConfig>,
         stop: &AtomicBool,
     ) -> Result<()> {
+        // Windows: sockets accepted from a non-blocking listener inherit non-blocking mode,
+        // so the first TLS read hit WouldBlock and the phone saw os error 10053.
+        socket.set_nonblocking(false)?;
         socket.set_read_timeout(Some(Duration::from_secs(15)))?;
         socket.set_write_timeout(Some(Duration::from_secs(15)))?;
         let conn = rustls::ServerConnection::new(config)?;

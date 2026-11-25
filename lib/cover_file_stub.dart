@@ -6,3 +6,5 @@ Widget? localCover(
   double? height,
   int? cacheWidth,
 ) => null;
+
+ImageProvider? localProvider(String uri) => null;

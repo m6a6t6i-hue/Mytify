@@ -17,3 +17,6 @@ Widget? localCover(
         errorBuilder: (_, _, _) => const Icon(Icons.album_outlined),
       )
     : null;
+
+ImageProvider? localProvider(String uri) =>
+    uri.startsWith('file:') ? FileImage(File.fromUri(Uri.parse(uri))) : null;

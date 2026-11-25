@@ -1,10 +1,22 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'design.dart';
 
 import 'package:material_ui/material_ui.dart';
 
 import 'cover_file_stub.dart' if (dart.library.io) 'cover_file_io.dart';
+
+final _dataCache = <String, Uint8List>{};
+
+/// Same bytes object for the same data URI, so the image cache key stays stable
+/// across rebuilds (players rebuild several times per second).
+Uint8List dataBytes(String uri) {
+  final hit = _dataCache[uri];
+  if (hit != null) return hit;
+  if (_dataCache.length > 64) _dataCache.remove(_dataCache.keys.first);
+  return _dataCache[uri] = base64Decode(uri.split(',').last);
+}
 
 class CoverImage extends StatelessWidget {
   final String? uri;
@@ -28,7 +40,7 @@ class CoverImage extends StatelessWidget {
       if (value.startsWith('data:')) {
         try {
           return Image.memory(
-            base64Decode(value.split(',').last),
+            dataBytes(value),
             width: width,
             height: height,
             fit: BoxFit.cover,

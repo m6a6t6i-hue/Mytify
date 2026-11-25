@@ -118,6 +118,26 @@ class NativeAudioPlayer {
   Future<void> selectDevice(String id) =>
       command({'action': 'device', 'id': id});
   Future<List<AudioDevice>> devices() => repository.audioDevices();
+
+  /// Rebuilds the queue in the given order without losing the current position.
+  Future<void> rearrange(List<String> ids, String currentId) async {
+    final index = ids.indexOf(currentId);
+    if (index < 0) throw ArgumentError('Brak bieżącego utworu w kolejce.');
+    final position = state.position.inMilliseconds;
+    final wasPlaying = state.playing;
+    if (repository.queueRestore) {
+      return command({
+        'action': 'restore',
+        'ids': ids,
+        'index': index,
+        'positionMs': position,
+        'playing': wasPlaying,
+      });
+    }
+    await command({'action': 'load', 'ids': ids, 'index': index});
+    if (position > 0) await seek(Duration(milliseconds: position));
+    if (!wasPlaying) await command({'action': 'pause'});
+  }
   Future<void> setVolume(double value) async {
     _volumeTimer?.cancel();
     _volumeTimer = Timer(

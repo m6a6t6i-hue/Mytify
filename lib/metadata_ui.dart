@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
+import 'design.dart';
 import 'model.dart';
 import 'cover_widget.dart';
 
@@ -134,7 +135,7 @@ class _MetadataEditorState extends State<MetadataEditor> {
       builder: (c) => AlertDialog(
         title: const Text('Przywrócić dane z plików?'),
         content: Text(
-          'Własne poprawki i wybrane okładki dla ${widget.tracks.length} utworów zostaną cofnięte. Muzyka na dysku pozostanie bez zmian.',
+          'Własne poprawki i wybrane okładki zostaną cofnięte. Pliki na dysku zostaną bez zmian.',
         ),
         actions: [
           TextButton(
@@ -219,7 +220,7 @@ class _MetadataEditorState extends State<MetadataEditor> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Zmiany zapisujemy w katalogu Mytify. Pliki muzyczne pozostają bez zmian.',
+                    'Zmiany trafią do katalogu Mytify. Pliki zostaną bez zmian.',
                   ),
                   const SizedBox(height: 20),
                   if (!widget.album) ...[
@@ -547,7 +548,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                   children: [
                     if (info == null) ...[
                       const Text(
-                        'Wyszukiwanie wysyła wpisane nazwy do MusicBrainz. Muzyka pozostaje na dysku. Dopiero zapisanie propozycji zmieni katalog.',
+                        'Wpisane nazwy trafią do MusicBrainz. Katalog zmieni się dopiero po zapisaniu.',
                       ),
                       const SizedBox(height: 18),
                       TextField(
@@ -620,13 +621,13 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Twoja biblioteka: ${widget.tracks.length} utworów · wydanie: ${info.tracks.length} utworów',
+                        'Twoja biblioteka: ${collectionCount(widget.tracks.length, 'utwór', 'utwory', 'utworów')} · wydanie: ${collectionCount(info.tracks.length, 'utwór', 'utwory', 'utworów')}',
                       ),
                       if (widget.tracks.length != info.tracks.length)
                         const Padding(
                           padding: EdgeInsets.only(top: 8),
                           child: Text(
-                            'Liczba utworów się różni. Sprawdź dopasowanie — nie zakładamy zgodności kolejności.',
+                            'Liczba utworów się różni. Sprawdź dopasowanie.',
                             style: TextStyle(color: Colors.amber),
                           ),
                         ),
@@ -636,7 +637,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                         (v) => setState(() => applyAlbum = v!),
                       ),
                       const Text(
-                        'Proponowana nazwa i wykonawca albumu są widoczne powyżej.',
+                        'Nazwa i wykonawca albumu powyżej.',
                       ),
                       const Divider(),
                       Wrap(
@@ -672,7 +673,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                       ),
                       if (applyTitles) ...[
                         const Text(
-                          'Wybierz odpowiadającą ścieżkę. Brak dopasowania zachowuje obecny tytuł. Ustawienia numerów są używane tylko przy jednoznacznej zgodności.',
+                          'Wybierz odpowiadającą ścieżkę. Bez dopasowania tytuł zostaje.',
                         ),
                         const SizedBox(height: 12),
                         ...widget.tracks.indexed.map((pair) {
@@ -731,7 +732,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                           (v) => setState(() => overwrite = v!),
                         ),
                       Text(
-                        'Zapis obejmie ${edits.length} z ${widget.tracks.length} utworów. Własne poprawki są domyślnie chronione.',
+                        'Zmiany: ${edits.length} z ${widget.tracks.length}. Własne poprawki są chronione.',
                       ),
                       const SizedBox(height: 12),
                       const Text(

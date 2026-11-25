@@ -2,11 +2,55 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
-const accent = Color(0xff00f078);
-const background = Color(0xff080d0b);
-const panel = Color(0xff151e19);
-const secondaryText = Color(0xffa4b5aa);
-const softBorder = Color(0xff2a3a30);
+// Design tokens shared by Android and Windows. Green marks state, not decoration.
+const accent = Color(0xff00e676);
+const background = Color(0xff0c0d0f);
+const panel = Color(0xff181a1d);
+const elevated = Color(0xff24272b);
+const primaryText = Color(0xfff4f5f6);
+const secondaryText = Color(0xff9b9fa6);
+const softBorder = Color(0xff2b2e33);
+const hoverFill = Color(0x0fffffff);
+const selectedFill = Color(0x1a00e676);
+const onAccent = Color(0xff04140b);
+
+abstract final class Sp {
+  static const xs = 4.0, s = 8.0, m = 12.0, l = 16.0, xl = 24.0, xxl = 32.0;
+}
+
+abstract final class Rad {
+  static const cover = 8.0, coverSmall = 6.0, panel = 14.0, control = 8.0;
+}
+
+abstract final class Dur {
+  static const hover = Duration(milliseconds: 120),
+      tap = Duration(milliseconds: 100),
+      standard = Duration(milliseconds: 200),
+      screen = Duration(milliseconds: 300),
+      shared = Duration(milliseconds: 360),
+      ambient = Duration(milliseconds: 700);
+}
+
+Duration motion(BuildContext context, Duration value) =>
+    MediaQuery.disableAnimationsOf(context) ? Duration.zero : value;
+
+abstract final class Txt {
+  static const display = TextStyle(
+    fontSize: 28,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -.8,
+    height: 1.12,
+  );
+  static const title = TextStyle(
+    fontSize: 21,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -.4,
+  );
+  static const item = TextStyle(fontSize: 15, fontWeight: FontWeight.w600);
+  static const itemDesktop = TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500);
+  static const sub = TextStyle(fontSize: 13, color: secondaryText);
+  static const meta = TextStyle(fontSize: 12, color: secondaryText);
+}
 
 String collectionCount(int count, String one, String few, String many) {
   final ending = count == 1
@@ -34,12 +78,17 @@ class MytifyBrand extends StatelessWidget {
         ),
       ),
       const SizedBox(width: 10),
-      Text(
-        'Mytify',
-        style: TextStyle(
-          fontSize: size * .8,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -1,
+      Flexible(
+        child: Text(
+          'Mytify',
+          maxLines: 1,
+          overflow: TextOverflow.fade,
+          softWrap: false,
+          style: TextStyle(
+            fontSize: size * .8,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -1,
+          ),
         ),
       ),
     ],
@@ -214,7 +263,7 @@ class _AmbientPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    canvas.drawRect(rect, Paint()..color = const Color(0xff111f17));
+    canvas.drawRect(rect, Paint()..color = panel);
     final x = .65 + math.sin(phase * math.pi * 2) * .3;
     canvas.drawRect(
       rect,
@@ -223,8 +272,8 @@ class _AmbientPainter extends CustomPainter {
           center: Alignment(x, -.7 + math.cos(phase * math.pi * 2) * .4),
           radius: 1.15,
           colors: [
-            Color(active ? 0xff155c37 : 0xff203d2c),
-            const Color(0xff111b16),
+            Color(active ? 0xff163a28 : 0xff1d2124),
+            panel,
           ],
         ).createShader(rect),
     );
@@ -279,16 +328,14 @@ class _MotionTileState extends State<MotionTile> {
       scale: MediaQuery.disableAnimationsOf(context)
           ? 1
           : pressed
-          ? .975
-          : hovered
-          ? 1.018
+          ? .97
           : 1,
       duration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
-          : const Duration(milliseconds: 180),
+          : Dur.tap,
       curve: Curves.easeOutCubic,
       child: Material(
-        color: hovered ? const Color(0xff1b2b21) : Colors.transparent,
+        color: hovered ? hoverFill : Colors.transparent,
         borderRadius: widget.borderRadius,
         child: InkWell(
           onTap: widget.onTap,
@@ -303,7 +350,8 @@ class _MotionTileState extends State<MotionTile> {
   );
 }
 
-class PlayButton extends StatelessWidget {
+/// Primary play control with a real play/pause morph and press feedback.
+class PlayButton extends StatefulWidget {
   final bool playing;
   final VoidCallback? onPressed;
   final double size;
@@ -314,55 +362,92 @@ class PlayButton extends StatelessWidget {
     this.size = 58,
   });
   @override
+  State<PlayButton> createState() => _PlayButtonState();
+}
+
+class _PlayButtonState extends State<PlayButton>
+    with SingleTickerProviderStateMixin {
+  late final controller = AnimationController(
+    vsync: this,
+    duration: Dur.standard,
+    value: widget.playing ? 1 : 0,
+  );
+
+  @override
+  void didUpdateWidget(PlayButton old) {
+    super.didUpdateWidget(old);
+    if (old.playing != widget.playing) {
+      controller.duration = motion(context, Dur.standard);
+      widget.playing ? controller.forward() : controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => Semantics(
     container: true,
     button: true,
-    enabled: onPressed != null,
-    label: playing ? 'Wstrzymaj' : 'Odtwórz',
-    onTap: onPressed,
+    enabled: widget.onPressed != null,
+    label: widget.playing ? 'Wstrzymaj' : 'Odtwórz',
+    onTap: widget.onPressed,
     excludeSemantics: true,
-    child: MotionTile(
-      onTap: null,
-      borderRadius: BorderRadius.circular(size),
+    child: Pressable(
+      enabled: widget.onPressed != null,
       child: AnimatedContainer(
-        duration: MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 280),
-        width: size,
-        height: size,
+        duration: motion(context, Dur.standard),
+        width: widget.size,
+        height: widget.size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: onPressed == null ? softBorder : accent,
-          boxShadow: playing
-              ? [
-                  BoxShadow(
-                    color: accent.withValues(alpha: .20),
-                    blurRadius: 22,
-                    spreadRadius: 2,
-                  ),
-                ]
-              : [],
+          color: widget.onPressed == null ? elevated : accent,
         ),
         child: IconButton(
-          tooltip: playing ? 'Wstrzymaj' : 'Odtwórz',
-          onPressed: onPressed,
-          color: const Color(0xff071b0e),
-          iconSize: size * .58,
-          icon: AnimatedSwitcher(
-            duration: MediaQuery.disableAnimationsOf(context)
-                ? Duration.zero
-                : const Duration(milliseconds: 220),
-            transitionBuilder: (child, animation) => ScaleTransition(
-              scale: animation,
-              child: FadeTransition(opacity: animation, child: child),
-            ),
-            child: Icon(
-              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              key: ValueKey(playing),
-            ),
+          tooltip: widget.playing ? 'Wstrzymaj' : 'Odtwórz',
+          onPressed: widget.onPressed,
+          color: onAccent,
+          iconSize: widget.size * .5,
+          icon: AnimatedIcon(
+            icon: AnimatedIcons.play_pause,
+            progress: CurvedAnimation(parent: controller, curve: Curves.easeInOutCubic),
           ),
         ),
       ),
+    ),
+  );
+}
+
+/// Short spring-like squash on press. Never delays the action itself.
+class Pressable extends StatefulWidget {
+  final Widget child;
+  final bool enabled;
+  final double scale;
+  const Pressable({
+    super.key,
+    required this.child,
+    this.enabled = true,
+    this.scale = .9,
+  });
+  @override
+  State<Pressable> createState() => _PressableState();
+}
+
+class _PressableState extends State<Pressable> {
+  bool down = false;
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: widget.enabled ? (_) => setState(() => down = true) : null,
+    onPointerUp: (_) => setState(() => down = false),
+    onPointerCancel: (_) => setState(() => down = false),
+    child: AnimatedScale(
+      scale: down ? widget.scale : 1,
+      duration: motion(context, down ? Dur.tap : Dur.shared),
+      curve: down ? Curves.easeOut : Curves.elasticOut,
+      child: widget.child,
     ),
   );
 }
