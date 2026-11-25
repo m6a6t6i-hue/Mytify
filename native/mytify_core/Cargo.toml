@@ -55,7 +55,7 @@ cpal = "0.18.2"
 rfd = "0.18.0"
 wry = { version = "0.57.3", optional = true }
 tao = { version = "0.37.3", optional = true }
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console", "Win32_UI_WindowsAndMessaging", "Win32_NetworkManagement_WNet", "Win32_Security_Credentials"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console", "Win32_UI_WindowsAndMessaging", "Win32_NetworkManagement_WNet", "Win32_Security_Credentials", "Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 tempfile = "3"

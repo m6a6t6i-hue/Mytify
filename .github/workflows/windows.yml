@@ -71,9 +71,11 @@ jobs:
       - name: Local Navidrome for the music server tests
         shell: bash
         run: |
+          set -x
           d="$RUNNER_TEMP/navidrome"; mkdir -p "$d/music/Polskie ąę albumy" "$d/data"; cd "$d"
           curl -sSL -o nd.zip https://github.com/navidrome/navidrome/releases/download/v0.58.0/navidrome_0.58.0_windows_amd64.zip
-          unzip -q nd.zip navidrome.exe
+          unzip -l nd.zip | head -20
+          unzip -q -o -j nd.zip '*navidrome.exe' || 7z e -y nd.zip navidrome.exe -r
           cp "$GITHUB_WORKSPACE/test/fixtures/sample.flac" "music/Polskie ąę albumy/a.flac"
           cp "$GITHUB_WORKSPACE/test/fixtures/sample.mp3" "music/Polskie ąę albumy/Zażółć gęślą jaźń.mp3"
           ND_MUSICFOLDER="$d/music" ND_DATAFOLDER="$d/data" ND_PORT=14533 ND_ADDRESS=127.0.0.1 ND_SCANNER_SCHEDULE=0 nohup ./navidrome.exe > nd.log 2>&1 &
@@ -81,6 +83,7 @@ jobs:
           curl -s -X POST http://127.0.0.1:14533/auth/createAdmin -H 'Content-Type: application/json' -d '{"username":"mat","password":"Haslo-123"}' > /dev/null
           for i in $(seq 1 60); do n=$(curl -s "http://127.0.0.1:14533/rest/search3?u=mat&p=Haslo-123&v=1.16.1&c=ci&f=json&query=&songCount=10" | grep -o '"suffix"' | wc -l); [ "$n" -ge 2 ] && break; sleep 1; done
           echo "songs indexed: $n"
+          tail -20 nd.log || true
       - run: cargo test --locked -- --nocapture --test-threads=1
         working-directory: native/mytify_core
         env:

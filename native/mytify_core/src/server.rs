@@ -29,6 +29,7 @@ pub struct Job {
 }
 pub struct App {
     pub transfer: Arc<crate::transfer::Transfer>,
+    pub downloads: Arc<crate::downloads::Downloads>,
     pub ingest: crate::ingest::Ingest,
     pub network: crate::network::Network,
     pub player: crate::audio::Player,
@@ -74,6 +75,7 @@ pub fn start_with_audio(
     let app = Arc::new(App {
         transfer: crate::transfer::Transfer::new(catalog.clone())
             .context("Inicjalizacja transferu PC -> telefon")?,
+        downloads: crate::downloads::Downloads::new(catalog.clone()).context("Inicjalizacja pobrań")?,
         ingest: crate::ingest::Ingest::new(catalog.clone()),
         network: crate::network::Network::new(catalog.clone())
             .context("Inicjalizacja odbiorników sieciowych")?,
@@ -87,11 +89,16 @@ pub fn start_with_audio(
         cancellation: Mutex::new(HashMap::new()),
         busy: AtomicBool::new(false),
     });
+    app.downloads.start();
     if !test {
         // Reachability of NAS shares, off the request path: an offline NAS must never block the UI.
         let catalog = app.catalog.clone();
+        let downloads = app.downloads.clone();
+        let transfer = app.transfer.clone();
         thread::spawn(move || loop {
             let _ = catalog.probe_network_sources();
+            // Playlists kept offline pick up new entries when the server is back.
+            let _ = downloads.refresh_kept(&transfer.playlist_entries());
             thread::sleep(std::time::Duration::from_secs(120));
         });
     }
@@ -216,6 +223,7 @@ fn start_job(app: &Arc<App>, scan: ScanRequest) -> Result<String> {
                     report.errors.push(format!("{}: playlisty: {e}", s.name));
                 }
             }
+            let _ = app.downloads.refresh_kept(&app.transfer.playlist_entries());
             Ok::<_, anyhow::Error>(report)
         }));
         if let Some(job) = app.jobs.lock().unwrap().get_mut(&worker_id) {
@@ -283,6 +291,8 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
         }
         if path == "/api/transfer" && method == Method::Post {
             let result = read_json(&mut request).and_then(|v| app.transfer.command(v));
+            // A playlist kept offline downloads the tracks added to it.
+            let _ = app.downloads.refresh_kept(&app.transfer.playlist_entries());
             return match result {
                 Ok(v) => send_json(request, 200, v),
                 Err(e) => send_error(request, 400, e),
@@ -558,6 +568,57 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
                     Err(e) => send_error(request, 400, e),
                 };
             }
+        }
+        if path == "/api/downloads" && method == Method::Get {
+            return match app.downloads.status() {
+                Ok(status) => {
+                    let mut v = serde_json::to_value(status)?;
+                    v["kept"] = json!(app.downloads.kept_playlists().unwrap_or_default());
+                    send_json(request, 200, v)
+                }
+                Err(e) => send_error(request, 400, e),
+            };
+        }
+        if let Some(action) = path.strip_prefix("/api/downloads/") {
+            if method != Method::Post {
+                return send_error(request, 405, "Nieobsługiwana metoda.");
+            }
+            let args = match read_json(&mut request) {
+                Ok(v) => v,
+                Err(e) => return send_error(request, 400, e),
+            };
+            let ids: Vec<String> = args["ids"]
+                .as_array()
+                .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_owned)).take(20000).collect())
+                .unwrap_or_default();
+            let result = match action {
+                "estimate" => app.downloads.estimate(&ids).and_then(|e| Ok(serde_json::to_value(e)?)),
+                "add" => app.downloads.add(&ids, "user").map(|n| json!({"queued":n})),
+                "pause" => {
+                    app.downloads.pause(args["paused"].as_bool().unwrap_or(false));
+                    Ok(json!({"ok":true}))
+                }
+                "cancel" => app.downloads.cancel(&ids).map(|_| json!({"ok":true})),
+                "remove" => app.downloads.remove(&ids).map(|_| json!({"ok":true})),
+                "keep" => {
+                    let playlist = args["playlist"].as_str().unwrap_or("").to_string();
+                    let tracks = app
+                        .transfer
+                        .playlist_entries()
+                        .into_iter()
+                        .find(|p| p.0 == playlist)
+                        .map(|p| p.2)
+                        .unwrap_or_default();
+                    app.downloads
+                        .keep_playlist(&playlist, args["keep"].as_bool().unwrap_or(false), &tracks)
+                        .map(|_| json!({"ok":true}))
+                }
+                _ => return send_error(request, 404, "Nieznana operacja."),
+            };
+            return match result {
+                Ok(v) => send_json(request, 200, v),
+                Err(e) => send_error(request, 400, e),
+            };
         }
         if let Some(id) = path.strip_prefix("/api/played/") {
             if method == Method::Post {

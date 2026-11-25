@@ -53,6 +53,12 @@ pub struct Track {
     pub metadata_source: String,
     #[serde(default)]
     pub release_id: Option<String>,
+    /// A complete, verified copy kept on this device ("Pobrane").
+    #[serde(default)]
+    pub offline: bool,
+    /// Lives on a network source, so it can be downloaded.
+    #[serde(default)]
+    pub remote: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -151,7 +157,7 @@ pub fn search_key(value: &str) -> String {
         .filter(|c| !is_combining_mark(*c))
         .collect()
 }
-fn path_key(path: &Path) -> String {
+pub(crate) fn path_key(path: &Path) -> String {
     let text = path.to_string_lossy().into_owned();
     if cfg!(windows) {
         text.to_lowercase()
@@ -225,6 +231,8 @@ impl Catalog {
           CREATE VIRTUAL TABLE IF NOT EXISTS tracks_search USING fts5(track_id UNINDEXED,text,tokenize='unicode61 remove_diacritics 2');
           CREATE TABLE IF NOT EXISTS metadata_overrides(track_id TEXT PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,patch TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS source_settings(source_id TEXT PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,protocol TEXT NOT NULL,settings TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS downloads(track_id TEXT PRIMARY KEY,state TEXT NOT NULL,done INTEGER NOT NULL DEFAULT 0,total INTEGER NOT NULL DEFAULT 0,version TEXT NOT NULL DEFAULT '',error TEXT NOT NULL DEFAULT '',reason TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,added INTEGER NOT NULL);
+          CREATE TABLE IF NOT EXISTS kept_playlists(playlist_id TEXT PRIMARY KEY);
           CREATE TABLE IF NOT EXISTS remote_art(source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,art_id TEXT NOT NULL,cover TEXT,PRIMARY KEY(source_id,art_id));
           CREATE TABLE IF NOT EXISTS pending_sync(id INTEGER PRIMARY KEY AUTOINCREMENT,source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,kind TEXT NOT NULL,item TEXT NOT NULL,value TEXT NOT NULL,created INTEGER NOT NULL);
           CREATE TABLE IF NOT EXISTS remote_playlists(source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,remote_id TEXT NOT NULL,local_id TEXT NOT NULL,server_hash TEXT NOT NULL,local_hash TEXT NOT NULL,PRIMARY KEY(source_id,remote_id));
@@ -454,7 +462,7 @@ impl Catalog {
     pub fn tracks(&self) -> Result<Vec<Track>> {
         self.refresh_sources()?;
         let db = self.db()?;
-        let mut stmt = db.prepare("SELECT t.id,t.title,t.artist,t.album,t.album_artist,t.file_name,t.format,t.size,t.duration_ms,t.track_number,t.disc_number,t.sample_rate,t.bit_depth,t.added_at,t.cover,t.liked,MAX(CASE WHEN l.available=1 AND s.state IN ('online','partial','scanning') THEN 1 ELSE 0 END),COUNT(l.path_key),MIN(CASE WHEN s.kind='managed' THEN 1 ELSE 0 END) FROM tracks t JOIN locations l ON l.track_id=t.id JOIN sources s ON s.id=l.source_id GROUP BY t.id ORDER BY t.added_at DESC,t.id")?;
+        let mut stmt = db.prepare("SELECT t.id,t.title,t.artist,t.album,t.album_artist,t.file_name,t.format,t.size,t.duration_ms,t.track_number,t.disc_number,t.sample_rate,t.bit_depth,t.added_at,t.cover,t.liked,MAX(CASE WHEN l.available=1 AND s.state IN ('online','partial','scanning') THEN 1 ELSE 0 END),COUNT(l.path_key),MIN(CASE WHEN s.kind='managed' THEN 1 ELSE 0 END),MAX(CASE WHEN s.kind='downloads' AND l.available=1 THEN 1 ELSE 0 END),MAX(CASE WHEN s.kind IN ('smb','webdav','subsonic') THEN 1 ELSE 0 END) FROM tracks t JOIN locations l ON l.track_id=t.id JOIN sources s ON s.id=l.source_id GROUP BY t.id ORDER BY t.added_at DESC,t.id")?;
         let rows = stmt.query_map([], |r| {
             Ok(Track {
                 id: r.get(0)?,
@@ -476,6 +484,8 @@ impl Catalog {
                 available: r.get(16)?,
                 location_count: r.get(17)?,
                 managed: r.get(18)?,
+                offline: r.get(19)?,
+                remote: r.get(20)?,
                 edited: false,
                 metadata_source: String::new(),
                 release_id: None,
@@ -687,6 +697,10 @@ impl Catalog {
             if cancel.load(Ordering::Relaxed) {
                 report.cancelled = true;
                 break;
+            }
+            // Offline copies are written and verified by the download manager, never scanned.
+            if source.kind == "downloads" {
+                continue;
             }
             let generation = format!("{}-{}", now_ms(), hex(getrandom_bytes()?));
             if source.kind == "subsonic" {
