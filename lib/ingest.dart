@@ -94,7 +94,8 @@ class IngestState extends ChangeNotifier {
 
   /// The view became visible: list hardware. Starts nothing and changes no routing.
   void attach() {
-    if (_views++ == 0) unawaited(refresh());
+    // After the current build: listeners elsewhere (toolbar status) must not rebuild mid-frame.
+    if (_views++ == 0) scheduleMicrotask(() => unawaited(refresh()));
   }
 
   void detach() {
