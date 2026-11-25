@@ -1925,7 +1925,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', 'Wersja 0.12', icon: Icons.info_outline_rounded),
+    _row('Mytify', 'Wersja 0.13', icon: Icons.info_outline_rounded),
     _row('Biblioteka', '${trackCount(app.tracks.length)} · ${albumCount(app.index.albums.length)}', icon: Icons.library_music_outlined),
     _row('Skróty klawiaturowe', null, icon: Icons.keyboard_outlined, onTap: app.desktopMode ? () => showShortcuts(app.context) : null),
   ];

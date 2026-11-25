@@ -1,7 +1,7 @@
 name: Check
 on:
   push:
-    branches: [redesign]
+    branches: [main]
   workflow_dispatch:
 jobs:
   check:

@@ -383,8 +383,21 @@ class LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  Future<void> seek(Duration position) =>
-      audioOperation(() => player.seek(position));
+  Future<void> seek(Duration position) async {
+    final track = queue.current;
+    // Right after launch the queue is restored but the engine has nothing
+    // loaded yet: start the track first, then jump to the chosen point.
+    if (track != null &&
+        (player.state.currentId == null || _openedTrackId != track.id)) {
+      await playTracks(queue.items, start: track);
+      try {
+        await player.stream.snapshot
+            .firstWhere((s) => s.currentId == track.id && s.duration > Duration.zero)
+            .timeout(const Duration(seconds: 5));
+      } catch (_) {}
+    }
+    await audioOperation(() => player.seek(position));
+  }
 
   Future<void> playTracks(
     List<Track> list, {

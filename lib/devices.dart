@@ -59,9 +59,12 @@ Future<void> showDevicePicker(LibraryScreenState app, {Offset? at}) {
       showDragHandle: true,
       useSafeArea: true,
       isScrollControlled: true,
-      builder: (_) => ConstrainedBox(
+      builder: (sheet) => ConstrainedBox(
         constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .8),
-        child: DevicePanel(app: app),
+        child: Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(sheet).bottom),
+          child: DevicePanel(app: app),
+        ),
       ),
     );
   }

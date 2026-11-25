@@ -419,11 +419,13 @@ class PlaylistArt extends StatelessWidget {
   }
 }
 
-/// Exact seek bar. Unknown duration shows a disabled, empty track.
+/// Exact seek bar. The played part is a decorative, animated waveform with a
+/// spinning record as the thumb. Unknown duration shows a disabled, empty track.
 class SeekBar extends StatefulWidget {
   final Duration position, duration;
   final ValueChanged<Duration>? onSeek;
-  final bool showTimes, thin;
+  final bool showTimes, thin, playing, compact, timesBelow;
+  final int seed;
   final Color? color;
   const SeekBar({
     super.key,
@@ -432,6 +434,10 @@ class SeekBar extends StatefulWidget {
     this.onSeek,
     this.showTimes = true,
     this.thin = false,
+    this.playing = false,
+    this.compact = false,
+    this.timesBelow = true,
+    this.seed = 0,
     this.color,
   });
   @override
@@ -440,6 +446,10 @@ class SeekBar extends StatefulWidget {
 
 class _SeekBarState extends State<SeekBar> {
   double? dragging, hover;
+
+  double get _height => widget.compact ? 26 : 38;
+  double get _thumb => widget.compact ? 22 : 32;
+
   @override
   Widget build(BuildContext context) {
     final total = widget.duration.inMilliseconds;
@@ -447,58 +457,71 @@ class _SeekBarState extends State<SeekBar> {
     final enabled = known && widget.onSeek != null;
     final value = !known
         ? 0.0
-        : (dragging ??
-                  widget.position.inMilliseconds.clamp(0, total) / total)
+        : (dragging ?? widget.position.inMilliseconds.clamp(0, total) / total)
               .toDouble();
     final color = widget.color ?? accent;
-    Widget bar = LayoutBuilder(
-      builder: (context, box) {
-        double at(double dx) => (dx / box.maxWidth).clamp(0.0, 1.0);
-        final active = dragging != null || hover != null;
-        final track = SizedBox(
-          height: widget.thin ? 3 : 20,
-          child: Stack(
-            alignment: Alignment.centerLeft,
-            clipBehavior: Clip.none,
-            children: [
-              AnimatedContainer(
-                duration: motion(context, Dur.hover),
-                height: widget.thin ? 3 : (active ? 5 : 3),
+    if (widget.thin) {
+      return SizedBox(
+        height: 3,
+        child: Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .16),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            FractionallySizedBox(
+              widthFactor: value,
+              child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .16),
+                  color: color,
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
-              FractionallySizedBox(
-                widthFactor: value,
-                child: AnimatedContainer(
-                  duration: motion(context, Dur.hover),
-                  height: widget.thin ? 3 : (active ? 5 : 3),
-                  decoration: BoxDecoration(
-                    color: enabled || widget.thin ? color : secondaryText,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-              ),
-              if (!widget.thin && enabled && active)
-                Positioned(
-                  left: value * box.maxWidth - 6,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: const BoxDecoration(
-                      color: primaryText,
-                      shape: BoxShape.circle,
+            ),
+          ],
+        ),
+      );
+    }
+    final r = _thumb / 2;
+    Widget bar = LayoutBuilder(
+      builder: (context, box) {
+        final span = math.max(1.0, box.maxWidth - 2 * r);
+        double at(double dx) => ((dx - r) / span).clamp(0.0, 1.0);
+        final active = dragging != null || hover != null;
+        final track = SizedBox(
+          height: _height,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned.fill(
+                child: RepaintBoundary(
+                  child: PlaybackMotion(
+                    active: widget.playing && known,
+                    builder: (context, phase) => CustomPaint(
+                      painter: _WavePainter(
+                        value: value,
+                        phase: phase,
+                        seed: widget.seed,
+                        known: known,
+                        active: active,
+                        color: enabled ? color : secondaryText,
+                        thumb: _thumb,
+                        compact: widget.compact,
+                      ),
                     ),
                   ),
                 ),
-              if (!widget.thin && enabled && (hover != null || dragging != null))
+              ),
+              if (enabled && active)
                 Positioned(
-                  left: ((dragging ?? hover)! * box.maxWidth - 22).clamp(
+                  left: (r + (dragging ?? hover)! * span - 22).clamp(
                     0.0,
                     math.max(0.0, box.maxWidth - 44),
                   ),
-                  top: -26,
+                  top: -24,
                   child: Container(
                     width: 44,
                     padding: const EdgeInsets.symmetric(vertical: 2),
@@ -516,7 +539,7 @@ class _SeekBarState extends State<SeekBar> {
             ],
           ),
         );
-        if (!enabled || widget.thin) return track;
+        if (!enabled) return track;
         return MouseRegion(
           cursor: SystemMouseCursors.click,
           onHover: (e) => setState(() => hover = at(e.localPosition.dx)),
@@ -545,24 +568,35 @@ class _SeekBarState extends State<SeekBar> {
     final shown = dragging == null
         ? widget.position.inMilliseconds
         : (dragging! * total).round();
+    final style = Txt.meta.copyWith(
+      fontSize: 12,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    final left = Text(known ? clock(shown) : '--:--', style: style);
+    final right = Text(
+      known ? clock(total) : '--:--',
+      textAlign: TextAlign.right,
+      style: style,
+    );
+    if (widget.timesBelow) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          bar,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Row(children: [left, const Spacer(), right]),
+          ),
+        ],
+      );
+    }
     return Row(
       children: [
-        SizedBox(
-          width: 44,
-          child: Text(
-            known ? clock(shown) : '--:--',
-            style: Txt.meta.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
-          ),
-        ),
+        SizedBox(width: 44, child: left),
+        const SizedBox(width: Sp.xs),
         Expanded(child: bar),
-        SizedBox(
-          width: 44,
-          child: Text(
-            known ? clock(total) : '--:--',
-            textAlign: TextAlign.right,
-            style: Txt.meta.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
-          ),
-        ),
+        const SizedBox(width: Sp.xs),
+        SizedBox(width: 44, child: right),
       ],
     );
   }
@@ -574,6 +608,130 @@ class _SeekBarState extends State<SeekBar> {
       widget.onSeek!(Duration(milliseconds: (v * total).round()));
     }
   }
+}
+
+/// Waveform bars, remaining line and the record thumb. The bar heights are
+/// seeded per track and animated, they do not come from the audio signal.
+class _WavePainter extends CustomPainter {
+  final double value, phase, thumb;
+  final int seed;
+  final bool known, active, compact;
+  final Color color;
+  _WavePainter({
+    required this.value,
+    required this.phase,
+    required this.seed,
+    required this.known,
+    required this.active,
+    required this.color,
+    required this.thumb,
+    required this.compact,
+  });
+
+  static double _noise(int seed, int i) {
+    var h = (seed ^ (i * 0x9e3779b1)) & 0x7fffffff;
+    h = ((h >> 15) ^ h) * 0x2c1b3c6d & 0x7fffffff;
+    h = ((h >> 12) ^ h) * 0x297a2d39 & 0x7fffffff;
+    h = (h >> 15) ^ h;
+    return (h & 0xffff) / 0xffff;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = thumb / 2;
+    final cy = size.height / 2;
+    final x = r + value * math.max(0.0, size.width - 2 * r);
+    final line = compact ? 3.0 : 4.0;
+    final rest = Paint()
+      ..color = const Color(0xff34373c)
+      ..strokeWidth = line
+      ..strokeCap = StrokeCap.round;
+    if (!known) {
+      canvas.drawLine(Offset(line / 2, cy), Offset(size.width - line / 2, cy), rest);
+      return;
+    }
+    if (size.width - line / 2 > x) {
+      canvas.drawLine(Offset(x, cy), Offset(size.width - line / 2, cy), rest);
+    }
+
+    // Played part: thin spine plus rounded bars.
+    final end = x - r - 3;
+    if (end > 2) {
+      final wave = Paint()
+        ..color = color
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(
+        Offset(1, cy),
+        Offset(end, cy),
+        wave..strokeWidth = 1.6,
+      );
+      final step = compact ? 4.5 : 5.5;
+      final width = compact ? 2.2 : 2.8;
+      final maxH = compact ? 18.0 : 26.0;
+      wave.strokeWidth = width;
+      var i = 0;
+      for (var bx = width / 2 + 1; bx <= end; bx += step, i++) {
+        final n = _noise(seed, i);
+        final swell = .5 + .5 * math.sin(2 * math.pi * (bx / 170 - phase));
+        final ripple = .5 + .5 * math.sin(2 * math.pi * (bx / 57 + 2 * phase));
+        final flicker = .62 + .38 * (.5 + .5 * math.sin(2 * math.pi * 9 * phase + n * 6.283));
+        final env = math.pow(swell, 2.4) * .78 + ripple * .22;
+        final h = math.max(width + 1, maxH * (.16 + .84 * env * (.5 + .5 * n) * flicker));
+        canvas.drawLine(Offset(bx, cy - h / 2), Offset(bx, cy + h / 2), wave);
+      }
+    }
+
+    // Record thumb.
+    final c = Offset(x, cy);
+    final angle = phase * 2 * math.pi * 4;
+    canvas.drawCircle(
+      c.translate(0, 1.5),
+      r,
+      Paint()
+        ..color = Colors.black.withValues(alpha: .45)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+    canvas.drawCircle(c, r, Paint()..color = const Color(0xff1b1d21));
+    final groove = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xff2f3237);
+    for (final f in const [.86, .72, .58]) {
+      canvas.drawCircle(c, r * f, groove);
+    }
+    canvas.drawCircle(
+      c,
+      r - .7,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = active ? color.withValues(alpha: .8) : const Color(0xff4a4e54),
+    );
+    final shine = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: .38);
+    final arc = Rect.fromCircle(center: c, radius: r * .79);
+    canvas.drawArc(arc, angle - .35, .7, false, shine);
+    canvas.drawArc(arc, angle + math.pi - .35, .7, false, shine);
+    canvas.drawCircle(c, r * .36, Paint()..color = color);
+    canvas.drawCircle(
+      c + Offset(math.cos(angle), math.sin(angle)) * r * .09,
+      r * .11,
+      Paint()..color = Colors.white,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_WavePainter old) =>
+      old.value != value ||
+      old.phase != phase ||
+      old.seed != seed ||
+      old.known != known ||
+      old.active != active ||
+      old.color != color ||
+      old.thumb != thumb;
 }
 
 String clock(int ms) {
@@ -689,7 +847,8 @@ Future<void> showActions(
       ),
       child: ListView(
         shrinkWrap: true,
-        padding: const EdgeInsets.only(bottom: Sp.l),
+        // Keeps the last entry above the system navigation bar.
+        padding: EdgeInsets.only(bottom: Sp.l + MediaQuery.viewPaddingOf(context).bottom),
         children: [
           if (title != null)
             Padding(

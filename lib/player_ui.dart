@@ -23,6 +23,32 @@ class PlayerListener extends StatelessWidget {
   );
 }
 
+/// Seek bar for the current track. Before the engine has loaded the track
+/// (for example right after launch) the catalog duration is shown.
+Widget trackSeek(
+  LibraryScreenState app,
+  AudioSnapshot s, {
+  bool compact = false,
+  bool timesBelow = true,
+}) {
+  final t = app.current;
+  final loaded = s.currentId != null && s.currentId == t?.id;
+  final duration = t == null
+      ? Duration.zero
+      : (loaded && s.duration > Duration.zero)
+      ? s.duration
+      : Duration(milliseconds: t.durationMs);
+  return SeekBar(
+    position: loaded ? s.position : Duration.zero,
+    duration: duration,
+    playing: s.playing && loaded,
+    seed: t?.id.hashCode ?? 0,
+    compact: compact,
+    timesBelow: timesBelow,
+    onSeek: t == null ? null : (d) => unawaited(app.seek(d)),
+  );
+}
+
 class TransportControls extends StatelessWidget {
   final LibraryScreenState app;
   final double play, icon, gap;
@@ -213,11 +239,7 @@ class PlayerBar extends StatelessWidget {
                       const SizedBox(height: 2),
                       PlayerListener(
                         app: app,
-                        builder: (context, s) => SeekBar(
-                          position: s.position,
-                          duration: t == null ? Duration.zero : s.duration,
-                          onSeek: t == null ? null : (d) => unawaited(app.seek(d)),
-                        ),
+                        builder: (context, s) => trackSeek(app, s, compact: true, timesBelow: false),
                       ),
                     ],
                   ),
@@ -647,6 +669,7 @@ void showQueueSheet(LibraryScreenState app) => showModalBottomSheet<void>(
               child: Text('Kolejka', style: Txt.title),
             ),
             Expanded(child: QueueList(app: app)),
+            SizedBox(height: MediaQuery.viewPaddingOf(context).bottom),
           ],
         ),
       ),
@@ -802,7 +825,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         children: [
                           _titleRow(app, t, 20),
                           const SizedBox(height: Sp.s),
-                          SeekBar(position: s.position, duration: s.duration, onSeek: (d) => unawaited(app.seek(d))),
+                          trackSeek(app, s),
                           TransportControls(app: app, play: 56, icon: 26, gap: Sp.m),
                           Row(
                             children: [
@@ -822,7 +845,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ),
       );
     }
-    final art = (size.width - Sp.xxl).clamp(120.0, size.height - 420 < 120 ? 120.0 : size.height - 420);
+    final art = (size.width - Sp.xxl).clamp(120.0, size.height - 452 < 120 ? 120.0 : size.height - 452);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Sp.l),
       child: Column(
@@ -836,7 +859,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           const Spacer(),
           _titleRow(app, t, 22),
           const SizedBox(height: Sp.l),
-          SeekBar(position: s.position, duration: s.duration, onSeek: (d) => unawaited(app.seek(d))),
+          trackSeek(app, s),
           const SizedBox(height: Sp.s),
           TransportControls(app: app, play: 68, icon: 28, gap: Sp.m),
           const SizedBox(height: Sp.l),
@@ -891,7 +914,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               constraints: const BoxConstraints(maxWidth: 760),
               child: Column(
                 children: [
-                  SeekBar(position: s.position, duration: s.duration, onSeek: (d) => unawaited(app.seek(d))),
+                  trackSeek(app, s),
                   const SizedBox(height: Sp.s),
                   TransportControls(app: app, play: 56, icon: 26, gap: Sp.m),
                 ],
@@ -975,7 +998,7 @@ class MiniPlayer extends StatelessWidget {
                     app: app,
                     builder: (context, s) => Padding(
                       padding: const EdgeInsets.symmetric(horizontal: Sp.s),
-                      child: SeekBar(position: s.position, duration: s.duration, showTimes: false, thin: true),
+                      child: SeekBar(position: s.currentId == app.current?.id ? s.position : Duration.zero, duration: s.currentId == app.current?.id && s.duration > Duration.zero ? s.duration : Duration(milliseconds: app.current?.durationMs ?? 0), showTimes: false, thin: true),
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -1040,7 +1063,7 @@ class HomePlayer extends StatelessWidget {
           const SizedBox(height: Sp.s),
           PlayerListener(
             app: app,
-            builder: (context, s) => SeekBar(position: s.position, duration: s.duration, onSeek: (d) => unawaited(app.seek(d))),
+            builder: (context, s) => trackSeek(app, s),
           ),
           const SizedBox(height: Sp.xs),
           Center(child: TransportControls(app: app, play: 60, icon: 26, gap: Sp.m)),
