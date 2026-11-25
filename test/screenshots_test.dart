@@ -232,7 +232,7 @@ void main() {
 
   testWidgets('seek bar playing and paused', (tester) async {
     await loadFonts();
-    tester.view.physicalSize = const Size(420, 140);
+    tester.view.physicalSize = const Size(840, 220);
     tester.view.devicePixelRatio = 2;
     Widget bar(bool playing) => MaterialApp(
       theme: mytifyTheme(),
