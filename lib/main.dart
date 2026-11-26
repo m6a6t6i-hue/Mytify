@@ -1319,7 +1319,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (desktop != desktopMode) {
         desktopMode = desktop;
       }
-      if (floating != null) return MiniPlayer(app: this, nano: floating == 'nano');
+      if (floating != null) return FloatingPlayer(app: this, nano: floating == 'nano');
       final shell = PageStorage(
         bucket: pageStorage,
         child: desktop ? DesktopShell(app: this) : MobileShell(app: this),

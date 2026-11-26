@@ -9,15 +9,15 @@ import 'widgets.dart';
 
 /// Floating mini player on the desktop: 244×82 ("mini") or 196×44 ("nano"),
 /// borderless and on top. Drag anywhere to move, double click to open the full app.
-class MiniPlayer extends StatefulWidget {
+class FloatingPlayer extends StatefulWidget {
   final LibraryScreenState app;
   final bool nano;
-  const MiniPlayer({super.key, required this.app, required this.nano});
+  const FloatingPlayer({super.key, required this.app, required this.nano});
   @override
-  State<MiniPlayer> createState() => _MiniPlayerState();
+  State<FloatingPlayer> createState() => _FloatingPlayerState();
 }
 
-class _MiniPlayerState extends State<MiniPlayer> {
+class _FloatingPlayerState extends State<FloatingPlayer> {
   bool hover = false;
   LibraryScreenState get app => widget.app;
 

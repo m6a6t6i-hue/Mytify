@@ -221,7 +221,7 @@ void main() {
     await tester.tap(find.byTooltip('Mini odtwarzacz (Ctrl+M)'));
     await settle(tester);
     expect(repo.windowCalls.last, {'action': 'mode', 'mode': 'mini'});
-    expect(find.byType(MiniPlayer), findsOneWidget);
+    expect(find.byType(FloatingPlayer), findsOneWidget);
     expect(find.byType(Sidebar), findsNothing);
     expect(find.text('Światło'), findsOneWidget);
     await tester.tap(find.byTooltip('Pełna aplikacja (dwuklik)'));
