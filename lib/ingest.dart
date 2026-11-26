@@ -338,7 +338,8 @@ class IngestState extends ChangeNotifier {
     // Batch: the disc was ejected; the next one is read when it appears.
     if (job == 'rip' && serial && stage == 'finished') {
       inserted = null;
-      _media = {..._media, if (drive != null) drive!: false};
+      final d = drive;
+      if (d != null) _media = {..._media, d: false};
     }
   }
 
