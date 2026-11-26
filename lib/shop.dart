@@ -55,7 +55,7 @@ abstract class ShopRepository {
 
 /// Stores selling downloads to keep (no subscription), opened as a search in the browser.
 List<(String name, String formats, String url)> storeLinks(String query) {
-  final q = Uri.encodeQueryComponent(query.trim());
+  final q = Uri.encodeComponent(query.trim());
   return [
     ('Bandcamp', tr('MP3 320 / FLAC, głównie wydawcy niezależni'), 'https://bandcamp.com/search?q=$q&item_type=a'),
     ('Qobuz', tr('MP3 320 / FLAC / Hi-Res'), 'https://www.qobuz.com/pl-pl/search?q=$q'),
@@ -120,7 +120,7 @@ class _BuyMusicState extends State<BuyMusic> {
     }
   }
 
-  void _open(String url) => unawaited(openLink(url).catchError((Object _) => widget.app.message(tr('Nie można otworzyć strony.'))));
+  void _open(String url) => unawaited(openLink(url, browser: true).catchError((Object _) => widget.app.message(tr('Nie można otworzyć strony.'))));
 
   @override
   Widget build(BuildContext context) {

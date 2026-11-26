@@ -83,5 +83,11 @@
         <intent>
             <action android:name="com.android.systemui.action.LAUNCH_MEDIA_OUTPUT_DIALOG"/>
         </intent>
+        <!-- Store links open in the web browser, not in the store's app. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <category android:name="android.intent.category.BROWSABLE"/>
+            <data android:scheme="https"/>
+        </intent>
     </queries>
 </manifest>

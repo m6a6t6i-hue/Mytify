@@ -4,6 +4,6 @@ import 'dart:js_interop';
 external JSAny? _open(String url, String target);
 
 /// In the PC app the WebView turns this into the default browser.
-Future<void> openLink(String url) async {
+Future<void> openLink(String url, {bool browser = false}) async {
   _open(url, '_blank');
 }

@@ -126,6 +126,16 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /** The default web browser, or any browser when no default is set. */
+    private fun browserPackage(): String? {
+        val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.org/")).addCategory(Intent.CATEGORY_BROWSABLE)
+        val pm = packageManager
+        pm.resolveActivity(probe, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+            ?.takeIf { it != "android" }
+            ?.let { return it }
+        return pm.queryIntentActivities(probe, 0).firstOrNull()?.activityInfo?.packageName
+    }
+
     private fun changed() {
         PlaybackService.instance?.libraryChanged()
     }
@@ -334,7 +344,11 @@ class MainActivity : FlutterActivity() {
                 "openUrl" -> {
                     val url = call.argument<String>("url").orEmpty()
                     require(url.startsWith("https://") || url.startsWith("http://")) { "Nieprawidłowy adres" }
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    // Store apps (Bandcamp) claim their links and open on the home screen,
+                    // losing the search: send these to the web browser instead.
+                    if (call.argument<Boolean>("browser") == true) browserPackage()?.let { intent.setPackage(it) }
+                    startActivity(intent)
                     r.success(null)
                 }
                 "chooseCover" -> {
