@@ -15,7 +15,7 @@ void main() {
   const channel = MethodChannel('pl.mytify/library');
   const events = MethodChannel('pl.mytify/import');
   late Map<String, dynamic> audio;
-  late List<Map<String, dynamic>> commands, radioCalls;
+  late List<Map<String, dynamic>> commands, radioCalls, shopCalls;
 
   test('stations from the directory, typed addresses and what is on air', () {
     expect(Station.fromJson({'id': 'x', 'url': 'http://a'}), isNull);
@@ -38,6 +38,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     commands = [];
     radioCalls = [];
+    shopCalls = [];
     audio = {
       'available': true,
       'playing': false,
@@ -72,6 +73,14 @@ void main() {
             'radio': {'id': c['id'], 'name': c['name'], 'url': c['url'], 'logo': '', 'title': null, 'codec': 'MP3', 'bitrate': 128},
           };
         }
+      }
+      if (call.method == 'shop') {
+        shopCalls.add(Map<String, dynamic>.from(call.arguments as Map));
+        return jsonEncode([
+          {'store': 'iTunes Store', 'kind': 'album', 'title': 'Zimowa ballada', 'artist': 'Kwartet', 'price': 39.99, 'currency': 'PLN', 'tracks': 9, 'year': '2019', 'url': 'https://music.apple.com/pl/album/1'},
+          {'store': 'iTunes Store', 'kind': 'song', 'title': 'Noc', 'artist': 'Kwartet', 'price': null, 'currency': 'PLN', 'url': 'https://music.apple.com/pl/album/1?i=2'},
+          {'store': 'x', 'kind': 'album', 'title': 'Zły adres', 'url': 'javascript:1'},
+        ]);
       }
       if (call.method == 'radio') {
         final args = Map<String, dynamic>.from(jsonDecode(call.arguments as String) as Map);
@@ -165,6 +174,35 @@ void main() {
     // Favourites are kept and handed to Android Auto.
     final fav = radioCalls.lastWhere((c) => c['action'] == 'favorites');
     expect((fav['stations'] as List).single['id'], 'radio:jazz');
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('search without results offers music to buy, with iTunes prices and store links', (tester) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MytifyApp(repository: AndroidLibraryRepository()));
+    await settle(tester);
+    final app = tester.state<LibraryScreenState>(find.byType(LibraryScreen));
+    app.go(Nav.search);
+    await settle(tester);
+    app.searchText.text = 'Kwartet Zimowa';
+    await settle(tester);
+    await settle(tester);
+    expect(find.text('Nie masz tego w bibliotece. Kup muzykę'), findsOneWidget);
+    expect(shopCalls.single['query'], 'kwartet zimowa');
+    expect(find.text('39,99 zł'), findsOneWidget);
+    expect(find.text('cena w sklepie'), findsOneWidget);
+    expect(find.text('Zły adres'), findsNothing);
+    expect(find.text('Szukaj w: Bandcamp'), findsOneWidget);
+    // Something in the library: only the store links, nothing is sent anywhere.
+    app.searchText.text = 'So What';
+    await settle(tester);
+    expect(find.text('Nie ma tego, czego szukasz? Kup muzykę'), findsOneWidget);
+    expect(shopCalls, hasLength(1));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 3));

@@ -9,6 +9,7 @@ import 'model.dart';
 import 'ingest.dart';
 import 'l10n.dart';
 import 'radio.dart';
+import 'shop.dart';
 
 @JS('mytifyBridge.load')
 external JSPromise<JSString> _load();
@@ -54,6 +55,9 @@ external JSPromise<JSString> _transfer(JSString body);
 @JS('mytifyBridge.network')
 external JSPromise<JSString> _network(JSString action, JSString body);
 
+@JS('mytifyBridge.shop')
+external JSPromise<JSString> _shop(JSString query, JSString country);
+
 @JS('mytifyBridge.radio')
 external JSPromise<JSString> _radio(JSString action, JSString body);
 
@@ -61,7 +65,11 @@ external JSPromise<JSString> _radio(JSString action, JSString body);
 external JSPromise<JSString> _ingest(JSString body);
 
 class WebLibraryRepository extends LibraryRepository
-    implements IngestRepository, PlaylistRepository, TransferRepository, RadioRepository {
+    implements IngestRepository, PlaylistRepository, TransferRepository, RadioRepository, ShopRepository {
+  @override
+  Future<List<Offer>> shopSearch(String query, String country) async => [
+    for (final v in jsonDecode((await _shop(query.toJS, country.toJS).toDart).toDart) as List) ?Offer.fromJson(Map<String, dynamic>.from(v as Map)),
+  ];
   Future<dynamic> _radioCall(String action, Map<String, dynamic> body) async =>
       jsonDecode((await _radio(action.toJS, jsonEncode(body).toJS).toDart).toDart);
   @override

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'model.dart';
 import 'radio.dart';
+import 'shop.dart';
 import 'playlists.dart';
 import 'l10n.dart';
 
@@ -15,7 +16,12 @@ class AndroidLibraryRepository extends LibraryRepository
         PlaylistRepository,
         TransferRepository,
         LibraryChangesRepository,
-        RadioRepository {
+        RadioRepository,
+        ShopRepository {
+  @override
+  Future<List<Offer>> shopSearch(String query, String country) async => [
+    for (final v in await _call('shop', {'query': query, 'country': country}) as List) ?Offer.fromJson(Map<String, dynamic>.from(v as Map)),
+  ];
   Future<dynamic> _radioCall(String action, Map<String, dynamic> body) =>
       _call('radio', jsonEncode({...body, 'action': action}));
   @override

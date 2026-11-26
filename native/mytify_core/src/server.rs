@@ -42,6 +42,7 @@ pub struct App {
     pub cancellation: Mutex<HashMap<String, Arc<AtomicBool>>>,
     pub busy: AtomicBool,
     pub radio: crate::radio::Directory,
+    pub shop: crate::shop::Shop,
 }
 pub struct RunningServer {
     pub app: Arc<App>,
@@ -90,6 +91,7 @@ pub fn start_with_audio(
         cancellation: Mutex::new(HashMap::new()),
         busy: AtomicBool::new(false),
         radio: crate::radio::Directory::new(),
+        shop: crate::shop::Shop::new(),
     });
     app.downloads.start();
     if !test {
@@ -327,6 +329,15 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
         }
         if path == "/api/player/levels" && method == Method::Get {
             return send_json(request, 200, json!({ "bands": app.player.levels() }));
+        }
+        if path == "/api/shop/search" && method == Method::Get {
+            let query: HashMap<_, _> = parsed.query_pairs().into_owned().collect();
+            let q = query.get("q").cloned().unwrap_or_default();
+            let country = query.get("country").cloned().unwrap_or_default();
+            return match app.shop.search(&q, &country) {
+                Ok(v) => send_json(request, 200, serde_json::to_value(v)?),
+                Err(e) => send_error(request, 502, format!("{e:#}")),
+            };
         }
         if path == "/api/radio/search" && method == Method::Get {
             let query: HashMap<_, _> = parsed.query_pairs().into_owned().collect();

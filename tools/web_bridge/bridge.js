@@ -129,6 +129,7 @@ window.mytifyBridge = {
     }
     throw new Error('Nieznana operacja metadanych.');
   },
+  async shop(query,country) { return JSON.stringify(await api('/api/shop/search?q='+encodeURIComponent(query)+'&country='+encodeURIComponent(country))); },
   async radio(action,body) {
     // Internet radio: directory search, listen counting, address check, logos through the core.
     const args=JSON.parse(body||'{}');

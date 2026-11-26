@@ -180,6 +180,9 @@
       }
       throw new Error("Nieznana operacja metadanych.");
     },
+    async shop(query, country) {
+      return JSON.stringify(await api("/api/shop/search?q=" + encodeURIComponent(query) + "&country=" + encodeURIComponent(country)));
+    },
     async radio(action, body) {
       const args = JSON.parse(body || "{}");
       if (action === "search") return JSON.stringify(await api("/api/radio/search?" + new URLSearchParams(Object.entries(args).map(([k, v]) => [k, String(v)])).toString()));

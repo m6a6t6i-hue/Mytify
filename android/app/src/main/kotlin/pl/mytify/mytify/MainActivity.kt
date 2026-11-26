@@ -293,6 +293,10 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                 }
+                "shop" -> {
+                    val args = call.arguments as Map<*, *>
+                    background(r, sourceWorker) { Shop.search(args["query"] as? String ?: "", args["country"] as? String ?: "") }
+                }
                 "radio" -> {
                     val args = JSONObject(call.arguments as String)
                     background(r, sourceWorker) {

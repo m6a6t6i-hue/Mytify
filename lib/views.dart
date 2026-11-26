@@ -14,6 +14,7 @@ import 'links.dart';
 import 'main.dart';
 import 'model.dart';
 import 'radio.dart';
+import 'shop.dart';
 import 'player_ui.dart';
 import 'playlists.dart';
 import 'track_table.dart';
@@ -1621,6 +1622,7 @@ class _SearchPageState extends State<SearchPage> {
           padding: const EdgeInsets.all(Sp.xxl),
           child: Text(tr('Nic nie pasuje do „{0}”', [q]), textAlign: TextAlign.center, style: Txt.sub),
         ),
+        BuyMusic(app: app, query: q, prices: true),
       ]);
     }
     final shown = allTracks ? tracks : tracks.take(desktop ? 8 : 6).toList();
@@ -1683,6 +1685,7 @@ class _SearchPageState extends State<SearchPage> {
             itemBuilder: (context, i) => _playlistCard(app, playlists[i], card),
           ),
         ],
+        BuyMusic(app: app, query: q),
         const SizedBox(height: Sp.xxl),
       ],
     );
@@ -1927,7 +1930,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.22.2']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.23']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),
