@@ -1096,8 +1096,9 @@ Future<String?> askName(
   BuildContext context, {
   required String title,
   String initial = '',
-  String action = tr('Zapisz'),
+  String? action,
 }) {
+  final label = action ?? tr('Zapisz');
   final controller = TextEditingController(text: initial);
   return showDialog<String>(
     context: context,
@@ -1120,7 +1121,7 @@ Future<String?> askName(
         ),
         FilledButton(
           onPressed: () => Navigator.pop(context, controller.text.trim()),
-          child: Text(action),
+          child: Text(label),
         ),
       ],
     ),
