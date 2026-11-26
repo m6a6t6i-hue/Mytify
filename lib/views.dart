@@ -425,6 +425,15 @@ class TrackRow extends StatelessWidget {
     this.playlist,
   });
 
+  /// Title with where the file lives: nothing for files on this device, a cloud for
+  /// files on a network source, a tick for ones downloaded here.
+  Widget _titleLine(Track t, TextStyle style) {
+    final badge = storageBadge(app, t);
+    final title = Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
+    if (badge == null) return title;
+    return Row(children: [Flexible(child: title), const SizedBox(width: 6), badge]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = track;
@@ -474,7 +483,7 @@ class TrackRow extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: titleStyle),
+                    _titleLine(t, titleStyle),
                     if (!compact && !artistColumn)
                       Text(
                         dim ? tr('{0} · niedostępny', [t.displayArtist]) : t.displayArtist,
@@ -508,7 +517,7 @@ class TrackRow extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: titleStyle),
+              _titleLine(t, titleStyle),
               if (showArtist && (!desktop || showCover || !showAlbum))
                 Text(
                   dim ? tr('{0} · niedostępny', [t.displayArtist]) : t.displayArtist,
@@ -1220,6 +1229,15 @@ class AlbumPage extends StatelessWidget {
       ?a.quality,
     ].join(' · ');
     final pinId = 'album:${a.key}';
+    final remote = a.tracks.where((t) => t.remote).toList();
+    final kept = remote.where((t) => t.offline).length;
+    final where = remote.isEmpty
+        ? null
+        : kept == remote.length
+        ? tr('pobrany na to urządzenie')
+        : kept > 0
+        ? tr('pobrano {0} z {1}', [kept, remote.length])
+        : tr('na serwerze w sieci');
     final actions = Row(
       children: [
         PlayButton(
@@ -1239,6 +1257,27 @@ class AlbumPage extends StatelessWidget {
           color: app.prefs.pinned(pinId) ? accent : secondaryText,
         ),
         IconAction(Icons.queue_rounded, tr('Dodaj do kolejki'), () => unawaited(app.enqueue(a.tracks)), box: desktop ? 40 : 48, color: secondaryText),
+        if (remote.isNotEmpty)
+          ListenableBuilder(
+            listenable: app.downloads,
+            builder: (context, _) {
+              final busy = remote.any((t) => app.downloads.pending.contains(t.id));
+              if (busy) {
+                return Tooltip(
+                  message: tr('Pobieranie na to urządzenie'),
+                  child: SizedBox(width: desktop ? 40 : 48, height: desktop ? 40 : 48, child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))),
+                );
+              }
+              final all = kept == remote.length;
+              return IconAction(
+                all ? Icons.download_done_rounded : Icons.download_for_offline_outlined,
+                all ? tr('Pobrany. Kliknij, aby usunąć kopię z urządzenia') : tr('Pobierz na to urządzenie (słuchanie bez sieci)'),
+                () => unawaited(all ? app.downloads.remove(a.tracks) : app.downloads.download(a.tracks, title: tr('Pobrać album offline?'))),
+                box: desktop ? 40 : 48,
+                color: all ? accent : secondaryText,
+              );
+            },
+          ),
         Builder(
           builder: (context) => IconAction(
             Icons.more_horiz_rounded,
@@ -1275,7 +1314,7 @@ class AlbumPage extends StatelessWidget {
                         child: Text(a.artist, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                       ),
                       const SizedBox(height: Sp.xs),
-                      Text(meta, style: Txt.meta.copyWith(fontSize: 13)),
+                      Text([meta, ?where].join(' · '), style: Txt.meta.copyWith(fontSize: 13)),
                       const SizedBox(height: Sp.l),
                       actions,
                     ],
@@ -1299,7 +1338,7 @@ class AlbumPage extends StatelessWidget {
                     child: Text(a.artist, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(height: 2),
-                  Text(meta, style: Txt.meta.copyWith(fontSize: 13)),
+                  Text([meta, ?where].join(' · '), style: Txt.meta.copyWith(fontSize: 13)),
                   const SizedBox(height: Sp.s),
                   actions,
                 ],
@@ -1944,7 +1983,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.23.6']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.23.7']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),
@@ -2073,8 +2112,10 @@ class SourcesList extends StatelessWidget {
     final problem = switch (source.state) {
       'offline' => source.network ? tr('Źródło niedostępne') : tr('Niedostępne'),
       'error' => tr('Nie można odczytać'),
-      'partial' => tr('Wymaga ponownego skanu'),
-      'scanning' => tr('Skanowanie'),
+      // While a scan runs, an unfinished source is simply waiting for it.
+      'partial' || 'scanning' when app.importing => tr('Skanowanie…'),
+      'partial' => tr('Skan niedokończony, wybierz „Skanuj ponownie”'),
+      'scanning' => tr('Skanowanie…'),
       _ => null,
     };
     final path = source.address.isNotEmpty
@@ -2108,8 +2149,15 @@ class SourcesList extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   [trackCount(source.files), ?problem].join(' · '),
-                  style: Txt.meta.copyWith(color: problem == null ? secondaryText : warningText),
+                  style: Txt.meta.copyWith(color: problem == null || app.importing ? secondaryText : warningText),
                 ),
+                if (app.importing && (source.state == 'partial' || source.state == 'scanning')) ...[
+                  const SizedBox(height: Sp.xs),
+                  LinearProgressIndicator(
+                    value: app.progress.total > 0 ? (app.progress.done / app.progress.total).clamp(0.0, 1.0) : null,
+                    minHeight: 3,
+                  ),
+                ],
               ],
             ),
           ),

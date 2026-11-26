@@ -1321,6 +1321,8 @@ class LibraryScreenState extends State<LibraryScreen> {
   }
 
   List<MenuEntry> addMusicEntries() => [
+    // Greyed-out entries need a reason next to them.
+    if (importing) MenuEntry(tr('Trwa skanowanie. Nowe źródło dodasz po jego zakończeniu.'), icon: Icons.hourglass_top_rounded),
     MenuEntry(
       tr('Muzyka na urządzeniu'),
       icon: Icons.create_new_folder_outlined,

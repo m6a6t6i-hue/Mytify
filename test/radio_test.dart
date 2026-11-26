@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mytify/logo_art.dart';
 import 'package:mytify/main.dart';
+import 'package:mytify/model.dart';
+import 'package:mytify/shell_desktop.dart';
 import 'package:mytify/player_ui.dart';
 import 'package:mytify/radio.dart';
 import 'package:mytify/repository_android.dart';
@@ -271,6 +273,34 @@ void main() {
       expect(tester.testTextInput.isVisible, isTrue, reason: text);
     }
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('a running scan is visible on the phone and explains the greyed-out add menu', (tester) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MytifyApp(repository: AndroidLibraryRepository()));
+    await settle(tester);
+    final app = tester.state<LibraryScreenState>(find.byType(LibraryScreen));
+    final done = Completer<ImportReport>();
+    late void Function(ImportProgress) report;
+    unawaited(app.runOperation((update) {
+      report = update;
+      return done.future;
+    }));
+    await settle(tester);
+    expect(find.byType(ScanBanner), findsOneWidget);
+    expect(find.text('Skanowanie biblioteki…'), findsOneWidget);
+    report(const ImportProgress(120, 840, 'Jazz/Album/01.flac'));
+    await settle(tester);
+    expect(find.text('Skanowanie biblioteki: 120 z 840'), findsOneWidget);
+    expect(app.addMusicEntries().first.label, 'Trwa skanowanie. Nowe źródło dodasz po jego zakończeniu.');
+    done.complete(ImportReport.fromJson({'added': 0, 'updated': 0, 'unchanged': 0, 'missing': 0, 'cancelled': true}));
+    await settle(tester);
+    expect(find.byType(ScanBanner), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 3));
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));

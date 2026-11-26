@@ -206,6 +206,10 @@ class _DesktopShellState extends State<DesktopShell> {
                     child: Column(
                       children: [
                         Toolbar(app: app),
+                        AnimatedSize(
+                          duration: motion(context, Dur.standard),
+                          child: app.importing ? ScanBanner(app: app) : const SizedBox(width: double.infinity),
+                        ),
                         Expanded(
                           child: ClipRect(
                             child: AnimatedSwitcher(
@@ -323,7 +327,6 @@ class Toolbar extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          if (app.importing) ImportStatus(app: app, compact: true),
           IngestStatus(app: app),
           Builder(
             builder: (context) => IconAction(
@@ -514,7 +517,7 @@ class Sidebar extends StatelessWidget {
           ),
           Divider(height: 1, color: softBorder),
           const SizedBox(height: Sp.xs),
-          if (app.importing && !collapsed) ImportStatus(app: app),
+          if (app.importing && collapsed) ImportStatus(app: app),
           _item(Icons.folder_open_outlined, Icons.folder_rounded, tr('Źródła muzyki'), const Nav('sources'), active: _active('sources') || _active('settings', 'sources') || _active('downloads')),
           if (app.canTransfer)
             _item(Icons.phonelink_rounded, Icons.phonelink_rounded, tr('Połącz telefon'), const Nav('settings', 'phone')),
@@ -643,6 +646,48 @@ class IngestStatus extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Library scan in progress, shown across the app (under the toolbar on PC, above the
+/// player on the phone) so adding a source never looks like nothing happened.
+class ScanBanner extends StatelessWidget {
+  final LibraryScreenState app;
+  const ScanBanner({super.key, required this.app});
+  @override
+  Widget build(BuildContext context) {
+    final p = app.progress;
+    final known = p.total > 0;
+    final title = known ? tr('Skanowanie biblioteki: {0} z {1}', [p.done, p.total]) : tr('Skanowanie biblioteki…');
+    return Material(
+      color: elevated,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LinearProgressIndicator(value: known ? (p.done / p.total).clamp(0.0, 1.0) : null, minHeight: 3),
+          Padding(
+            padding: EdgeInsets.fromLTRB(app.desktopMode ? Sp.xl : Sp.l, Sp.xs, Sp.xs, Sp.xs),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      if (p.name.isNotEmpty) Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Txt.meta),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: app.cancelling ? null : () => unawaited(app.cancelImport()),
+                  child: Text(app.cancelling ? tr('Przerywanie') : tr('Zatrzymaj')),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

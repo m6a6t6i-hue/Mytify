@@ -243,3 +243,19 @@ class _DownloadsPageState extends State<DownloadsPage> {
     );
   }
 }
+
+/// Where a track lives, as a small mark next to its title: nothing for files on this
+/// device, a cloud for files on a network source, a tick once downloaded here.
+Widget? storageBadge(LibraryScreenState app, Track t, {double size = 14}) {
+  if (!t.remote) return null;
+  if (t.offline) {
+    return Tooltip(message: tr('Pobrany na to urządzenie'), child: Icon(Icons.download_done_rounded, size: size, color: accent));
+  }
+  if (app.downloads.pending.contains(t.id)) {
+    return Tooltip(
+      message: tr('Pobieranie na to urządzenie'),
+      child: SizedBox(width: size, height: size, child: const CircularProgressIndicator(strokeWidth: 1.6)),
+    );
+  }
+  return Tooltip(message: tr('Na serwerze w sieci'), child: Icon(Icons.cloud_outlined, size: size, color: secondaryText));
+}

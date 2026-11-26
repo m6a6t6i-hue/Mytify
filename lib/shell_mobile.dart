@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'design.dart';
 import 'main.dart';
 import 'radio.dart';
+import 'shell_desktop.dart';
 import 'player_ui.dart';
 import 'views.dart';
 import 'widgets.dart';
@@ -71,6 +72,10 @@ class MobileShell extends StatelessWidget {
           bottomNavigationBar: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              AnimatedSize(
+                duration: motion(context, Dur.standard),
+                child: app.importing ? ScanBanner(app: app) : const SizedBox(width: double.infinity),
+              ),
               AnimatedSize(
                 duration: motion(context, Dur.standard),
                 curve: Curves.easeOutCubic,
