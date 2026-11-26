@@ -8,6 +8,8 @@ import 'audio_player.dart';
 import 'design.dart';
 import 'devices.dart';
 import 'ingest.dart';
+import 'mini_player.dart';
+import 'visualizer.dart';
 import 'intro.dart';
 import 'library_index.dart';
 import 'metadata_ui.dart';
@@ -1240,6 +1242,48 @@ class LibraryScreenState extends State<LibraryScreen> {
 
   void showDevices({Offset? at}) => unawaited(showDevicePicker(this, at: at));
 
+  /// Floating mini player: 'mini' (244×82), 'nano' (196×44); null is the full app.
+  String? floating;
+  late final bool _hasWindow = () {
+    try {
+      return repository.hasWindow;
+    } catch (_) {
+      return false;
+    }
+  }();
+
+  /// The desktop window can float as a mini player and go full screen.
+  bool get canFloat => !isPhone && _hasWindow;
+
+  void setFloating(String? mode) {
+    if (!canFloat) return;
+    if (mode != null) prefs.set('mini.size', mode);
+    setState(() => floating = mode);
+    unawaited(repository.windowAction({'action': 'mode', 'mode': mode ?? 'normal'}));
+  }
+
+  void toggleFloating() => setFloating(floating == null ? prefs.get<String>('mini.size', 'mini') : null);
+
+  void setFloatingPin(bool value) {
+    prefs.set('mini.pin', value);
+    setState(() {});
+    unawaited(repository.windowAction({'action': 'pin', 'value': value}));
+  }
+
+  /// Full screen visualization reacting to the music (PC and Android).
+  void openVisualizer() {
+    if (floating != null) setFloating(null);
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: true,
+        transitionDuration: motion(context, Dur.screen),
+        reverseTransitionDuration: motion(context, Dur.standard),
+        pageBuilder: (_, _, _) => VisualizerScreen(app: this),
+        transitionsBuilder: (_, animation, _, child) => FadeTransition(opacity: animation, child: child),
+      ),
+    );
+  }
+
   void openNowPlaying() {
     if (queue.current == null) return;
     Navigator.of(context).push(
@@ -1275,6 +1319,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (desktop != desktopMode) {
         desktopMode = desktop;
       }
+      if (floating != null) return MiniPlayer(app: this, nano: floating == 'nano');
       final shell = PageStorage(
         bucket: pageStorage,
         child: desktop ? DesktopShell(app: this) : MobileShell(app: this),

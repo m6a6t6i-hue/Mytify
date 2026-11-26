@@ -11,6 +11,7 @@ import 'package:mytify/ingest.dart';
 import 'package:mytify/intro.dart';
 import 'package:mytify/main.dart';
 import 'package:mytify/repository_android.dart';
+import 'package:mytify/visualizer.dart';
 import 'package:mytify/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -97,6 +98,10 @@ class ShotRepo extends AndroidLibraryRepository implements IngestRepository {
   Map<String, dynamic> state = {'running': false, 'stage': ''};
   @override
   bool get hasAudioLevels => true;
+  @override
+  bool get hasWindow => true;
+  @override
+  Future<void> windowAction(Map<String, dynamic> action) async {}
   @override
   Future<List<double>?> audioLevels() async => shotBands;
   @override
@@ -311,6 +316,56 @@ void main() {
       await shot(tester, '${tag}_6_vinyl');
       await close(tester);
     }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+  }
+
+  testWidgets('mini player', (tester) async {
+    await loadFonts();
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MytifyApp(repository: ShotRepo()));
+    await settle(tester);
+    final app = tester.state<LibraryScreenState>(find.byType(LibraryScreen));
+    for (final (mode, size) in [('mini', const Size(244, 82)), ('nano', const Size(196, 44))]) {
+      for (final ratio in [1.0, 2.0]) {
+        app.setFloating(mode);
+        tester.view.physicalSize = size * ratio;
+        tester.view.devicePixelRatio = ratio;
+        await shot(tester, 'mini_${mode}_${(ratio * 100).round()}');
+      }
+    }
+    app.setFloating(null);
+    await close(tester);
+  }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+  for (final (name, size, ratio, platform) in [
+    ('pc', const Size(1920, 1080), 1.0, TargetPlatform.windows),
+    ('phone', const Size(1080, 2400), 2.75, TargetPlatform.android),
+  ]) {
+    testWidgets('visualizer $name', (tester) async {
+      await loadFonts();
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = ratio;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(MytifyApp(repository: ShotRepo()));
+      await settle(tester);
+      final app = tester.state<LibraryScreenState>(find.byType(LibraryScreen));
+      app.openVisualizer();
+      // Shader programs load asynchronously.
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 500)));
+      for (var i = 0; i < visualizerScenes.length; i++) {
+        for (var k = 0; k < 30; k++) {
+          await tester.pump(const Duration(milliseconds: 33));
+        }
+        await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/viz_${name}_${i}_${visualizerScenes[i]}.png'));
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await settle(tester);
+      await close(tester);
+    }, skip: !enabled, variant: TargetPlatformVariant.only(platform));
   }
 
   testWidgets('intro frames', (tester) async {

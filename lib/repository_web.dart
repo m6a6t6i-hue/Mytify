@@ -38,6 +38,10 @@ external JSPromise<JSString> _uri(JSString id);
 @JS('mytifyBridge.metadata')
 external JSPromise<JSString> _metadata(JSString action, JSString args);
 
+@JS('mytifyBridge.windowAvailable')
+external JSBoolean _windowAvailable();
+@JS('mytifyBridge.windowAction')
+external void _windowAction(JSString body);
 @JS('mytifyBridge.audio')
 external JSPromise<JSString> _audio(JSString route, JSString body);
 LibraryRepository createRepository() => WebLibraryRepository();
@@ -158,6 +162,18 @@ class WebLibraryRepository extends LibraryRepository
       AudioSnapshot.fromJson(
         Map<String, dynamic>.from(await _audioApi('command', action) as Map),
       );
+  @override
+  bool get hasWindow {
+    try {
+      return _windowAvailable().toDart;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<void> windowAction(Map<String, dynamic> action) async => _windowAction(jsonEncode(action).toJS);
+
   @override
   bool get hasAudioLevels => true;
   @override

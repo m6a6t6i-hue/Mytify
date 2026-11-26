@@ -123,6 +123,13 @@
     }
   }
   window.mytifyBridge = {
+    // Desktop window layout (mini player, full screen). Only inside the Mytify window.
+    windowAvailable() {
+      return !!(window.ipc && window.ipc.postMessage);
+    },
+    windowAction(body) {
+      if (window.ipc && window.ipc.postMessage) window.ipc.postMessage(body);
+    },
     async transfer(body) {
       return JSON.stringify(await api("/api/transfer", { method: "POST", body: JSON.parse(body) }));
     },

@@ -289,6 +289,21 @@ class PlayerBar extends StatelessWidget {
                       active: panelOpen,
                       color: panelOpen ? accent : secondaryText,
                     ),
+                  if (!compact)
+                    IconAction(
+                      Icons.blur_on_rounded,
+                      'Wizualizacja (Ctrl+Shift+V)',
+                      app.openVisualizer,
+                      color: secondaryText,
+                    ),
+                  if (app.canFloat)
+                    IconAction(
+                      Icons.picture_in_picture_alt_outlined,
+                      'Mini odtwarzacz (Ctrl+M)',
+                      app.toggleFloating,
+                      color: secondaryText,
+                      size: 18,
+                    ),
                   IconAction(
                     Icons.open_in_full_rounded,
                     'Pełny ekran (F11)',
@@ -774,6 +789,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           style: Txt.meta.copyWith(color: primaryText.withValues(alpha: .8)),
         ),
       ),
+      IconAction(Icons.blur_on_rounded, 'Wizualizacja', app.openVisualizer, size: 24, box: 48),
       IconAction(
         Icons.more_horiz_rounded,
         'Więcej',

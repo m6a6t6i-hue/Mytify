@@ -41,6 +41,14 @@ class PlaybackService : MediaLibraryService() {
             private set
     }
 
+    /** Level copy of the local speaker output; null for AirPlay and DLNA. */
+    @Volatile var levels: LevelSink? = null
+        private set
+
+    /** Band levels of what this phone plays now, or null when there is nothing real to show. */
+    fun levelBands(): DoubleArray? =
+        if (networkTarget != null || airplay != null) null else levels?.bands()
+
     private var airplay: AirplaySession? = null
     private var networkTarget: NetworkTarget? = null
     private val networkSaver =
@@ -115,8 +123,20 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun createPlayer(a: AirplaySession?): ExoPlayer {
+        levels = null
         val factory =
-            if (a == null) DefaultRenderersFactory(this).setEnableAudioFloatOutput(true)
+            if (a == null)
+                object : DefaultRenderersFactory(this) {
+                        // Same sink as before, with a read-only copy of the sound for the level display.
+                        override fun buildAudioSink(
+                            context: Context,
+                            enableFloatOutput: Boolean,
+                            enableAudioOutputPlaybackParams: Boolean,
+                        ): AudioSink? =
+                            super.buildAudioSink(context, enableFloatOutput, enableAudioOutputPlaybackParams)
+                                ?.let { LevelSink(it).also { sink -> levels = sink } }
+                    }
+                    .setEnableAudioFloatOutput(true)
             else
                 object : DefaultRenderersFactory(this) {
                     override fun buildAudioSink(

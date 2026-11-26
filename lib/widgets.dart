@@ -1371,3 +1371,97 @@ class TextTabs extends StatelessWidget {
     ),
   );
 }
+
+/// A few live level bars (mini player). Same real data and timing as the seek bar;
+/// nothing is drawn while paused or without data.
+class LevelBars extends StatefulWidget {
+  final bool playing;
+  final int count;
+  final double width, height;
+  final Color color;
+  const LevelBars({super.key, required this.playing, this.count = 4, this.width = 16, this.height = 14, this.color = accent});
+  @override
+  State<LevelBars> createState() => _LevelBarsState();
+}
+
+class _LevelBarsState extends State<LevelBars> with SingleTickerProviderStateMixin {
+  final eq = _EqMotion();
+  late final ticker = createTicker(_tick);
+  Duration last = Duration.zero;
+  LevelFeed? feed;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(LevelBars old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  void _sync() {
+    final want = widget.playing && !MediaQuery.disableAnimationsOf(context);
+    if (want && feed == null) {
+      feed = LevelFeed.current?..attach();
+    } else if (!want && feed != null) {
+      feed!.detach();
+      feed = null;
+    }
+    if ((want || eq.amp > 0) && !ticker.isActive) {
+      last = Duration.zero;
+      ticker.start();
+    }
+  }
+
+  void _tick(Duration elapsed) {
+    final dt = ((elapsed - last).inMicroseconds / 1e6).clamp(0.0, .1);
+    last = elapsed;
+    eq.step(dt, widget.playing, widget.playing ? feed?.bands : null, VisualizerStyle.compact);
+    if (!widget.playing && eq.amp <= 0) ticker.stop();
+  }
+
+  @override
+  void dispose() {
+    feed?.detach();
+    ticker.dispose();
+    eq.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: CustomPaint(painter: _BarsPainter(eq, widget.count, widget.color)),
+    ),
+  );
+}
+
+class _BarsPainter extends CustomPainter {
+  final _EqMotion eq;
+  final int count;
+  final Color color;
+  _BarsPainter(this.eq, this.count, this.color) : super(repaint: eq);
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (eq.amp <= 0 || count < 1) return;
+    final step = size.width / count;
+    final paint = Paint()
+      ..color = color.withValues(alpha: color.a * eq.amp)
+      ..strokeWidth = math.min(2.4, step * .55)
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < count; i++) {
+      final h = size.height * eq.at(count == 1 ? 0 : (i + .5) / count) * eq.amp;
+      if (h < 1) continue;
+      final x = step * (i + .5);
+      canvas.drawLine(Offset(x, size.height - h), Offset(x, size.height), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BarsPainter old) => old.eq != eq || old.count != count || old.color != color;
+}

@@ -152,6 +152,15 @@ class AndroidLibraryRepository extends LibraryRepository
   }
 
   @override
+  bool get hasAudioLevels => true;
+  @override
+  Future<List<double>?> audioLevels() async => levelsFrom(await _call('audioLevels'));
+  @override
+  Future<void> keepScreenOn(bool value) async {
+    await _channel.invokeMethod<void>('keepScreenOn', value);
+  }
+
+  @override
   Future<AudioSnapshot> audioState() async =>
       AudioSnapshot.fromJson(_map(await _call('audioState')));
   @override

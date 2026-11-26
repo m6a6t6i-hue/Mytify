@@ -1877,7 +1877,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', 'Wersja 0.18', icon: Icons.info_outline_rounded),
+    _row('Mytify', 'Wersja 0.19', icon: Icons.info_outline_rounded),
     _row('Autor', 'Mateusz Kanik', icon: Icons.person_outline_rounded),
     _row(
       'Strona',

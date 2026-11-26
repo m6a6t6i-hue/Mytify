@@ -326,6 +326,15 @@ class MainActivity : FlutterActivity() {
                 }
                 "audioDevices" -> background(r, networkWorker) { NetworkDevices.discover(this) }
                 "audioState" -> withPlayer(r) { snapshot(it) }
+                "audioLevels" -> {
+                    val bands = PlaybackService.instance?.levelBands()
+                    r.success(JSONObject().put("bands", bands?.let { JSONArray(it.toList()) } ?: JSONObject.NULL).toString())
+                }
+                "keepScreenOn" -> {
+                    if (call.arguments == true) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    r.success(null)
+                }
                 "audioCommand" -> {
                     val args = call.arguments as Map<*, *>
                     if (args["action"] == "load") {

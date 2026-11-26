@@ -90,6 +90,10 @@ class _DesktopShellState extends State<DesktopShell> {
     } else if (ctrl && k == LogicalKeyboardKey.keyA) {
       if (app.visibleList.isEmpty) return false;
       app.selectAll();
+    } else if (ctrl && k == LogicalKeyboardKey.keyM) {
+      app.toggleFloating();
+    } else if (ctrl && shift && k == LogicalKeyboardKey.keyV) {
+      app.openVisualizer();
     } else if (k == LogicalKeyboardKey.f11) {
       app.openNowPlaying();
     } else if (alt && k == LogicalKeyboardKey.arrowLeft) {

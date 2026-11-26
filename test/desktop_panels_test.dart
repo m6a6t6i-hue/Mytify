@@ -6,14 +6,21 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mytify/audio_settings.dart';
 import 'package:mytify/ingest.dart';
 import 'package:mytify/main.dart';
+import 'package:mytify/mini_player.dart';
 import 'package:mytify/player_ui.dart';
 import 'package:mytify/repository_android.dart';
 import 'package:mytify/shell_desktop.dart';
+import 'package:mytify/visualizer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The Android method channel stands in for the PC engine; ingest answers like a PC with no drive.
 class DesktopRepo extends AndroidLibraryRepository implements IngestRepository {
   final ingestCalls = <String>[];
+  final windowCalls = <Map<String, dynamic>>[];
+  @override
+  bool get hasWindow => true;
+  @override
+  Future<void> windowAction(Map<String, dynamic> action) async => windowCalls.add(action);
   @override
   Future<dynamic> ingest(Map<String, dynamic> request) async {
     ingestCalls.add(request['action'] as String);
@@ -205,6 +212,41 @@ void main() {
     expect(find.text('Nie wykryto napędu'), findsOneWidget);
     expect(repo.ingestCalls.toSet().difference({'drives', 'inputs', 'sessions', 'state', 'folders'}), isEmpty);
     expect(commands.where((c) => c['action'] == 'pause'), isEmpty);
+    await finish(tester);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+  testWidgets('mini player floats and comes back to the full app', (tester) async {
+    final repo = DesktopRepo();
+    await start(tester, repo: repo);
+    await tester.tap(find.byTooltip('Mini odtwarzacz (Ctrl+M)'));
+    await settle(tester);
+    expect(repo.windowCalls.last, {'action': 'mode', 'mode': 'mini'});
+    expect(find.byType(MiniPlayer), findsOneWidget);
+    expect(find.byType(Sidebar), findsNothing);
+    expect(find.text('Światło'), findsOneWidget);
+    await tester.tap(find.byTooltip('Pełna aplikacja (dwuklik)'));
+    await settle(tester);
+    expect(repo.windowCalls.last, {'action': 'mode', 'mode': 'normal'});
+    expect(find.byType(Sidebar), findsOneWidget);
+    await finish(tester);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+  testWidgets('visualization goes full screen and Esc restores the window', (tester) async {
+    final repo = DesktopRepo();
+    await start(tester, repo: repo);
+    await tester.tap(find.byTooltip('Wizualizacja (Ctrl+Shift+V)'));
+    await settle(tester);
+    expect(find.byType(VisualizerScreen), findsOneWidget);
+    expect(repo.windowCalls.last, {'action': 'mode', 'mode': 'fullscreen'});
+    expect(find.text('Plazma'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await settle(tester);
+    expect(find.text('Wstęgi'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await settle(tester);
+    await settle(tester);
+    expect(find.byType(VisualizerScreen), findsNothing);
+    expect(repo.windowCalls.last, {'action': 'mode', 'mode': 'normal'});
     await finish(tester);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 }

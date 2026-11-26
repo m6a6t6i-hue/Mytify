@@ -218,6 +218,13 @@ abstract class LibraryRepository {
   /// or null when the platform has no real signal to show.
   Future<List<double>?> audioLevels() async => null;
   bool get hasAudioLevels => false;
+
+  /// The desktop window can switch to the mini player and full screen.
+  bool get hasWindow => false;
+  Future<void> windowAction(Map<String, dynamic> action) async {}
+
+  /// Keeps the display on (full screen visualizations on a phone).
+  Future<void> keepScreenOn(bool value) async {}
   Future<void> dispose() async {}
 
   /// Network protocols that really work here ("smb" ...). Empty means local music only.
