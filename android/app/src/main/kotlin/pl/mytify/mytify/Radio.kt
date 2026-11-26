@@ -193,11 +193,11 @@ object Radio {
             if (!http(u)) throw IllegalArgumentException(Lang.t("Adres stacji musi zaczynać się od http:// lub https://"))
             if (u.substringBefore('?').lowercase().endsWith(".m3u8")) return u to true
             if (!playlistPathOf(u)) return u to false
+            // A dropped connection gets one more try; a ".m3u" address that already
+            // sends audio is the stream itself and is not read here.
             val (text, base) =
-                client.newCall(Request.Builder().url(u).build()).execute().use { r ->
-                    if (!r.isSuccessful) throw java.io.IOException(Lang.t("Stacja odpowiedziała błędem HTTP {0}.").replace("{0}", "${r.code}"))
-                    (r.body?.byteStream()?.readNBytesCompat(256 * 1024)?.toString(Charsets.UTF_8) ?: "") to r.request.url.toString()
-                }
+                runCatching { fetchList(u) }.getOrElse { if (it is java.io.IOException) fetchList(u) else throw it }
+                    ?: return u to false
             when (val next = parsePlaylist(text, base)) {
                 null -> throw java.io.IOException(Lang.t("Lista stacji nie zawiera adresu strumienia."))
                 "hls" -> return u to true
@@ -206,6 +206,15 @@ object Radio {
         }
         throw java.io.IOException(Lang.t("Za dużo przekierowań list stacji."))
     }
+
+    /** Playlist text and its final address, or null when the address answers with audio. */
+    private fun fetchList(u: String): Pair<String, String>? =
+        client.newCall(Request.Builder().url(u).build()).execute().use { r ->
+            if (!r.isSuccessful) throw java.io.IOException(Lang.t("Stacja odpowiedziała błędem HTTP {0}.").replace("{0}", "${r.code}"))
+            val type = (r.header("Content-Type") ?: "").substringBefore(';').trim().lowercase()
+            if (type.startsWith("audio/") && !type.contains("mpegurl") && !type.contains("scpls") && !type.contains("x-ms")) return null
+            (r.body?.byteStream()?.readNBytesCompat(64 * 1024)?.toString(Charsets.UTF_8) ?: "") to r.request.url.toString()
+        }
 
     private fun java.io.InputStream.readNBytesCompat(limit: Int): ByteArray {
         val out = java.io.ByteArrayOutputStream()

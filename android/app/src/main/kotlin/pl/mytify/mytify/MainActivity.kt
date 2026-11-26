@@ -411,7 +411,9 @@ class MainActivity : FlutterActivity() {
                             }
                         audioWorker.execute {
                             try {
-                                val (url, hls) = Radio.resolve(station.url)
+                                // If the playlist cannot be read now, the player opens it itself
+                                // when the stream starts (and retries), so the tap is not lost.
+                                val (url, hls) = runCatching { Radio.resolve(station.url) }.getOrElse { station.url to false }
                                 val ready = station.copy(url = url, hls = hls || station.hls)
                                 Radio.remember(applicationContext, ready)
                                 val (list, at) =
