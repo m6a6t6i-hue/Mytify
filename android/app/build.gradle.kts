@@ -84,7 +84,10 @@ tasks.register("mytifyRuntimeArtifacts") {
 
 tasks.withType<Test>().configureEach {
     maxHeapSize = "1g"
-    testLogging { events("passed", "skipped", "failed") }
+    testLogging {
+        events("passed", "skipped", "failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
     // Real Samba share in CI for the network source tests.
     listOf(
         "MYTIFY_SMB_HOST", "MYTIFY_SMB_SHARE", "MYTIFY_SMB_USER", "MYTIFY_SMB_PASSWORD",
