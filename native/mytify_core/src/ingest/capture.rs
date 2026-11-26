@@ -68,7 +68,8 @@ where
         slot.fetch_max(value.to_bits(), Ordering::Relaxed);
     }
     s.clips.fetch_add(clips, Ordering::Relaxed);
-    if s.failed.load(Ordering::Relaxed) || s.stop.load(Ordering::Relaxed) {
+    // Paused: the meter keeps working, nothing is recorded or counted.
+    if s.failed.load(Ordering::Relaxed) || s.stop.load(Ordering::Relaxed) || s.paused.load(Ordering::Relaxed) {
         return;
     }
     let size = 1024 / channels * channels;
@@ -177,10 +178,30 @@ pub fn run(engine: &Ingest, args: &Value, record: bool) -> Result<()> {
     let mut buffer = Vec::with_capacity(3072);
     let mut disk_error = None;
     let mut last_sync = std::time::Instant::now();
+    // End of a side: this many seconds below -50 dBFS after at least 30 s of recording.
+    let auto_stop = args["autoStop"].as_u64().filter(|s| *s >= 3 && *s <= 120);
+    let mut written: u64 = 0;
+    let mut quiet_since: Option<u64> = None;
+    let mut auto_ended = false;
     while !engine.signals.stop.load(Ordering::Acquire)
         && !engine.signals.failed.load(Ordering::Acquire)
+        && !auto_ended
     {
         while let Ok(p) = rx.pop() {
+            if let (Some(limit), true) = (auto_stop, record) {
+                let peak = p.samples[..p.len].iter().fold(0f32, |m, x| m.max(x.abs()));
+                if peak < 0.00316 {
+                    quiet_since.get_or_insert(written);
+                } else {
+                    quiet_since = None;
+                }
+                if let Some(q) = quiet_since {
+                    if written > rate as u64 * 30 && written - q > rate as u64 * limit {
+                        auto_ended = true;
+                    }
+                }
+            }
+            written += (p.len / channels as usize) as u64;
             if let Some(w) = wav.as_mut() {
                 buffer.clear();
                 for x in &p.samples[..p.len] {
@@ -232,6 +253,13 @@ pub fn run(engine: &Ingest, args: &Value, record: bool) -> Result<()> {
     }
     if let Some(mut w) = wav {
         if disk_error.is_none() {
+            if auto_ended {
+                // Keep one second of the closing silence.
+                if let Some(q) = quiet_since {
+                    w.truncate(q + rate as u64)?;
+                }
+                engine.state.lock().unwrap().ended = "silence".into();
+            }
             w.finish()?;
             let frames = w.frames();
             drop(w);

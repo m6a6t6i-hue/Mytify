@@ -1,6 +1,9 @@
 #[cfg(windows)]
 mod capture;
 pub mod cd;
+pub mod encode;
+pub mod loudness;
+pub mod verify;
 pub mod wav;
 use crate::catalog::{getrandom_bytes, hex, Catalog, ScanRequest};
 use anyhow::{anyhow, bail, Result};
@@ -36,6 +39,18 @@ pub struct Status {
     pub files: Vec<String>,
     pub warnings: Vec<String>,
     pub error: Option<String>,
+    /// What the job is doing now, for people ("Sprawdzanie płyty w AccurateRip").
+    pub step: String,
+    pub paused: bool,
+    /// Why a recording ended by itself ("silence"), empty otherwise.
+    pub ended: String,
+    /// CD: read offset used and where it came from.
+    pub offset: Option<i32>,
+    pub offset_source: String,
+    pub verdicts: Vec<verify::TrackVerdict>,
+    pub disc_check: Option<Value>,
+    /// Folder with the result (CD import, export).
+    pub folder: String,
 }
 pub struct Signals {
     pub stop: AtomicBool,
@@ -45,6 +60,7 @@ pub struct Signals {
     pub clips: AtomicU64,
     pub dropped: AtomicU64,
     pub failed: AtomicBool,
+    pub paused: AtomicBool,
 }
 impl Default for Signals {
     fn default() -> Self {
@@ -56,6 +72,7 @@ impl Default for Signals {
             clips: AtomicU64::new(0),
             dropped: AtomicU64::new(0),
             failed: AtomicBool::new(false),
+            paused: AtomicBool::new(false),
         }
     }
 }
@@ -93,6 +110,7 @@ impl Ingest {
                 .collect();
             s.clips = self.signals.clips.load(Ordering::Acquire);
             s.dropouts = self.signals.dropped.load(Ordering::Acquire);
+            s.paused = self.signals.paused.load(Ordering::Acquire);
         }
         serde_json::to_value(s).unwrap()
     }
@@ -102,6 +120,7 @@ impl Ingest {
         };
         self.signals.stop.store(false, Ordering::Release);
         self.signals.failed.store(false, Ordering::Release);
+        self.signals.paused.store(false, Ordering::Release);
         self.signals.frames.store(0, Ordering::Release);
         self.signals.peak.store(0, Ordering::Release);
         for p in &self.signals.peaks {
@@ -178,6 +197,78 @@ impl Ingest {
                 self.signals.stop.store(true, Ordering::Release);
                 Ok(self.snapshot())
             }
+            "pause" => {
+                let s = self.state.lock().unwrap();
+                if !s.recording {
+                    bail!("Pauza działa podczas nagrania")
+                };
+                self.signals.paused.store(v["value"].as_bool().unwrap_or(true), Ordering::Release);
+                drop(s);
+                Ok(self.snapshot())
+            }
+            "media" => {
+                #[cfg(windows)]
+                {
+                    Ok(json!(cd::device::drives()
+                        .into_iter()
+                        .map(|id| {
+                            let media = cd::device::Drive::open(&id).map(|d| d.has_media()).unwrap_or(false);
+                            json!({"id": id, "media": media})
+                        })
+                        .collect::<Vec<_>>()))
+                }
+                #[cfg(not(windows))]
+                {
+                    Ok(json!([]))
+                }
+            }
+            "eject" => {
+                #[cfg(windows)]
+                {
+                    if self.busy.load(Ordering::Acquire) {
+                        bail!("Zakończ bieżący import")
+                    };
+                    cd::device::Drive::open(v["drive"].as_str().unwrap_or(""))?.eject()?;
+                    Ok(json!({"ok": true}))
+                }
+                #[cfg(not(windows))]
+                {
+                    bail!("Wysuwanie płyty działa w wersji Windows")
+                }
+            }
+            "offsets" => Ok(json!(self.saved_offsets())),
+            "waveform" => {
+                let path = self.session_path(v["id"].as_str().unwrap_or(""))?.join("master.wav");
+                let points = v["points"].as_u64().unwrap_or(2000).clamp(100, 20000) as usize;
+                Ok(json!(waveform(&path, points)?))
+            }
+            "preview" => {
+                let path = self.session_path(v["id"].as_str().unwrap_or(""))?.join("master.wav");
+                let at = v["positionMs"].as_u64().unwrap_or(0);
+                preview(&path, &self.root().join("preview.wav"), at, v["seconds"].as_f64().unwrap_or(3.0))?;
+                Ok(json!({"ok": true}))
+            }
+            "previewStop" => {
+                stop_preview();
+                Ok(json!({"ok": true}))
+            }
+            "openPath" => {
+                #[cfg(windows)]
+                {
+                    let target = PathBuf::from(v["path"].as_str().unwrap_or(""));
+                    let root = self.catalog.root.canonicalize()?;
+                    let target = target.canonicalize()?;
+                    if !target.starts_with(&root) || !target.is_dir() {
+                        bail!("Ten folder nie należy do Mytify")
+                    }
+                    std::process::Command::new("explorer.exe").arg(target).spawn()?;
+                    Ok(json!({"ok": true}))
+                }
+                #[cfg(not(windows))]
+                {
+                    bail!("Folder otworzysz w wersji Windows")
+                }
+            }
             "mark" => {
                 let mut s = self.state.lock().unwrap();
                 if !s.recording {
@@ -236,7 +327,12 @@ impl Ingest {
                 {
                     let id = v["drive"].as_str().unwrap_or("");
                     let d = cd::device::Drive::open(id)?;
-                    Ok(serde_json::to_value(d.toc(id)?)?)
+                    let toc = d.toc(id)?;
+                    let mut out = serde_json::to_value(&toc)?;
+                    out["cdText"] = json!(d.cd_text(toc.tracks.len()));
+                    out["driveName"] = json!(cd::device::name(id));
+                    out["offset"] = json!(cd::device::name(id).and_then(|n| self.saved_offsets().get(&n).copied()));
+                    Ok(out)
                 }
                 #[cfg(not(windows))]
                 {
@@ -305,6 +401,17 @@ impl Ingest {
                 std::fs::rename(partial, target)?;
                 Ok(json!({"ok":true}))
             }
+            "align" => {
+                if self.busy.load(Ordering::Acquire) {
+                    bail!("Zakończ bieżącą operację")
+                };
+                let path = self.session_path(v["id"].as_str().unwrap_or(""))?.join("master.wav");
+                let durations: Vec<u64> = serde_json::from_value(v["durations"].clone())?;
+                if durations.len() < 2 || durations.len() > 100 {
+                    bail!("Wybierz co najmniej dwa utwory z listy")
+                }
+                Ok(json!(align(&path, &durations)?))
+            }
             "analyze" => {
                 if self.busy.load(Ordering::Acquire) {
                     bail!("Zakończ bieżącą operację")
@@ -321,6 +428,26 @@ impl Ingest {
             _ => bail!("Nieznana operacja importu"),
         }
     }
+    fn step(&self, text: &str) {
+        self.state.lock().unwrap().step = text.into();
+    }
+    fn offsets_file(&self) -> PathBuf {
+        self.catalog.root.join("drive-offsets.json")
+    }
+    /// Read offsets found or set per drive model.
+    pub fn saved_offsets(&self) -> std::collections::BTreeMap<String, i32> {
+        std::fs::read(self.offsets_file())
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default()
+    }
+#[cfg_attr(not(windows), allow(dead_code))]
+    fn save_offset(&self, drive: &str, offset: i32) -> Result<()> {
+        let mut all = self.saved_offsets();
+        all.insert(drive.into(), offset);
+        std::fs::write(self.offsets_file(), serde_json::to_vec_pretty(&all)?)?;
+        Ok(())
+    }
     fn export(&self, v: &Value) -> Result<()> {
         let dir = self.session_path(v["id"].as_str().unwrap_or(""))?;
         let master = dir.join("master.wav");
@@ -334,32 +461,136 @@ impl Ingest {
         if titles.len() != bounds.len() - 1 {
             bail!("Nadaj tytuł każdemu utworowi")
         };
+        let artists: Vec<String> = serde_json::from_value(v["artists"].clone()).unwrap_or_default();
+        let restore = encode::Restore::from_json(&v["restore"])?;
+        let mp3 = v["mp3"].as_bool().unwrap_or(false);
+        // Side B continues the numbering of side A.
+        let first = v["firstTrack"].as_u64().unwrap_or(1).clamp(1, 99) as usize;
         let dest = dir.join(format!("export-{}", hex(getrandom_bytes()?)));
         std::fs::create_dir(&dest)?;
-        self.state.lock().unwrap().total = titles.len() as u64;
+        if mp3 {
+            std::fs::create_dir(dest.join("MP3"))?;
+        }
+        let cover = self.cover_bytes(v);
+        if let Some(c) = &cover {
+            std::fs::write(dest.join("cover.jpg"), c)?;
+        }
+        {
+            let mut s = self.state.lock().unwrap();
+            s.total = titles.len() as u64;
+            s.folder = dest.to_string_lossy().into_owned();
+            s.step = if restore.active() { "Obróbka kopii i zapis".into() } else { "Zapis utworów".into() };
+        }
+        let mut made: Vec<(PathBuf, Option<PathBuf>, loudness::Loudness)> = Vec::new();
+        let mut clicks = 0;
         for (i, b) in bounds.windows(2).enumerate() {
             if self.signals.stop.load(Ordering::Acquire) {
                 break;
             }
-            let out = dest.join(format!("{:02}-{}.flac", i + 1, safe_name(&titles[i])));
+            let name = format!("{:02}-{}", i + first, safe_name(&titles[i]));
+            let out = dest.join(format!("{name}.flac"));
             let partial = out.with_extension("flac.partial");
-            wav::flac_cancellable(&master, &partial, b[0], b[1], &self.signals.stop)?;
-            tag(&partial, v, &titles[i], i + 1)?;
-            std::fs::rename(&partial, &out)?;
-            self.state
-                .lock()
-                .unwrap()
-                .files
-                .push(out.to_string_lossy().into_owned());
-            self.state.lock().unwrap().done = (i + 1) as u64;
-            self.catalog.scan(
-                ScanRequest {
-                    paths: vec![out.to_string_lossy().into_owned()],
-                    ..Default::default()
-                },
-                &AtomicBool::new(false),
-                |_| {},
+            let mp3_out = mp3.then(|| dest.join("MP3").join(format!("{name}.mp3")));
+            let e = encode::encode(
+                &master,
+                b[0],
+                b[1],
+                &encode::Outputs { flac: &partial, mp3: mp3_out.as_deref(), restore: restore.clone() },
+                &self.signals.stop,
             )?;
+            clicks += e.clicks;
+            std::fs::rename(&partial, &out)?;
+            made.push((out.clone(), mp3_out, e.loudness));
+            let mut s = self.state.lock().unwrap();
+            s.files.push(out.to_string_lossy().into_owned());
+            s.done = (i + 1) as u64;
+        }
+        if restore.declick && clicks > 0 {
+            self.state.lock().unwrap().warnings.push(format!("Usunięto trzaski: {clicks}."));
+        }
+        self.step("Opis utworów i ReplayGain");
+        let total = v["totalTracks"].as_u64().map(|t| t as u32).unwrap_or((first - 1 + titles.len()) as u32);
+        let tags: Vec<TagInfo> = made
+            .iter()
+            .enumerate()
+            .map(|(i, _)| TagInfo::from_request(v, &titles[i], artists.get(i).map(String::as_str), (i + first) as u32, total))
+            .collect();
+        self.finish_tracks(&made, tags, cover.as_deref())?;
+        Ok(())
+    }
+    /// Cover chosen in the app (artwork hash), if any.
+    fn cover_bytes(&self, v: &Value) -> Option<Vec<u8>> {
+        let hash = v["cover"].as_str()?;
+        let path = self.catalog.artwork_path(hash).ok()?;
+        std::fs::read(path).ok()
+    }
+    /// ReplayGain for every track and the album, final tags, then the library scan.
+    fn finish_tracks(
+        &self,
+        made: &[(PathBuf, Option<PathBuf>, loudness::Loudness)],
+        mut tags: Vec<TagInfo>,
+        cover: Option<&[u8]>,
+    ) -> Result<()> {
+        let mut all = Vec::new();
+        let mut album_peak: f64 = 0.0;
+        for (_, _, l) in made {
+            all.extend_from_slice(&l.blocks);
+            album_peak = album_peak.max(l.peak);
+        }
+        let album = loudness::integrated(&all).map(loudness::gain);
+        for ((flac, mp3, l), t) in made.iter().zip(tags.iter_mut()) {
+            t.gain = loudness::integrated(&l.blocks).map(|g| (loudness::gain(g), l.peak));
+            t.album_gain = album.map(|g| (g, album_peak));
+            write_tags(flac, t, cover)?;
+            if let Some(m) = mp3 {
+                write_tags(m, t, cover)?;
+            }
+        }
+        self.catalog.scan(
+            ScanRequest {
+                paths: made.iter().map(|(f, _, _)| f.to_string_lossy().into_owned()).collect(),
+                ..Default::default()
+            },
+            &AtomicBool::new(false),
+            |_| {},
+        )?;
+        Ok(())
+    }
+    /// Reads `count` stereo samples starting at sample `from` (may be negative or past
+    /// the lead-out after offset correction; those parts are silence).
+#[cfg_attr(not(windows), allow(dead_code))]
+    fn read_samples(
+        &self,
+        reader: &impl cd::Reader,
+        leadout: u32,
+        from: i64,
+        count: u64,
+        retried: &mut Vec<u32>,
+        mut sink: impl FnMut(&[u8]) -> Result<()>,
+    ) -> Result<()> {
+        let spsec = verify::SAMPLES_PER_SECTOR as i64;
+        let end = from + count as i64;
+        let mut s = from;
+        while s < end {
+            if self.signals.stop.load(Ordering::Acquire) {
+                return Ok(());
+            }
+            let sector = s.div_euclid(spsec);
+            let n = ((end - sector * spsec + spsec - 1) / spsec).clamp(1, 16);
+            let mut bytes = vec![0u8; n as usize * 2352];
+            let lo = sector.max(0);
+            let hi = (sector + n).min(leadout as i64);
+            if lo < hi {
+                let (b, r) = cd::verified_chunk(|l, k| reader.read(l, k), lo as u32, (hi - lo) as u32)?;
+                retried.extend(r);
+                let at = (lo - sector) as usize * 2352;
+                bytes[at..at + b.len()].copy_from_slice(&b);
+            }
+            let skip = (s - sector * spsec) as usize;
+            let take = ((n * spsec) as usize - skip).min((end - s) as usize);
+            sink(&bytes[skip * 4..(skip + take) * 4])?;
+            s += take as i64;
+            self.state.lock().unwrap().done += n as u64;
         }
         Ok(())
     }
@@ -368,6 +599,14 @@ impl Ingest {
         let drive = v["drive"].as_str().unwrap_or("");
         let reader = cd::device::Drive::open(drive)?;
         let toc = reader.toc(drive)?;
+        let drive_name = cd::device::name(drive).unwrap_or_else(|| drive.to_string());
+        self.step("Sprawdzanie płyty w AccurateRip i CTDB");
+        let db = verify::lookup(&toc);
+        self.rip_with(&reader, toc, &drive_name, db, v)
+    }
+    /// The rip itself, independent of the drive API (tested with a simulated disc).
+#[cfg_attr(not(windows), allow(dead_code))]
+    fn rip_with(&self, reader: &impl cd::Reader, toc: cd::Toc, drive_name: &str, db: verify::Databases, v: &Value) -> Result<()> {
         if v["discId"] != toc.disc_id {
             bail!("Płyta zmieniła się. Odczytaj listę ścieżek ponownie.")
         };
@@ -375,26 +614,130 @@ impl Ingest {
         if titles.len() != toc.tracks.len() {
             bail!("Nieprawidłowa liczba tytułów")
         };
+        let artists: Vec<String> = serde_json::from_value(v["artists"].clone()).unwrap_or_default();
         // Optional list of track numbers to import; all tracks when absent.
         let chosen: Option<Vec<u8>> = serde_json::from_value(v["tracks"].clone()).ok();
         let wanted = |n: u8| chosen.as_ref().is_none_or(|c| c.contains(&n));
         if !toc.tracks.iter().any(|t| wanted(t.number)) {
             bail!("Zaznacz co najmniej jeden utwór")
         };
-        let dest = self
-            .catalog
-            .root
-            .join("cd-imports")
-            .join(hex(getrandom_bytes()?));
+        let whole = toc.tracks.iter().all(|t| wanted(t.number));
+        let mp3 = v["mp3"].as_bool().unwrap_or(false);
+        let spsec = verify::SAMPLES_PER_SECTOR;
+        let dest = self.catalog.root.join("cd-imports").join(hex(getrandom_bytes()?));
         std::fs::create_dir_all(&dest)?;
-        self.state.lock().unwrap().total = toc
-            .tracks
-            .iter()
-            .filter(|t| wanted(t.number))
-            .map(|t| (t.end - t.start) as u64)
-            .sum();
-        let mut done = 0;
-        let mut reports = Vec::new();
+        if mp3 {
+            std::fs::create_dir(dest.join("MP3"))?;
+        }
+        let cover = self.cover_bytes(v);
+        if let Some(c) = &cover {
+            std::fs::write(dest.join("cover.jpg"), c)?;
+        }
+        self.state.lock().unwrap().folder = dest.to_string_lossy().into_owned();
+        for e in &db.errors {
+            self.state.lock().unwrap().warnings.push(format!("Weryfikacja online: {e}"));
+        }
+        self.state.lock().unwrap().disc_check = Some(json!(db));
+
+        // Read offset: chosen by the user, remembered for this drive, or found now.
+        let mut log = Vec::<String>::new();
+        let (offset, source) = if let Some(o) = verify::parse_offset(&v["offset"])? {
+            (o, "ustawione ręcznie")
+        } else if let Some(o) = self.saved_offsets().get(drive_name) {
+            (*o, "zapamiętane dla napędu")
+        } else if !db.accuraterip.is_empty() {
+            self.step("Ustalanie przesunięcia odczytu napędu");
+            let n = toc.tracks.len();
+            let mut order: Vec<usize> = (0..n)
+                .filter(|i| db.accuraterip.iter().any(|r| r.tracks.get(*i).is_some_and(|(c, _)| *c > 0)))
+                .collect();
+            // Short middle tracks first: quick to read and free of the disc edge rules.
+            order.sort_by_key(|i| {
+                let t = &toc.tracks[*i];
+                let edge = *i == 0 || *i + 1 == n;
+                (edge, (t.end - t.start).max(75 * 20))
+            });
+            let mut found = None;
+            for i in order.into_iter().take(2) {
+                let t = &toc.tracks[i];
+                let margin = 4 * spsec;
+                let samples = (t.end - t.start) as u64 * spsec;
+                let mut padded = Vec::with_capacity(((samples + 2 * margin) * 4) as usize);
+                let mut retried = Vec::new();
+                self.read_samples(reader, toc.leadout, t.start as i64 * spsec as i64 - margin as i64, samples + 2 * margin, &mut retried, |b| {
+                    padded.extend_from_slice(b);
+                    Ok(())
+                })?;
+                if self.signals.stop.load(Ordering::Acquire) {
+                    return Ok(());
+                }
+                found = verify::find_offset(&db, i, i == 0, i + 1 == n, samples, &padded, margin);
+                if found.is_some() {
+                    break;
+                }
+            }
+            self.state.lock().unwrap().done = 0;
+            match found {
+                Some(o) => {
+                    let _ = self.save_offset(drive_name, o);
+                    (o, "wykryte z AccurateRip")
+                }
+                None => (0, "nieznane (płyta nie pozwoliła go ustalić)"),
+            }
+        } else {
+            (0, "nieznane (płyty nie ma w AccurateRip)")
+        };
+        {
+            let mut s = self.state.lock().unwrap();
+            s.offset = Some(offset);
+            s.offset_source = source.into();
+            s.done = 0;
+            s.total = toc
+                .tracks
+                .iter()
+                .filter(|t| wanted(t.number))
+                .map(|t| (t.end - t.start) as u64)
+                .sum();
+        }
+
+        let n = toc.tracks.len();
+        let (prefix, suffix) = verify::ctdb_edges(&toc);
+        let first_sample = toc.tracks[0].start as u64 * spsec;
+        let disc_end = toc.leadout as u64 * spsec;
+        let mut disc_crc = verify::Crc32::default();
+        let mut made: Vec<(PathBuf, Option<PathBuf>, loudness::Loudness)> = Vec::new();
+        let mut tags = Vec::new();
+        let mut verdicts = Vec::new();
+
+        // Hidden track before track 1 (HTOA): kept only when it is not silence.
+        if toc.tracks[0].start > 0 && whole && v["htoa"].as_bool().unwrap_or(true) {
+            self.step("Sprawdzanie ukrytego utworu przed ścieżką 1");
+            let samples = toc.tracks[0].start as u64 * spsec;
+            let temp = dest.join("track-00.wav.partial");
+            let mut wav = wav::Wav::create(&temp, 44100, 2, 16)?;
+            let mut loud = false;
+            let mut retried = Vec::new();
+            self.read_samples(reader, toc.leadout, offset as i64, samples, &mut retried, |b| {
+                loud |= b.chunks_exact(2).any(|x| i16::from_le_bytes([x[0], x[1]]).unsigned_abs() > 64);
+                wav.write(b)
+            })?;
+            wav.finish()?;
+            drop(wav);
+            if loud && !self.signals.stop.load(Ordering::Acquire) {
+                let out = dest.join("00-Ukryty utwór.flac");
+                let partial = out.with_extension("flac.partial");
+                let mp3_out = mp3.then(|| dest.join("MP3").join("00-Ukryty utwór.mp3"));
+                let e = encode::encode(&temp, 0, samples, &encode::Outputs { flac: &partial, mp3: mp3_out.as_deref(), restore: Default::default() }, &self.signals.stop)?;
+                std::fs::rename(&partial, &out)?;
+                made.push((out.clone(), mp3_out, e.loudness));
+                tags.push(TagInfo::from_request(v, "Ukryty utwór", None, 0, n as u32));
+                self.state.lock().unwrap().files.push(out.to_string_lossy().into_owned());
+                log.push(format!("Ukryty utwór przed ścieżką 1: {}, zapisany jako 00.", clock(samples / 44100)));
+            }
+            let _ = std::fs::remove_file(&temp);
+            self.state.lock().unwrap().done = 0;
+        }
+
         for (i, track) in toc.tracks.iter().enumerate() {
             if self.signals.stop.load(Ordering::Acquire) {
                 break;
@@ -402,72 +745,254 @@ impl Ingest {
             if !wanted(track.number) {
                 continue;
             }
+            self.step(&format!("Odczyt ścieżki {} z {}", track.number, n));
+            let samples = (track.end - track.start) as u64 * spsec;
+            let track_from = track.start as u64 * spsec;
+            let mut sums = verify::TrackSums::new(samples, i == 0, i + 1 == n, prefix, suffix);
             let temp = dest.join(format!("track-{:02}.wav.partial", track.number));
             let mut wav = wav::Wav::create(&temp, 44100, 2, 16)?;
-            let mut lba = track.start;
-            let mut uncertain = Vec::new();
-            while lba < track.end {
-                if self.signals.stop.load(Ordering::Acquire) {
-                    break;
+            let mut retried = Vec::new();
+            let mut at = track_from;
+            self.read_samples(reader, toc.leadout, track_from as i64 + offset as i64, samples, &mut retried, |b| {
+                sums.feed(b);
+                if whole {
+                    // Whole-disc CTDB CRC over the same edges as the database.
+                    let frames = (b.len() / 4) as u64;
+                    let lo = (first_sample + prefix).max(at);
+                    let hi = (disc_end - suffix).min(at + frames);
+                    if lo < hi {
+                        disc_crc.update(&b[((lo - at) * 4) as usize..((hi - at) * 4) as usize]);
+                    }
+                    at += frames;
                 }
-                let n = (track.end - lba).min(16);
-                let (bytes, retried) = cd::verified_chunk(|l, n| reader.read(l, n), lba, n)?;
-                uncertain.extend(retried);
-                wav.write(&bytes)?;
-                lba += n;
-                done += n as u64;
-                let mut s = self.state.lock().unwrap();
-                s.done = done;
-            }
+                wav.write(b)
+            })?;
             wav.finish()?;
             drop(wav);
             if self.signals.stop.load(Ordering::Acquire) {
+                let _ = std::fs::remove_file(&temp);
                 break;
             }
-            let final_file = dest.join(format!(
-                "{:02}-{}.flac",
-                track.number,
-                safe_name(&titles[i])
-            ));
-            let partial = final_file.with_extension("flac.partial");
-            let w = wav::Wav::read(&temp)?;
-            let frames = w.frames();
-            drop(w);
-            wav::flac_cancellable(&temp, &partial, 0, frames, &self.signals.stop)?;
-            tag(&partial, v, &titles[i], track.number as usize)?;
-            std::fs::rename(partial, &final_file)?;
+            let verdict = verify::judge(&db, i, track.number, &sums, retried.len());
+            self.state.lock().unwrap().verdicts.push(verdict.clone());
+            verdicts.push(verdict);
+            self.step(&format!("Zapis ścieżki {}", track.number));
+            let name = format!("{:02}-{}", track.number, safe_name(&titles[i]));
+            let out = dest.join(format!("{name}.flac"));
+            let partial = out.with_extension("flac.partial");
+            let mp3_out = mp3.then(|| dest.join("MP3").join(format!("{name}.mp3")));
+            let e = encode::encode(&temp, 0, samples, &encode::Outputs { flac: &partial, mp3: mp3_out.as_deref(), restore: Default::default() }, &self.signals.stop)?;
+            std::fs::rename(&partial, &out)?;
             std::fs::remove_file(&temp)?;
-            self.state
-                .lock()
-                .unwrap()
-                .files
-                .push(final_file.to_string_lossy().into_owned());
-            if !uncertain.is_empty() {
+            made.push((out.clone(), mp3_out, e.loudness));
+            tags.push(TagInfo::from_request(v, &titles[i], artists.get(i).map(String::as_str), track.number as u32, n as u32));
+            self.state.lock().unwrap().files.push(out.to_string_lossy().into_owned());
+            if !retried.is_empty() {
                 self.state.lock().unwrap().warnings.push(format!(
-                    "Ścieżka {}: {} sektorów wymagało dodatkowych odczytów. Odsłuchaj utwór.",
+                    "Ścieżka {}: {} sektorów wymagało dodatkowych odczytów.",
                     track.number,
-                    uncertain.len()
+                    retried.len()
                 ));
             }
-            reports.push(json!({"track":track.number,"retriedSectors":uncertain,"repeatedReadAgreement":true,"accurateRip":false}));
-            self.catalog.scan(
-                ScanRequest {
-                    paths: vec![final_file.to_string_lossy().into_owned()],
-                    ..Default::default()
-                },
-                &AtomicBool::new(false),
-                |_| {},
-            )?;
         }
+        if made.is_empty() {
+            return Ok(());
+        }
+        self.step("Opis utworów i ReplayGain");
+        self.finish_tracks(&made, tags, cover.as_deref())?;
+
+        let complete = whole && verdicts.len() == n;
+        let disc = complete.then(|| disc_crc.finish());
+        let ctdb_disc: u32 = disc.map(|c| db.ctdb.iter().filter(|e| e.crc == c).map(|e| e.confidence).sum()).unwrap_or(0);
+        if let Some(c) = disc {
+            self.state.lock().unwrap().disc_check = Some(json!({
+                "accuraterip": db.accuraterip_entries, "ctdb": db.ctdb_entries,
+                "ctdbCrc": format!("{c:08x}"), "ctdbConfidence": ctdb_disc, "errors": db.errors,
+            }));
+        }
+        self.write_cue_and_log(&dest, v, &toc, &titles, &artists, drive_name, offset, source, &verdicts, &made, &db, disc, ctdb_disc, &log)?;
+        if v["eject"].as_bool().unwrap_or(false) && !self.signals.stop.load(Ordering::Acquire) {
+            let _ = reader.eject();
+        }
+        Ok(())
+    }
+#[cfg_attr(not(windows), allow(dead_code))]
+    #[allow(clippy::too_many_arguments)]
+    fn write_cue_and_log(
+        &self,
+        dest: &Path,
+        v: &Value,
+        toc: &cd::Toc,
+        titles: &[String],
+        artists: &[String],
+        drive: &str,
+        offset: i32,
+        source: &str,
+        verdicts: &[verify::TrackVerdict],
+        made: &[(PathBuf, Option<PathBuf>, loudness::Loudness)],
+        db: &verify::Databases,
+        disc: Option<u32>,
+        ctdb_disc: u32,
+        notes: &[String],
+    ) -> Result<()> {
+        let q = |s: &str| s.replace('"', "'");
+        let album = v["album"].as_str().unwrap_or("");
+        let artist = v["artist"].as_str().unwrap_or("");
+        let mut cue = String::new();
+        cue.push_str(&format!("REM DISCID {:08X}\r\n", verify::cddb_id(toc)));
+        if let Some(d) = v["date"].as_str().filter(|d| !d.is_empty()) {
+            cue.push_str(&format!("REM DATE {}\r\n", &d[..d.len().min(4)]));
+        }
+        cue.push_str("REM COMMENT \"Mytify\"\r\n");
+        cue.push_str(&format!("PERFORMER \"{}\"\r\nTITLE \"{}\"\r\n", q(artist), q(album)));
+        for (path, _, _) in made {
+            let file = path.file_name().unwrap().to_string_lossy();
+            let number: u8 = file[..2].parse().unwrap_or(0);
+            cue.push_str(&format!("FILE \"{}\" WAVE\r\n", q(&file)));
+            if number == 0 {
+                // Hidden audio before track 1 is that track's index 00.
+                cue.push_str("  TRACK 01 AUDIO\r\n    INDEX 00 00:00:00\r\n");
+                continue;
+            }
+            let i = toc.tracks.iter().position(|t| t.number == number).unwrap_or(0);
+            cue.push_str(&format!("  TRACK {number:02} AUDIO\r\n    TITLE \"{}\"\r\n", q(&titles[i])));
+            let a = artists.get(i).map(String::as_str).filter(|a| !a.is_empty()).unwrap_or(artist);
+            cue.push_str(&format!("    PERFORMER \"{}\"\r\n    INDEX 01 00:00:00\r\n", q(a)));
+        }
+        std::fs::write(dest.join(format!("{}.cue", safe_name(if album.is_empty() { "Album" } else { album }))), cue)?;
+
+        let mut log = String::new();
+        let ar = |x: &verify::TrackVerdict| {
+            if db.accuraterip.is_empty() {
+                "brak płyty w bazie".to_string()
+            } else if x.accuraterip > 0 {
+                format!("zgodny (pewność {})", x.accuraterip)
+            } else if x.accuraterip_best > 0 {
+                "NIEZGODNY".to_string()
+            } else {
+                "brak utworu w bazie".to_string()
+            }
+        };
+        log.push_str("Mytify, raport importu Audio CD\r\n\r\n");
+        log.push_str(&format!("Album: {artist} / {album}\r\nNapęd: {drive}\r\n"));
+        log.push_str(&format!("Przesunięcie odczytu: {offset:+} próbek ({source})\r\n"));
+        log.push_str("Odczyt: każdy fragment dwa razy z porównaniem, przy różnicy do 4 odczytów pojedynczego sektora.\r\n");
+        log.push_str("Przerwy między utworami: dołączone do poprzedniego utworu (indeksy 00 nie są odczytywane).\r\n");
+        log.push_str(&format!("Disc ID MusicBrainz: {}\r\nAccurateRip: {}\r\n\r\n", toc.disc_id, verify::accuraterip_path(toc)));
+        for n in notes {
+            log.push_str(n);
+            log.push_str("\r\n");
+        }
+        for x in verdicts {
+            log.push_str(&format!(
+                "Ścieżka {:02}  CRC32 {}  AR v1 {}  AR v2 {}  AccurateRip: {}  CTDB: {}  Powtórzone sektory: {}\r\n",
+                x.track, x.crc, x.v1, x.v2, ar(x),
+                if db.ctdb.is_empty() { "brak płyty w bazie".into() } else if x.ctdb > 0 { format!("zgodny (pewność {})", x.ctdb) } else { "brak zgodności".into() },
+                x.retried_sectors
+            ));
+        }
+        if let Some(c) = disc {
+            log.push_str(&format!("\r\nCTDB cała płyta: CRC {c:08x}, {}\r\n", if ctdb_disc > 0 { format!("zgodna (pewność {ctdb_disc})") } else { "brak zgodnego wpisu".into() }));
+        }
+        for e in &db.errors {
+            log.push_str(&format!("Uwaga: {e}\r\n"));
+        }
+        let ok = verdicts.iter().filter(|x| x.accuraterip > 0 || x.ctdb > 0).count();
+        log.push_str(&format!("\r\nZweryfikowane w bazach: {ok} z {} ścieżek.\r\n", verdicts.len()));
+        std::fs::write(dest.join("Raport importu.log"), log)?;
         std::fs::write(
             dest.join("READ_REPORT.json"),
-            serde_json::to_vec_pretty(
-                &json!({"toc":toc,"tracks":reports,"note":"Powtarzane odczyty mogą korzystać z cache napędu. Brak AccurateRip, korekcji offsetu i pełnej walidacji jitter/C2."}),
-            )?,
+            serde_json::to_vec_pretty(&json!({"toc": toc, "drive": drive, "offset": offset, "offsetSource": source, "tracks": verdicts, "ctdbDisc": disc.map(|c| format!("{c:08x}")), "ctdbDiscConfidence": ctdb_disc}))?,
         )?;
         Ok(())
     }
 }
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn clock(seconds: u64) -> String {
+    format!("{}:{:02}", seconds / 60, seconds % 60)
+}
+
+/// Peak envelope of a recording: `points` pairs of (min, max) per channel mix, -1..1.
+fn waveform(path: &Path, points: usize) -> Result<Value> {
+    let mut w = wav::Wav::read(path)?;
+    let frames = w.frames();
+    let block = w.channels as usize * w.bits as usize / 8;
+    let per = frames.div_ceil(points as u64).max(1);
+    let mut out = Vec::with_capacity(points * 2);
+    w.file.seek(SeekFrom::Start(44))?;
+    let mut buf = vec![0u8; (per as usize).min(1 << 20) * block];
+    let mut left = frames;
+    let full = if w.bits == 16 { 32768.0 } else { 8388608.0 };
+    while left > 0 {
+        let n = left.min(per) as usize;
+        let mut lo = 0f32;
+        let mut hi = 0f32;
+        let mut remaining = n;
+        while remaining > 0 {
+            let k = remaining.min(buf.len() / block);
+            w.file.read_exact(&mut buf[..k * block])?;
+            for s in buf[..k * block].chunks_exact(w.bits as usize / 8) {
+                let x = if w.bits == 16 {
+                    i16::from_le_bytes([s[0], s[1]]) as f32
+                } else {
+                    (i32::from_le_bytes([0, s[0], s[1], s[2]]) >> 8) as f32
+                } / full;
+                lo = lo.min(x);
+                hi = hi.max(x);
+            }
+            remaining -= k;
+        }
+        out.push((lo * 1000.0).round() / 1000.0);
+        out.push((hi * 1000.0).round() / 1000.0);
+        left -= n as u64;
+    }
+    Ok(json!({"rate": w.rate, "frames": frames, "perPoint": per, "peaks": out}))
+}
+
+/// Plays a few seconds around a position through the default output (Windows),
+/// converted to 16 bit so every driver accepts it.
+fn preview(path: &Path, temp: &Path, at_ms: u64, seconds: f64) -> Result<()> {
+    let mut w = wav::Wav::read(path)?;
+    let rate = w.rate as u64;
+    let frames = w.frames();
+    let half = (seconds.clamp(0.5, 10.0) * rate as f64 / 2.0) as u64;
+    let center = (at_ms * rate / 1000).min(frames);
+    let start = center.saturating_sub(half);
+    let end = (center + half).min(frames);
+    let block = w.channels as usize * w.bits as usize / 8;
+    w.file.seek(SeekFrom::Start(44 + start * block as u64))?;
+    let mut raw = vec![0u8; (end - start) as usize * block];
+    w.file.read_exact(&mut raw)?;
+    stop_preview();
+    let _ = std::fs::remove_file(temp);
+    let mut out = wav::Wav::create(temp, w.rate, w.channels, 16)?;
+    let mut pcm = Vec::with_capacity(raw.len());
+    for s in raw.chunks_exact(w.bits as usize / 8) {
+        let v = if w.bits == 16 { i16::from_le_bytes([s[0], s[1]]) } else { i16::from_le_bytes([s[1], s[2]]) };
+        pcm.extend_from_slice(&v.to_le_bytes());
+    }
+    out.write(&pcm)?;
+    out.finish()?;
+    drop(out);
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Media::Audio::{PlaySoundW, SND_ASYNC, SND_FILENAME, SND_NODEFAULT};
+        let name: Vec<u16> = temp.as_os_str().to_string_lossy().encode_utf16().chain(Some(0)).collect();
+        unsafe {
+            PlaySoundW(name.as_ptr(), std::ptr::null_mut(), SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+        }
+    }
+    Ok(())
+}
+
+fn stop_preview() {
+    #[cfg(windows)]
+    unsafe {
+        windows_sys::Win32::Media::Audio::PlaySoundW(std::ptr::null(), std::ptr::null_mut(), 0);
+    }
+}
+
 fn safe_name(s: &str) -> String {
     let s = s
         .chars()
@@ -488,22 +1013,84 @@ fn safe_name(s: &str) -> String {
         s
     }
 }
-pub(crate) fn tag(path: &Path, v: &Value, title: &str, number: usize) -> Result<()> {
+/// Everything written into a FLAC or MP3 file made by import.
+#[derive(Clone, Debug, Default)]
+pub struct TagInfo {
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub album_artist: String,
+    pub track: u32,
+    pub tracks: u32,
+    pub disc: Option<u32>,
+    pub discs: Option<u32>,
+    pub date: String,
+    pub release_id: String,
+    /// (gain dB, peak 0..1)
+    pub gain: Option<(f64, f64)>,
+    pub album_gain: Option<(f64, f64)>,
+}
+impl TagInfo {
+    pub fn from_request(v: &Value, title: &str, artist: Option<&str>, track: u32, tracks: u32) -> Self {
+        let album_artist = v["artist"].as_str().unwrap_or("").to_string();
+        Self {
+            title: title.into(),
+            artist: artist.filter(|a| !a.is_empty()).map(str::to_string).unwrap_or_else(|| album_artist.clone()),
+            album: v["album"].as_str().unwrap_or("").into(),
+            album_artist,
+            track,
+            tracks,
+            disc: v["disc"].as_u64().map(|d| d as u32),
+            discs: v["discs"].as_u64().map(|d| d as u32),
+            date: v["date"].as_str().unwrap_or("").into(),
+            release_id: v["releaseId"].as_str().unwrap_or("").into(),
+            gain: None,
+            album_gain: None,
+        }
+    }
+}
+
+pub(crate) fn write_tags(path: &Path, t: &TagInfo, cover: Option<&[u8]>) -> Result<()> {
     use lofty::{
         config::WriteOptions,
+        picture::{MimeType, Picture, PictureType},
         prelude::{Accessor, TagExt},
         tag::{ItemKey, Tag, TagType},
     };
-    let mut t = Tag::new(TagType::VorbisComments);
-    t.set_title(title.to_owned());
-    t.set_artist(v["artist"].as_str().unwrap_or("").to_owned());
-    t.set_album(v["album"].as_str().unwrap_or("").to_owned());
-    t.insert_text(
-        ItemKey::AlbumArtist,
-        v["artist"].as_str().unwrap_or("").into(),
-    );
-    t.set_track(number as u32);
-    t.save_to_path(path, WriteOptions::default())?;
+    let mp3 = path.extension().is_some_and(|e| e == "mp3");
+    let mut tag = Tag::new(if mp3 { TagType::Id3v2 } else { TagType::VorbisComments });
+    tag.set_title(t.title.clone());
+    tag.set_artist(t.artist.clone());
+    tag.set_album(t.album.clone());
+    tag.insert_text(ItemKey::AlbumArtist, t.album_artist.clone());
+    tag.set_track(t.track);
+    if t.tracks > 0 {
+        tag.set_track_total(t.tracks);
+    }
+    if let Some(d) = t.disc {
+        tag.set_disk(d);
+    }
+    if let Some(d) = t.discs {
+        tag.set_disk_total(d);
+    }
+    if !t.date.is_empty() {
+        tag.insert_text(ItemKey::RecordingDate, t.date.clone());
+    }
+    if !t.release_id.is_empty() {
+        tag.insert_text(ItemKey::MusicBrainzReleaseId, t.release_id.clone());
+    }
+    if let Some((g, p)) = t.gain {
+        tag.insert_text(ItemKey::ReplayGainTrackGain, format!("{g:.2} dB"));
+        tag.insert_text(ItemKey::ReplayGainTrackPeak, format!("{p:.6}"));
+    }
+    if let Some((g, p)) = t.album_gain {
+        tag.insert_text(ItemKey::ReplayGainAlbumGain, format!("{g:.2} dB"));
+        tag.insert_text(ItemKey::ReplayGainAlbumPeak, format!("{p:.6}"));
+    }
+    if let Some(c) = cover {
+        tag.push_picture(Picture::unchecked(c.to_vec()).pic_type(PictureType::CoverFront).mime_type(MimeType::Jpeg).build());
+    }
+    tag.save_to_path(path, WriteOptions::default())?;
     Ok(())
 }
 pub fn boundaries(marks: &[u64], rate: u32, frames: u64) -> Result<Vec<u64>> {
@@ -528,6 +1115,73 @@ pub fn boundaries(marks: &[u64], rate: u32, frames: u64) -> Result<Vec<u64>> {
         bail!("Ostatni utwór jest za krótki")
     };
     out.push(frames);
+    Ok(out)
+}
+/// Places track starts from a tracklist: expected positions from the durations,
+/// scaled to the recorded length, each moved to the quietest point within ±8 s.
+fn align(path: &Path, durations: &[u64]) -> Result<Vec<u64>> {
+    let mut w = wav::Wav::read(path)?;
+    let rate = w.rate as u64;
+    let block = w.channels as usize * w.bits as usize / 8;
+    let win = (rate / 10) as usize;
+    let mut env = Vec::new();
+    w.file.seek(SeekFrom::Start(44))?;
+    let mut buf = vec![0u8; win * block];
+    let total = w.frames();
+    let mut pos = 0;
+    while pos + win as u64 <= total {
+        w.file.read_exact(&mut buf)?;
+        let mut sum = 0f64;
+        for s in buf.chunks_exact(w.bits as usize / 8) {
+            let x = if w.bits == 16 {
+                i16::from_le_bytes([s[0], s[1]]) as f64 / 32768.0
+            } else {
+                (i32::from_le_bytes([0, s[0], s[1], s[2]]) >> 8) as f64 / 8388608.0
+            };
+            sum += x * x;
+        }
+        env.push(10.0 * (sum / (win * w.channels as usize) as f64 + 1e-12).log10());
+        pos += win as u64;
+    }
+    if env.len() < 50 {
+        bail!("Nagranie jest za krótkie")
+    }
+    let loud = env.iter().cloned().fold(f64::MIN, f64::max);
+    let start = env.iter().position(|e| *e > loud - 35.0).unwrap_or(0);
+    let end = env.iter().rposition(|e| *e > loud - 35.0).unwrap_or(env.len() - 1) + 1;
+    let planned: u64 = durations.iter().sum::<u64>() / 100; // in 100 ms windows
+    let measured = (end - start) as f64;
+    let scale = if planned > 0 && (measured / planned as f64 - 1.0).abs() < 0.12 {
+        measured / planned as f64
+    } else {
+        1.0
+    };
+    let mut out = Vec::new();
+    let mut acc = 0u64;
+    let mut last = start;
+    for d in &durations[..durations.len() - 1] {
+        acc += d / 100;
+        let expected = start + (acc as f64 * scale).round() as usize;
+        let lo = expected.saturating_sub(80).max(last + 50);
+        let hi = (expected + 80).min(env.len().saturating_sub(1));
+        if lo >= hi {
+            continue;
+        }
+        // Quietest 1 s stretch around the expected position.
+        let mut best = lo;
+        let mut best_level = f64::MAX;
+        for c in lo..hi {
+            let a = c.saturating_sub(5);
+            let b = (c + 5).min(env.len());
+            let level = env[a..b].iter().sum::<f64>() / (b - a) as f64;
+            if level < best_level {
+                best_level = level;
+                best = c;
+            }
+        }
+        out.push(best as u64 * 100 + 50);
+        last = best;
+    }
     Ok(out)
 }
 fn silences(path: &Path) -> Result<Vec<u64>> {
@@ -597,11 +1251,10 @@ mod tests {
             let original = std::fs::read(&master).unwrap();
             let target = dir.path().join("export.flac.partial");
             wav::flac(&master, &target, 0, 10001).unwrap();
-            tag(
+            write_tags(
                 &target,
-                &json!({"album":"Album test","artist":"Wykonawca"}),
-                "Utwór",
-                1,
+                &TagInfo::from_request(&json!({"album":"Album test","artist":"Wykonawca"}), "Utwór", None, 1, 1),
+                None,
             )
             .unwrap();
             let mut decoder = NativeSource::open(&target, 0).unwrap();
@@ -627,6 +1280,101 @@ mod tests {
             assert_eq!(count, 4097);
         }
     }
+    /// Simulated disc: 3 tracks of noise, a drive that reads 6 samples early.
+    struct FakeDrive {
+        audio: Vec<u8>,
+        offset: i64,
+    }
+    impl cd::Reader for FakeDrive {
+        fn read(&self, lba: u32, sectors: u32) -> Result<Vec<u8>> {
+            let mut out = vec![0u8; sectors as usize * 2352];
+            for (k, b) in out.chunks_exact_mut(4).enumerate() {
+                // Drive sample d holds true sample d - offset.
+                let t = (lba as i64 * 588 + k as i64) - self.offset;
+                if t >= 0 && ((t as usize + 1) * 4) <= self.audio.len() {
+                    b.copy_from_slice(&self.audio[t as usize * 4..t as usize * 4 + 4]);
+                }
+            }
+            Ok(out)
+        }
+        fn eject(&self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn simulated_rip_finds_offset_verifies_and_writes_cue_log_tags() {
+        let d = tempfile::tempdir().unwrap();
+        let catalog = Arc::new(Catalog::open(d.path().to_path_buf()).unwrap());
+        let ingest = Ingest::new(catalog);
+        let starts = [0u32, 750, 1700];
+        let leadout = 2600u32;
+        let mut x: u32 = 7;
+        let mut audio = Vec::new();
+        for _ in 0..leadout as usize * 588 {
+            x = x.wrapping_mul(1103515245).wrapping_add(12345);
+            audio.extend_from_slice(&((x >> 1) & 0x0fff0fff).to_le_bytes());
+        }
+        let tracks: Vec<cd::CdTrack> = starts
+            .iter()
+            .enumerate()
+            .map(|(i, s)| cd::CdTrack { number: i as u8 + 1, start: *s, end: starts.get(i + 1).copied().unwrap_or(leadout), data: false })
+            .collect();
+        let toc = cd::Toc { drive: "X:".into(), disc_id: "fake".into(), tracks: tracks.clone(), leadout };
+        // Database built from the true audio.
+        let sums: Vec<(u32, u32)> = tracks
+            .iter()
+            .enumerate()
+            .map(|(i, t)| verify::accuraterip_sums(&audio[t.start as usize * 2352..t.end as usize * 2352], i == 0, i == 2))
+            .collect();
+        let db = verify::Databases {
+            accuraterip: vec![verify::ArResponse { tracks: sums.iter().map(|(v1, _)| (17, *v1)).collect() }],
+            accuraterip_entries: 1,
+            ..Default::default()
+        };
+        let v = json!({"discId":"fake","album":"Płyta","artist":"Zespół","titles":["Jeden","Dwa","Trzy"],"artists":["","Gość",""],"mp3":true,"date":"1999"});
+        ingest.begin("ripping").unwrap();
+        ingest.rip_with(&FakeDrive { audio: audio.clone(), offset: 6 }, toc.clone(), "FAKE DRIVE", db.clone(), &v).unwrap();
+        let s = ingest.state.lock().unwrap().clone();
+        assert_eq!(s.offset, Some(6), "{:?}", s.offset_source);
+        assert_eq!(s.verdicts.len(), 3);
+        assert!(s.verdicts.iter().all(|x| x.accuraterip == 17), "{:?}", s.verdicts);
+        assert_eq!(ingest.saved_offsets().get("FAKE DRIVE"), Some(&6));
+        let folder = PathBuf::from(&s.folder);
+        let names: Vec<String> = std::fs::read_dir(&folder).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        assert!(names.iter().any(|n| n == "Płyta.cue"), "{names:?}");
+        assert!(names.iter().any(|n| n == "Raport importu.log"));
+        assert_eq!(std::fs::read_dir(folder.join("MP3")).unwrap().count(), 3);
+        let log = std::fs::read_to_string(folder.join("Raport importu.log")).unwrap();
+        assert!(log.contains("+6 próbek (wykryte z AccurateRip)"), "{log}");
+        assert!(log.contains("Zweryfikowane w bazach: 3 z 3"), "{log}");
+        // Decoded FLAC equals the true audio of track 2.
+        let mut dec = crate::audio::decoder::NativeSource::open(&folder.join("02-Dwa.flac"), 0).unwrap();
+        let mut n = 0usize;
+        let t = &tracks[1];
+        while let Some(f) = dec.next().unwrap() {
+            let at = (t.start as usize * 588 + n) * 4;
+            let l = i16::from_le_bytes([audio[at], audio[at + 1]]) as f32 / 32768.0;
+            assert_eq!(f[0], l, "sample {n}");
+            n += 1;
+        }
+        assert_eq!(n, (t.end - t.start) as usize * 588);
+        // Tags: guest artist on track 2, album artist kept, ReplayGain present.
+        use lofty::prelude::{Accessor, TaggedFileExt};
+        let tagged = lofty::read_from_path(folder.join("02-Dwa.flac")).unwrap();
+        let tag = tagged.primary_tag().unwrap();
+        assert_eq!(tag.artist().as_deref(), Some("Gość"));
+        assert_eq!(tag.get_string(lofty::tag::ItemKey::AlbumArtist), Some("Zespół"));
+        assert!(tag.get_string(lofty::tag::ItemKey::ReplayGainTrackGain).is_some());
+        assert!(tag.get_string(lofty::tag::ItemKey::ReplayGainAlbumGain).is_some());
+        // Second rip of the same drive reuses the remembered offset.
+        let mut s = ingest.state.lock().unwrap();
+        s.verdicts.clear();
+        drop(s);
+        ingest.rip_with(&FakeDrive { audio, offset: 6 }, toc, "FAKE DRIVE", db, &v).unwrap();
+        assert_eq!(ingest.state.lock().unwrap().offset_source, "zapamiętane dla napędu");
+    }
+
     #[test]
     fn crash_recovery_truncates_only_incomplete_frame_and_keeps_pcm() {
         let d = tempfile::tempdir().unwrap();
@@ -650,6 +1398,38 @@ mod tests {
         );
         assert!(boundaries(&[2000, 1000], 44100, 132300).is_err());
         assert!(boundaries(&[3000], 44100, 132300).is_err());
+    }
+    #[test]
+    fn tracklist_alignment_finds_the_gaps() {
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path().join("master.wav");
+        let rate = 8000usize;
+        let mut w = wav::Wav::create(&p, rate as u32, 1, 16).unwrap();
+        // 3 s lead-in, tracks of 40, 50, 30 s with 2 s gaps, recorded 3% slow.
+        let mut data = Vec::new();
+        let mut t = 0usize;
+        let mut push = |secs: f64, loud: bool, data: &mut Vec<u8>| {
+            for _ in 0..(secs * 1.03 * rate as f64) as usize {
+                let v: i16 = if loud { (((t * 37) % 200) as i16 - 100) * 60 } else { ((t % 7) as i16) - 3 };
+                data.extend(v.to_le_bytes());
+                t += 1;
+            }
+        };
+        push(3.0, false, &mut data);
+        push(40.0, true, &mut data);
+        push(2.0, false, &mut data);
+        push(50.0, true, &mut data);
+        push(2.0, false, &mut data);
+        push(30.0, true, &mut data);
+        w.write(&data).unwrap();
+        w.finish().unwrap();
+        drop(w);
+        let marks = align(&p, &[42_000, 52_000, 30_000]).unwrap();
+        assert_eq!(marks.len(), 2);
+        // True gap centres: (3+40+1)*1.03 s and (3+40+2+50+1)*1.03 s.
+        for (m, truth) in marks.iter().zip([44.0 * 1.03, 96.0 * 1.03]) {
+            assert!((*m as f64 / 1000.0 - truth).abs() < 1.2, "{m} vs {truth}");
+        }
     }
     #[test]
     fn silence_suggestions_do_not_cut_short_breaks() {

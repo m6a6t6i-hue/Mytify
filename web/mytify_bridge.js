@@ -157,7 +157,7 @@
     async metadata(action, argsJson) {
       const args = JSON.parse(argsJson);
       if (action === "search") return JSON.stringify(await api("/api/metadata/search?album=" + encodeURIComponent(args.album) + "&artist=" + encodeURIComponent(args.artist)));
-      if (action === "release" || action === "cover") return JSON.stringify(await api("/api/metadata/" + action + "/" + encodeURIComponent(args)));
+      if (action === "release" || action === "cover" || action === "discogs") return JSON.stringify(await api("/api/metadata/" + action + "/" + encodeURIComponent(args)));
       if (action === "edits" || action === "reset") return JSON.stringify(await api("/api/metadata/" + action, { method: "POST", body: args }));
       if (action === "chooseCover") {
         const file = await new Promise((resolve) => {

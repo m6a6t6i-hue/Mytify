@@ -409,6 +409,15 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
                 };
             }
         }
+        if let Some(id) = path.strip_prefix("/api/metadata/discogs/") {
+            if method == Method::Get {
+                let id = url::form_urlencoded::parse(id.as_bytes()).map(|(k, _)| k).collect::<String>();
+                return match app.metadata.discogs(&id) {
+                    Ok(v) => send_json(request, 200, serde_json::to_value(v)?),
+                    Err(e) => send_error(request, 502, e),
+                };
+            }
+        }
         if let Some(id) = path.strip_prefix("/api/metadata/cover/") {
             if method == Method::Get {
                 return match app.metadata.cover(id) {

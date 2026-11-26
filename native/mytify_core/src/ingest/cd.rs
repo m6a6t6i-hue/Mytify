@@ -83,6 +83,76 @@ pub fn parse_toc(drive: &str, b: &[u8]) -> Result<Toc> {
         leadout,
     })
 }
+/// Raw audio sectors (2352 bytes each) and the tray.
+pub trait Reader {
+    fn read(&self, lba: u32, sectors: u32) -> Result<Vec<u8>>;
+    fn eject(&self) -> Result<()>;
+}
+
+/// Album and track names stored on the disc itself (CD-Text), first language block.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CdText {
+    pub album: String,
+    pub artist: String,
+    pub titles: Vec<String>,
+    pub artists: Vec<String>,
+}
+
+/// Parses CD-Text packs (18 bytes each, as returned by READ TOC format 5 after the
+/// 4 byte header). Only titles (0x80) and performers (0x81) of block 0, single byte text.
+pub fn parse_cd_text(packs: &[u8], tracks: usize) -> Option<CdText> {
+    let mut text: [Vec<u8>; 2] = [Vec::new(), Vec::new()];
+    let mut first: [Option<u8>; 2] = [None, None];
+    for p in packs.chunks_exact(18) {
+        let kind = match p[0] {
+            0x80 => 0,
+            0x81 => 1,
+            _ => continue,
+        };
+        let block = (p[3] >> 4) & 7;
+        if block != 0 || p[3] & 0x80 != 0 {
+            continue;
+        }
+        first[kind].get_or_insert(p[1] & 0x7f);
+        text[kind].extend_from_slice(&p[4..16]);
+    }
+    let mut out = CdText {
+        titles: vec![String::new(); tracks],
+        artists: vec![String::new(); tracks],
+        ..Default::default()
+    };
+    let mut any = false;
+    for kind in 0..2 {
+        let Some(start) = first[kind] else { continue };
+        let mut number = start as usize;
+        let mut previous = String::new();
+        for raw in text[kind].split(|b| *b == 0) {
+            if number > tracks {
+                break;
+            }
+            // Latin-1 to UTF-8; a lone TAB means "same as the previous item".
+            let mut value: String = raw.iter().map(|b| *b as char).collect();
+            if value == "\t" || value == "\u{9}" {
+                value = previous.clone();
+            }
+            let value = value.trim().to_string();
+            if !value.is_empty() {
+                any = true;
+            }
+            match (kind, number) {
+                (0, 0) => out.album = value.clone(),
+                (1, 0) => out.artist = value.clone(),
+                (0, n) => out.titles[n - 1] = value.clone(),
+                (_, n) => out.artists[n - 1] = value.clone(),
+            }
+            previous = value;
+            number += 1;
+        }
+    }
+    any.then_some(out)
+}
+
 #[cfg(windows)]
 pub mod device {
     use super::*;
@@ -179,6 +249,14 @@ pub mod device {
             }
         }
     }
+    impl super::Reader for Drive {
+        fn read(&self, lba: u32, sectors: u32) -> Result<Vec<u8>> {
+            Drive::read(self, lba, sectors)
+        }
+        fn eject(&self) -> Result<()> {
+            Drive::eject(self)
+        }
+    }
     impl Drive {
         pub fn open(id: &str) -> Result<Self> {
             if !drives().iter().any(|s| s == id) {
@@ -227,6 +305,64 @@ pub mod device {
                 bail!("Nie można odczytać płyty: {e}")
             };
             parse_toc(id, &b[..n as usize])
+        }
+        /// CD-Text from the disc, if it has any.
+        pub fn cd_text(&self, tracks: usize) -> Option<CdText> {
+            // CDROM_READ_TOC_EX { Format = CDTEXT (5) }
+            let request: [u8; 4] = [5, 0, 0, 0];
+            let mut b = vec![0u8; 4 + 18 * 2048];
+            let mut n = 0;
+            let ok = unsafe {
+                DeviceIoControl(
+                    self.0,
+                    0x24054,
+                    request.as_ptr().cast(),
+                    4,
+                    b.as_mut_ptr().cast(),
+                    b.len() as u32,
+                    &mut n,
+                    ptr::null_mut(),
+                )
+            };
+            if ok == 0 || n < 4 + 18 {
+                return None;
+            }
+            parse_cd_text(&b[4..n as usize], tracks)
+        }
+        /// True when a disc is in the tray and readable.
+        pub fn has_media(&self) -> bool {
+            let mut n = 0;
+            unsafe {
+                DeviceIoControl(
+                    self.0,
+                    0x2D0800,
+                    ptr::null(),
+                    0,
+                    ptr::null_mut(),
+                    0,
+                    &mut n,
+                    ptr::null_mut(),
+                ) != 0
+            }
+        }
+        pub fn eject(&self) -> Result<()> {
+            let mut n = 0;
+            let ok = unsafe {
+                DeviceIoControl(
+                    self.0,
+                    0x2D4808,
+                    ptr::null(),
+                    0,
+                    ptr::null_mut(),
+                    0,
+                    &mut n,
+                    ptr::null_mut(),
+                )
+            };
+            if ok == 0 {
+                bail!("Nie można wysunąć płyty: {}", std::io::Error::last_os_error())
+            }
+            Ok(())
         }
         pub fn read(&self, lba: u32, sectors: u32) -> Result<Vec<u8>> {
             #[repr(C)]
@@ -329,6 +465,31 @@ mod tests {
         assert_eq!(t.disc_id, "49HHV7Eb8UKF3aQiNmu1GR8vKTY-");
         b[5] |= 4;
         assert!(parse_toc("D:", &b).is_err());
+    }
+    #[test]
+    fn cd_text_titles_and_performers() {
+        fn packs(kind: u8, first_track: u8, text: &[u8]) -> Vec<u8> {
+            let mut out = Vec::new();
+            let mut track = first_track;
+            for (i, chunk) in text.chunks(12).enumerate() {
+                let mut p = vec![kind, track, i as u8, 0];
+                let mut t = chunk.to_vec();
+                t.resize(12, 0);
+                p.extend(t);
+                p.extend([0, 0]);
+                track += chunk.iter().filter(|b| **b == 0).count() as u8;
+                out.extend(p);
+            }
+            out
+        }
+        let mut b = packs(0x80, 0, b"Album\0One\0Two\0");
+        b.extend(packs(0x81, 0, b"Band\0Band\0Guest\0"));
+        let t = parse_cd_text(&b, 2).unwrap();
+        assert_eq!(t.album, "Album");
+        assert_eq!(t.artist, "Band");
+        assert_eq!(t.titles, ["One", "Two"]);
+        assert_eq!(t.artists, ["Band", "Guest"]);
+        assert!(parse_cd_text(&[], 2).is_none());
     }
     #[test]
     fn read_retry_recovers_majority_but_rejects_ambiguous_and_short_data() {

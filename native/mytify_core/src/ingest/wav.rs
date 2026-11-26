@@ -127,6 +127,15 @@ impl Wav {
         s.finish()?;
         Ok(s)
     }
+    /// Drops everything after `frames` (end of a recorded side).
+    pub fn truncate(&mut self, frames: u64) -> Result<()> {
+        let block = self.channels as u64 * self.bits as u64 / 8;
+        let bytes = (frames * block).min(self.bytes);
+        self.file.set_len(44 + bytes)?;
+        self.file.seek(SeekFrom::Start(44 + bytes))?;
+        self.bytes = bytes;
+        Ok(())
+    }
     pub fn frames(&self) -> u64 {
         self.bytes / (self.channels as u64 * self.bits as u64 / 8)
     }

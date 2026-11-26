@@ -224,6 +224,9 @@ pub struct ReleaseTrack {
     pub disc_number: u64,
     pub track_number: u64,
     pub duration_ms: u64,
+    /// Printed position, e.g. "A1" on vinyl.
+    #[serde(default)]
+    pub number: String,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -336,6 +339,7 @@ pub fn parse_release(v: &Value) -> Result<ReleaseDetail> {
                     artist
                 },
                 disc_number: disc,
+                number: text(track, "number"),
                 track_number: track["position"].as_u64().unwrap_or(0),
                 duration_ms: track["length"]
                     .as_u64()
@@ -347,6 +351,77 @@ pub fn parse_release(v: &Value) -> Result<ReleaseDetail> {
             }
         }
     }
+    Ok(ReleaseDetail { release, tracks })
+}
+fn discogs_name(s: &str) -> String {
+    // "Artist (2)" is Discogs' way of telling namesakes apart.
+    let s = s.trim().trim_end_matches('*');
+    match s.rfind(" (") {
+        Some(i) if s.ends_with(')') && s[i + 2..s.len() - 1].bytes().all(|b| b.is_ascii_digit()) => s[..i].to_string(),
+        _ => s.to_string(),
+    }
+}
+fn discogs_artists(v: &Value) -> String {
+    v.as_array()
+        .map(|a| {
+            a.iter()
+                .map(|x| {
+                    let join = x["join"].as_str().unwrap_or("");
+                    let join = if join.is_empty() || join == "," { if join == "," { ", ".into() } else { String::new() } } else { format!(" {join} ") };
+                    format!("{}{}", discogs_name(x["name"].as_str().unwrap_or("")), join)
+                })
+                .collect::<String>()
+                .trim()
+                .trim_end_matches(',')
+                .to_string()
+        })
+        .unwrap_or_default()
+}
+pub fn parse_discogs(v: &Value) -> Result<ReleaseDetail> {
+    let id = v["id"].as_u64().ok_or_else(|| anyhow!("Nieprawidłowa odpowiedź Discogs."))?;
+    let artist = discogs_artists(&v["artists"]);
+    let mut tracks = Vec::new();
+    for t in v["tracklist"].as_array().into_iter().flatten() {
+        if t["type_"].as_str().unwrap_or("track") != "track" {
+            continue;
+        }
+        let duration_ms = t["duration"]
+            .as_str()
+            .and_then(|d| {
+                let p: Vec<u64> = d.split(':').filter_map(|x| x.trim().parse().ok()).collect();
+                match p.as_slice() {
+                    [m, s] => Some((m * 60 + s) * 1000),
+                    [h, m, s] => Some((h * 3600 + m * 60 + s) * 1000),
+                    _ => None,
+                }
+            })
+            .unwrap_or(0);
+        let a = discogs_artists(&t["artists"]);
+        tracks.push(ReleaseTrack {
+            title: text(t, "title"),
+            artist: if a.is_empty() { artist.clone() } else { a },
+            disc_number: 1,
+            track_number: tracks.len() as u64 + 1,
+            duration_ms,
+            number: text(t, "position"),
+        });
+        if tracks.len() > 500 {
+            bail!("Wydanie ma ponad 500 utworów.");
+        }
+    }
+    let release = ReleaseSummary {
+        id: format!("discogs:{id}"),
+        title: text(v, "title"),
+        artist,
+        date: v["released"].as_str().map(str::to_string).or_else(|| v["year"].as_u64().map(|y| y.to_string())).unwrap_or_default(),
+        country: text(v, "country"),
+        format: v["formats"][0]["name"].as_str().unwrap_or("").into(),
+        label: v["labels"][0]["name"].as_str().map(discogs_name).unwrap_or_default(),
+        barcode: String::new(),
+        disambiguation: String::new(),
+        track_count: tracks.len() as u64,
+        score: 100,
+    };
     Ok(ReleaseDetail { release, tracks })
 }
 fn phrase(s: &str) -> Result<String> {
@@ -368,7 +443,7 @@ fn permitted(url: &Url, art: bool) -> bool {
         && if art {
             host == "coverartarchive.org" || host == "archive.org" || host.ends_with(".archive.org")
         } else {
-            host == "musicbrainz.org"
+            host == "musicbrainz.org" || host == "api.discogs.com"
         }
 }
 
@@ -563,6 +638,17 @@ impl MetadataService {
         }
         Ok(detail)
     }
+    /// Discogs release by number or page address (tracklist with vinyl sides).
+    pub fn discogs(&self, id: &str) -> Result<ReleaseDetail> {
+        let t = id.trim();
+        let after = t.rfind("release/").map(|i| &t[i + 8..]).unwrap_or(t);
+        let digits: String = after.trim_start_matches(['[', 'r']).chars().take_while(|c| c.is_ascii_digit()).collect();
+        if digits.is_empty() || digits.len() > 12 {
+            bail!("Wklej numer lub adres wydania z Discogs.");
+        }
+        let url = Url::parse(&format!("https://api.discogs.com/releases/{digits}"))?;
+        parse_discogs(&self.cached_json(url, 7 * 24 * 3600)?)
+    }
     pub fn cover(&self, id: &str) -> Result<Option<String>> {
         if !valid_mbid(id) {
             bail!("Nieprawidłowy identyfikator wydania.");
@@ -739,5 +825,23 @@ mod tests {
     fn malformed_release_and_search_are_rejected() {
         assert!(parse_release(&json!({"id":"bad"})).is_err());
         assert!(parse_search(&json!({"unexpected":[]})).is_err());
+    }
+    #[test]
+    fn discogs_vinyl_tracklist() {
+        let v = json!({"id": 249504, "title": "Never Gonna Give You Up", "year": 1987, "country": "UK",
+            "artists": [{"name": "Rick Astley", "join": ""}], "formats": [{"name": "Vinyl"}], "labels": [{"name": "RCA (2)"}],
+            "tracklist": [
+                {"position": "", "type_": "heading", "title": "Side A"},
+                {"position": "A", "type_": "track", "title": "Never Gonna Give You Up", "duration": "3:32"},
+                {"position": "B", "type_": "track", "title": "Never Gonna Give You Up (Instrumental)", "duration": "3:30",
+                 "artists": [{"name": "Stock Aitken Waterman (2)", "join": ""}]}
+            ]});
+        let d = parse_discogs(&v).unwrap();
+        assert_eq!(d.release.id, "discogs:249504");
+        assert_eq!(d.release.label, "RCA");
+        assert_eq!(d.tracks.len(), 2);
+        assert_eq!(d.tracks[0].number, "A");
+        assert_eq!(d.tracks[0].duration_ms, 212_000);
+        assert_eq!(d.tracks[1].artist, "Stock Aitken Waterman");
     }
 }
