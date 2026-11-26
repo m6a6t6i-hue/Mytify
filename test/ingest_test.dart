@@ -11,6 +11,11 @@ class IngestFake implements LibraryRepository, IngestRepository {
   ];
   List<dynamic> inputs = [];
   Object? tocError;
+  List<dynamic> discReleases = [];
+  Map<String, dynamic>? cdText;
+  List<dynamic> sessions = [];
+  bool media = false;
+  ReleaseInfo? details;
   Map<String, dynamic> state = {'running': false, 'stage': '', 'files': <String>[]};
 
   @override
@@ -22,7 +27,22 @@ class IngestFake implements LibraryRepository, IngestRepository {
       case 'inputs':
         return inputs;
       case 'sessions':
-        return [];
+        return sessions;
+      case 'disc':
+        return discReleases;
+      case 'media':
+        return [
+          for (final d in drives) {'id': (d as Map)['id'], 'media': media},
+        ];
+      case 'waveform':
+        return {'rate': 1000, 'frames': 180000, 'perPoint': 60, 'peaks': [for (var i = 0; i < 6000; i++) i.isEven ? -.4 : .4]};
+      case 'align':
+        return [61000];
+      case 'analyze':
+        return [59000, 121000];
+      case 'export':
+        state = {'running': true, 'stage': 'exporting', 'total': 2, 'done': 0, 'files': <String>[]};
+        return state;
       case 'folders':
         return {'recordings': r'C:\dane\recordings', 'cd': r'C:\dane\cd-imports'};
       case 'state':
@@ -35,6 +55,7 @@ class IngestFake implements LibraryRepository, IngestRepository {
             {'number': 1, 'start': 0, 'end': 75 * 200},
             {'number': 2, 'start': 75 * 200, 'end': 75 * 400},
           ],
+          'cdText': ?cdText,
         };
       case 'rip':
       case 'monitor':
@@ -57,15 +78,50 @@ class IngestFake implements LibraryRepository, IngestRepository {
   }
 
   @override
+  Future<ReleaseInfo> releaseDetails(String id) async => details!;
+  @override
+  Future<ReleaseInfo> discogsRelease(String id) async => details!;
+  @override
+  Future<CoverChoice?> downloadCover(String id) async => null;
+
+  @override
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
+
+ReleaseCandidate release(String id, String title, {String artist = 'Różni wykonawcy'}) => ReleaseCandidate(
+  id: id,
+  title: title,
+  artist: artist,
+  date: '1999',
+  country: 'PL',
+  format: 'CD',
+  label: 'Pomaton',
+  barcode: '',
+  disambiguation: '',
+  trackCount: 2,
+  score: 100,
+);
+
+Map<String, dynamic> releaseJson(String id, String title) => {
+  'id': id,
+  'title': title,
+  'artist': 'Różni wykonawcy',
+  'date': '1999',
+  'country': 'PL',
+  'format': 'CD',
+  'label': 'Pomaton',
+  'barcode': '',
+  'disambiguation': '',
+  'trackCount': 2,
+  'score': 100,
+};
 
 void main() {
   late IngestFake repo;
   late IngestState state;
 
-  Future<void> open(WidgetTester t, {double width = 1300, int tab = 0}) async {
-    t.view.physicalSize = Size(width, 1600);
+  Future<void> open(WidgetTester t, {double width = 1300, double height = 1600, int tab = 0}) async {
+    t.view.physicalSize = Size(width, height);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.resetPhysicalSize);
     addTearDown(t.view.resetDevicePixelRatio);
@@ -134,8 +190,8 @@ void main() {
     await t.enterText(find.byType(TextField).at(0), 'Mój album');
     await t.enterText(find.byType(TextField).at(1), 'Wykonawca');
     await t.enterText(find.byType(TextField).at(2), 'Pierwszy');
-    // Untick the second track.
-    await t.tap(find.byType(Checkbox).at(2));
+    // Untick the second track (after "Różni wykonawcy" and "select all").
+    await t.tap(find.byType(Checkbox).at(3));
     await t.pumpAndSettle();
     // Switching tabs keeps the read disc and the form.
     await t.tap(find.text('Winyl i kaseta'));
@@ -151,6 +207,9 @@ void main() {
     expect(rip['album'], 'Mój album');
     expect(rip['titles'], ['Pierwszy', 'Utwór 2']);
     expect(rip['tracks'], [1]);
+    expect(rip['eject'], isFalse);
+    expect(rip['mp3'], isFalse);
+    expect(rip['offset'], isNull);
     expect(state.cd, CdState.importing);
     await t.tap(find.text('Zatrzymaj i zachowaj gotowe pliki'));
     await t.pumpAndSettle();
@@ -168,6 +227,156 @@ void main() {
     expect(find.text('Podgląd wyłączony'), findsOneWidget);
     expect(find.text('Dostępne po nagraniu'), findsOneWidget);
     expect(repo.calls.any((c) => c['action'] == 'record' || c['action'] == 'monitor'), isFalse);
+    await close(t);
+  });
+
+  testWidgets('CD: one MusicBrainz release fills the form, compilation artists go per track', (t) async {
+    repo.discReleases = [releaseJson('mb-1', 'Składanka')];
+    repo.details = ReleaseInfo(release('mb-1', 'Składanka'), const [
+      ReleaseSong(title: 'Pierwszy', artist: 'Anna', discNumber: 1, trackNumber: 1, durationMs: 200000),
+      ReleaseSong(title: 'Drugi', artist: 'Bartek', discNumber: 1, trackNumber: 2, durationMs: 200500),
+    ]);
+    await open(t);
+    await t.tap(find.text('Odczytaj'));
+    await t.pumpAndSettle();
+    expect(find.text('Składanka'), findsOneWidget);
+    expect(find.textContaining('Opis z MusicBrainz'), findsOneWidget);
+    expect(state.variousArtists, isTrue);
+    expect(find.text('Anna'), findsOneWidget);
+    await t.tap(find.text('Kopia MP3 192 kb/s na telefon'));
+    await t.pump();
+    await t.tap(find.text('Importuj'));
+    await t.pump();
+    await t.pump();
+    final rip = repo.calls.firstWhere((c) => c['action'] == 'rip');
+    expect(rip['releaseId'], 'mb-1');
+    expect(rip['artists'], ['Anna', 'Bartek']);
+    expect(rip['mp3'], isTrue);
+    // Finished import with verification per track.
+    repo.state = {
+      'running': false,
+      'stage': 'finished',
+      'files': ['a.flac', 'b.flac'],
+      'offset': 6,
+      'offsetSource': 'zapamiętane dla napędu',
+      'discCheck': {'accuraterip': 2, 'ctdb': 1},
+      'verdicts': [
+        {'track': 1, 'accuraterip': 12, 'accurateripBest': 12, 'ctdb': 4, 'crc': 'abcd', 'v1': '1', 'v2': '2', 'retriedSectors': 0},
+        {'track': 2, 'accuraterip': 0, 'accurateripBest': 9, 'ctdb': 0, 'crc': 'ef01', 'v1': '3', 'v2': '4', 'retriedSectors': 2},
+      ],
+      'folder': r'C:\dane\cd-imports\Składanka',
+    };
+    await state.poll();
+    await t.pumpAndSettle();
+    expect(state.cd, CdState.done);
+    expect(find.textContaining('Niezgodne z bazą: 1'), findsOneWidget);
+    expect(find.textContaining('+6 próbek'), findsOneWidget);
+    expect(find.text('Otwórz folder z raportem'), findsOneWidget);
+    await close(t);
+  });
+
+  testWidgets('CD: several releases are offered, none falls back to CD-Text', (t) async {
+    repo.discReleases = [releaseJson('a', 'Wydanie A'), releaseJson('b', 'Wydanie B')];
+    await open(t);
+    await t.tap(find.text('Odczytaj'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('kilka wydań'), findsOneWidget);
+    expect(find.text('Wybierz'), findsNWidgets(2));
+    repo.discReleases = [];
+    repo.cdText = {'album': 'Z płyty', 'artist': 'Zespół', 'titles': ['Raz', 'Dwa'], 'artists': ['', '']};
+    await t.tap(find.text('Odczytaj ponownie'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('CD-Text'), findsOneWidget);
+    expect(find.text('Z płyty'), findsOneWidget);
+    expect(find.text('Dwa'), findsOneWidget);
+    await close(t);
+  });
+
+  testWidgets('serial mode: an inserted disc with one release imports by itself', (t) async {
+    repo.discReleases = [releaseJson('mb-1', 'Album')];
+    repo.details = ReleaseInfo(release('mb-1', 'Album', artist: 'Zespół'), const [
+      ReleaseSong(title: 'Raz', artist: 'Zespół', discNumber: 1, trackNumber: 1, durationMs: 200000),
+      ReleaseSong(title: 'Dwa', artist: 'Zespół', discNumber: 1, trackNumber: 2, durationMs: 200000),
+    ]);
+    await open(t);
+    state.serial = true;
+    state.watchDiscs();
+    await t.pump(const Duration(seconds: 3));
+    await t.pump();
+    expect(repo.calls.any((c) => c['action'] == 'toc'), isFalse);
+    repo.media = true;
+    await t.pump(const Duration(seconds: 3));
+    await t.pumpAndSettle();
+    final rip = repo.calls.firstWhere((c) => c['action'] == 'rip');
+    expect(rip['eject'], isTrue);
+    expect(rip['titles'], ['Raz', 'Dwa']);
+    await t.tap(find.text('Zatrzymaj i zachowaj gotowe pliki'));
+    await t.pumpAndSettle();
+    await close(t);
+  });
+
+  testWidgets('vinyl: waveform markers, Discogs side A, restoration only on export', (t) async {
+    repo.inputs = [
+      {'id': 'in', 'name': 'USB Audio CODEC', 'rates': [48000], 'channels': 2},
+    ];
+    repo.sessions = [
+      {'id': 's1', 'label': 'Winyl, strona A', 'durationMs': 180000, 'markers': <int>[]},
+    ];
+    repo.details = ReleaseInfo(release('discogs:1', 'Płyta', artist: 'Zespół'), const [
+      ReleaseSong(title: 'A jeden', artist: 'Zespół', discNumber: 1, trackNumber: 1, durationMs: 60000, number: 'A1'),
+      ReleaseSong(title: 'A dwa', artist: 'Zespół', discNumber: 1, trackNumber: 2, durationMs: 120000, number: 'A2'),
+      ReleaseSong(title: 'B jeden', artist: 'Zespół', discNumber: 1, trackNumber: 3, durationMs: 100000, number: 'B1'),
+    ]);
+    await open(t, tab: 1, height: 3200);
+    await state.selectSession('s1');
+    await t.pumpAndSettle();
+    await t.tap(find.text('Podział i eksport'));
+    await t.pumpAndSettle();
+    expect(find.byType(WaveformEditor), findsOneWidget);
+    // Cursor and preview listen to the real recording.
+    state.setCursor(30000);
+    await t.pump();
+    await t.tap(find.text('Odsłuchaj'));
+    await t.pump();
+    expect(repo.calls.lastWhere((c) => c['action'] == 'preview')['positionMs'], 30000);
+    await t.tap(find.text('Zaproponuj według ciszy'));
+    await t.pumpAndSettle();
+    expect(state.markers, [59000, 121000]);
+    expect(state.tracksForm.length, 3);
+    state.moveMarker(0, 200000);
+    expect(state.markers.first, lessThan(121000));
+    state.removeMarker(1);
+    expect(state.markers.length, 1);
+    // Tracklist from Discogs: only side A is picked, markers are aligned in the engine.
+    await t.enterText(find.widgetWithText(TextField, 'albo adres wydania z Discogs'), 'https://www.discogs.com/release/1');
+    await t.tap(find.text('Wczytaj z Discogs'));
+    await t.pumpAndSettle();
+    expect(state.tracklistPicked, [true, true, false]);
+    await t.tap(find.text('Ustaw znaczniki i tytuły według listy'));
+    await t.pumpAndSettle();
+    expect(repo.calls.lastWhere((c) => c['action'] == 'align')['durations'], [60000, 120000]);
+    expect(state.markers, [61000]);
+    expect(find.text('A dwa'), findsOneWidget);
+    state.declick = true;
+    state.hum = true;
+    state.speed = 1.5;
+    state.changed();
+    await t.pump();
+    await t.tap(find.text('Dodaj do biblioteki'));
+    await t.pump();
+    await t.pump();
+    final export = repo.calls.lastWhere((c) => c['action'] == 'export');
+    expect(export['markers'], [61000]);
+    expect(export['titles'], ['A jeden', 'A dwa']);
+    expect(export['firstTrack'], 1);
+    expect(export['totalTracks'], 3);
+    expect(export['releaseId'], '');
+    final restore = export['restore'] as Map;
+    expect(restore['declick'], isTrue);
+    expect(restore['hum'], 50);
+    expect(restore['speed'] as double, closeTo(1.015, 1e-9));
+    await t.tap(find.text('Zatrzymaj eksport'));
+    await t.pumpAndSettle();
     await close(t);
   });
 

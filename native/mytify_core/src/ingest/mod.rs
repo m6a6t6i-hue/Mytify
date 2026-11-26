@@ -637,7 +637,8 @@ impl Ingest {
         for e in &db.errors {
             self.state.lock().unwrap().warnings.push(format!("Weryfikacja online: {e}"));
         }
-        self.state.lock().unwrap().disc_check = Some(json!(db));
+        self.state.lock().unwrap().disc_check =
+            Some(json!({"accuraterip": db.accuraterip_entries, "ctdb": db.ctdb_entries, "errors": db.errors}));
 
         // Read offset: chosen by the user, remembered for this drive, or found now.
         let mut log = Vec::<String>::new();

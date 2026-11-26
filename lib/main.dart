@@ -315,6 +315,8 @@ class LibraryScreenState extends State<LibraryScreen> {
     }));
     unawaited(player.start());
     unawaited(loadLibrary());
+    // PC app: notice an inserted Audio CD and offer to import it.
+    if (canDigitize && canFloat) ingest.watchDiscs();
     unawaited(
       repository.networkProtocols().then((v) {
         if (mounted) setState(() => networkProtocols = v);

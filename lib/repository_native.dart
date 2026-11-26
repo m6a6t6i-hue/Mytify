@@ -73,6 +73,10 @@ class NativeLibraryRepository extends LibraryRepository
           )
           .toList();
   @override
+  Future<ReleaseInfo> discogsRelease(String id) async => ReleaseInfo.fromJson(
+    Map<String, dynamic>.from(await _api('/api/metadata/discogs/${Uri.encodeComponent(id)}') as Map),
+  );
+  @override
   Future<ReleaseInfo> releaseDetails(String id) async => ReleaseInfo.fromJson(
     Map<String, dynamic>.from(
       await _api('/api/metadata/release/${Uri.encodeComponent(id)}') as Map,

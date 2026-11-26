@@ -1,0 +1,1361 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
+
+import 'cover_widget.dart';
+import 'design.dart';
+import 'ingest.dart';
+import 'model.dart';
+import 'widgets.dart';
+
+const _red = Color(0xffff5252);
+const _amber = Color(0xffffb454);
+
+/// "Import": Audio CD and vinyl or tape, inside the normal app layout.
+class IngestView extends StatefulWidget {
+  final IngestState state;
+  final EdgeInsets padding;
+  const IngestView({super.key, required this.state, this.padding = const EdgeInsets.fromLTRB(Sp.xl, Sp.xl, Sp.xl, Sp.xxl)});
+  @override
+  State<IngestView> createState() => _IngestViewState();
+}
+
+class _IngestViewState extends State<IngestView> {
+  IngestState get s => widget.state;
+  bool help = false;
+
+  @override
+  void initState() {
+    super.initState();
+    s.attach();
+  }
+
+  @override
+  void dispose() {
+    s.detach();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: s,
+    builder: (context, _) => ListView(
+      key: const PageStorageKey('import'),
+      padding: widget.padding,
+      children: [
+        const Text('Import', style: Txt.display),
+        const SizedBox(height: Sp.l),
+        TextTabs(
+          labels: const ['Audio CD', 'Winyl i kaseta'],
+          index: s.tab,
+          onChanged: s.setTab,
+          busy: [s.ripping, s.capturing || s.exporting],
+        ),
+        const SizedBox(height: Sp.xl),
+        if (s.tab == 0) ..._cd() else ..._analog(),
+      ],
+    ),
+  );
+
+  // ---------------------------------------------------------------- shared bits
+
+  Widget _error(String text) => Padding(
+    padding: const EdgeInsets.only(top: Sp.m),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.error_outline_rounded, size: 18, color: Color(0xffff8a8a)),
+        const SizedBox(width: Sp.s),
+        Expanded(child: SelectableText(text, style: const TextStyle(fontSize: 13.5, color: Color(0xffffb4b4)))),
+      ],
+    ),
+  );
+
+  Widget _warning(String text) => Padding(
+    padding: const EdgeInsets.only(top: Sp.s),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.warning_amber_rounded, size: 18, color: _amber),
+        const SizedBox(width: Sp.s),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 13.5, color: Color(0xffffd59a)))),
+      ],
+    ),
+  );
+
+  Widget _note(String text, {IconData icon = Icons.info_outline_rounded}) => Padding(
+    padding: const EdgeInsets.only(top: Sp.s),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: secondaryText),
+        const SizedBox(width: Sp.s),
+        Expanded(child: Text(text, style: Ctl.label)),
+      ],
+    ),
+  );
+
+  Widget _field(TextEditingController c, String label, {bool enabled = true, String? hint}) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: Ctl.label),
+      const SizedBox(height: Sp.xs),
+      TextField(controller: c, enabled: enabled, style: Ctl.fieldText, decoration: Ctl.field(hint: hint)),
+    ],
+  );
+
+  Widget _twoFields(Widget a, Widget b) => LayoutBuilder(
+    builder: (context, box) => box.maxWidth >= 640
+        ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: a), const SizedBox(width: Sp.l), Expanded(child: b)])
+        : Column(children: [a, const SizedBox(height: Sp.m), b]),
+  );
+
+  Widget _panel(Widget child) => Container(
+    padding: const EdgeInsets.all(Sp.xl),
+    decoration: BoxDecoration(
+      color: panel,
+      borderRadius: BorderRadius.circular(Rad.panel),
+      border: Border.all(color: softBorder),
+    ),
+    child: child,
+  );
+
+  Widget _check(String label, bool value, ValueChanged<bool>? onChanged, {String? sub}) => InkWell(
+    borderRadius: BorderRadius.circular(Rad.control),
+    onTap: onChanged == null ? null : () => onChanged(!value),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: sub == null ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        children: [
+          Checkbox(value: value, onChanged: onChanged == null ? null : (v) => onChanged(v ?? false)),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(top: sub == null ? 0 : 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: const TextStyle(fontSize: 13.5)),
+                  if (sub != null) Text(sub, style: Ctl.label),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _dropdown<T>({
+    required T? value,
+    required List<(T, String)> items,
+    required ValueChanged<T?>? onChanged,
+    String? semantics,
+  }) => DropdownButtonFormField<T>(
+    key: ValueKey('$semantics:$value:${items.length}'),
+    initialValue: items.any((i) => i.$1 == value) ? value : null,
+    isExpanded: true,
+    isDense: true,
+    style: Theme.of(context).textTheme.bodyMedium!.merge(Ctl.fieldText).copyWith(color: primaryText),
+    decoration: Ctl.field(),
+    dropdownColor: elevated,
+    items: [
+      for (final (v, label) in items)
+        DropdownMenuItem(value: v, child: Text(label, overflow: TextOverflow.ellipsis)),
+    ],
+    onChanged: onChanged,
+  );
+
+  Widget _cover(CoverChoice? cover, {double size = 72}) => ClipRRect(
+    borderRadius: BorderRadius.circular(6),
+    child: SizedBox(
+      width: size,
+      height: size,
+      child: cover == null
+          ? Container(color: elevated, child: const Icon(Icons.album_outlined, color: secondaryText))
+          : CoverImage(cover.uri, width: size, height: size),
+    ),
+  );
+
+  // ------------------------------------------------------------------ Audio CD
+
+  Widget _steps(CdState st) {
+    final step = switch (st) {
+      CdState.ready => 1,
+      CdState.importing || CdState.done || CdState.failed => 2,
+      _ => 0,
+    };
+    final finished = st == CdState.done;
+    Widget dot(int i, String label) {
+      final done = i < step || (finished && i == step);
+      final on = i == step;
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: on || done ? accent : elevated),
+            child: done
+                ? const Icon(Icons.check_rounded, size: 16, color: onAccent)
+                : Text('${i + 1}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: on ? onAccent : secondaryText)),
+          ),
+          const SizedBox(width: Sp.s),
+          Text(label, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: on ? primaryText : secondaryText)),
+        ],
+      );
+    }
+
+    Widget link() => Container(width: 32, height: 1, margin: const EdgeInsets.symmetric(horizontal: Sp.m), color: softBorder);
+    return Semantics(
+      label: 'Etap ${step + 1} z 3',
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: Sp.s,
+        children: [dot(0, 'Napęd'), link(), dot(1, 'Utwory'), link(), dot(2, 'Zapis')],
+      ),
+    );
+  }
+
+  Widget _empty({required IconData icon, required String title, required String text, Widget? action}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: Sp.xl),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 56, color: secondaryText),
+        const SizedBox(width: Sp.xl),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+              const SizedBox(height: Sp.s),
+              Text(text, style: const TextStyle(fontSize: 14, color: secondaryText)),
+              if (action != null) ...[const SizedBox(height: Sp.l), action],
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  List<Widget> _cd() {
+    final st = s.cd;
+    final idle = !s.busy && !s.running;
+    return [
+      _steps(st),
+      const SizedBox(height: Sp.l),
+      if (s.waitingForDisc)
+        _empty(
+          icon: Icons.album_outlined,
+          title: 'Włóż następną płytę',
+          text: 'Tryb seryjny: płyta zostanie odczytana i opisana sama. Gdy opis jest jednoznaczny, import ruszy bez pytania.',
+          action: OutlinedButton(style: Ctl.outlined, onPressed: () => setState(() => s.serial = false), child: const Text('Zakończ tryb seryjny')),
+        )
+      else
+        switch (st) {
+          CdState.searching => _empty(
+            icon: Icons.album_outlined,
+            title: 'Szukam napędów',
+            text: 'To potrwa chwilę.',
+            action: const SizedBox(width: 120, child: LinearProgressIndicator()),
+          ),
+          CdState.noDrive => _empty(
+            icon: Icons.album_outlined,
+            title: 'Nie wykryto napędu',
+            text: 'Podłącz napęd USB i odśwież listę.',
+            action: FilledButton(style: Ctl.filled, onPressed: s.searching ? null : () => unawaited(s.refresh()), child: const Text('Odśwież')),
+          ),
+          CdState.importing => _ripProgress(),
+          CdState.done => _ripDone(),
+          CdState.failed => _ripFailed(),
+          _ => _driveAndTracks(st, idle),
+        },
+      if (s.error != null) _error(s.error!),
+      const SizedBox(height: Sp.xl),
+      const Collapsible(
+        title: 'Obsługiwane płyty',
+        child: Text(
+          'Płyty Audio CD (CD-DA), odczyt cyfrowy bez strat. Płyty ze ścieżkami danych '
+          '(CD-Extra, CD-ROM), DVD i Blu-ray nie są obsługiwane.\n'
+          'Każdy fragment jest odczytywany co najmniej dwa razy i porównywany. Wynik jest sprawdzany '
+          'w bazach AccurateRip i CTDB, gdy płyta tam jest. Przerwy między utworami są dołączane '
+          'do poprzedniego utworu.',
+          style: TextStyle(fontSize: 13.5, color: secondaryText, height: 1.45),
+        ),
+      ),
+    ];
+  }
+
+  Widget _driveRow(bool idle) => Row(
+    children: [
+      Expanded(
+        child: _dropdown<String>(
+          semantics: 'drive',
+          value: s.drive,
+          items: [for (final d in s.drives ?? const <Map<String, dynamic>>[]) (d['id'] as String, s.driveName(d))],
+          onChanged: idle && !s.reading ? s.selectDrive : null,
+        ),
+      ),
+      const SizedBox(width: Sp.s),
+      s.searching
+          ? const SizedBox(width: 36, height: 36, child: Padding(padding: EdgeInsets.all(9), child: CircularProgressIndicator(strokeWidth: 2)))
+          : IconAction(Icons.refresh_rounded, 'Odśwież listę napędów', idle && !s.reading ? () => unawaited(s.refresh()) : null, color: secondaryText),
+      IconAction(Icons.eject_rounded, 'Wysuń płytę', idle && s.drive != null && !s.reading ? () => unawaited(s.ejectDisc()) : null, color: secondaryText),
+    ],
+  );
+
+  Widget _driveAndTracks(CdState st, bool idle) {
+    final problem = switch (st) {
+      CdState.noDisc => 'Brak płyty w napędzie. Włóż płytę Audio CD.',
+      CdState.unsupported => '${s.cdProblem} Zobacz „Obsługiwane płyty”.',
+      CdState.readError => s.cdProblem,
+      _ => null,
+    };
+    final tracks = s.tracks;
+    final chosen = s.picked.where((p) => p).length;
+    final total = [for (var i = 0; i < tracks.length; i++) if (s.picked[i]) s.trackMs(tracks[i])].fold(0, (a, b) => a + b);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Napęd', style: Ctl.label),
+        const SizedBox(height: Sp.xs),
+        ConstrainedBox(constraints: const BoxConstraints(maxWidth: 560), child: _driveRow(idle)),
+        const SizedBox(height: Sp.m),
+        if (st == CdState.reading)
+          const Row(
+            children: [
+              SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+              SizedBox(width: Sp.s),
+              Text('Odczytuję spis utworów…', style: TextStyle(fontSize: 13.5)),
+            ],
+          )
+        else if (st != CdState.ready)
+          FilledButton(style: Ctl.filled, onPressed: idle && s.drive != null ? () => unawaited(s.readCd()) : null, child: const Text('Odczytaj')),
+        if (problem != null) st == CdState.noDisc ? _note(problem, icon: Icons.album_outlined) : _error(problem),
+        if (st == CdState.ready) ..._ready(idle, tracks, chosen, total),
+      ],
+    );
+  }
+
+  List<Widget> _ready(bool idle, List<Map<String, dynamic>> tracks, int chosen, int total) {
+    final verdicts = _verdicts();
+    return [
+      const SectionTitle('Utwory'),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: idle ? () => unawaited(s.chooseCoverFile()) : null,
+            borderRadius: BorderRadius.circular(6),
+            child: Tooltip(message: 'Zmień okładkę', child: _cover(s.cover)),
+          ),
+          const SizedBox(width: Sp.l),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${trackCount(tracks.length)} · ${ingestClock(tracks.fold(0, (a, t) => a + s.trackMs(t)))}', style: const TextStyle(fontSize: 13.5)),
+                if (s.describing)
+                  const Padding(
+                    padding: EdgeInsets.only(top: Sp.s),
+                    child: Row(
+                      children: [
+                        SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                        SizedBox(width: Sp.s),
+                        Text('Szukam płyty w MusicBrainz…', style: Ctl.label),
+                      ],
+                    ),
+                  )
+                else if (s.described != null)
+                  _note(s.described!),
+                Wrap(
+                  spacing: Sp.s,
+                  children: [
+                    TextButton(style: Ctl.text, onPressed: idle && !s.describing ? () => unawaited(s.describe()) : null, child: const Text('Szukaj opisu ponownie')),
+                    TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.readCd()) : null, child: const Text('Odczytaj ponownie')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      if (s.candidates.isNotEmpty) ...[
+        const SizedBox(height: Sp.s),
+        for (final r in s.candidates)
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.album_outlined, color: secondaryText),
+            title: Text('${r.artist} · ${r.title}', maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Text([r.date, r.country, r.label, r.format, r.disambiguation].where((x) => x.isNotEmpty).join(' · '), style: Ctl.label),
+            trailing: TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.chooseRelease(r)) : null, child: const Text('Wybierz')),
+          ),
+      ],
+      const SizedBox(height: Sp.l),
+      _twoFields(_field(s.album, 'Album', enabled: idle), _field(s.artist, 'Wykonawca albumu', enabled: idle)),
+      const SizedBox(height: Sp.s),
+      _check('Różni wykonawcy (składanka)', s.variousArtists, idle ? s.setVarious : null),
+      Row(
+        children: [
+          Checkbox(
+            tristate: true,
+            value: chosen == tracks.length ? true : chosen == 0 ? false : null,
+            onChanged: idle ? (_) => s.pickAll(chosen != tracks.length) : null,
+          ),
+          Text('Zaznaczone: $chosen z ${tracks.length}', style: Ctl.label),
+        ],
+      ),
+      for (var i = 0; i < tracks.length && i < s.tracksForm.length; i++)
+        Padding(
+          padding: const EdgeInsets.only(bottom: Sp.xs),
+          child: Row(
+            children: [
+              Checkbox(value: s.picked[i], onChanged: idle ? (v) => s.pick(i, v ?? false) : null),
+              SizedBox(width: 28, child: Text('${tracks[i]['number'] ?? i + 1}', textAlign: TextAlign.right, style: Ctl.label)),
+              const SizedBox(width: Sp.m),
+              Expanded(flex: 3, child: TextField(controller: s.tracksForm[i].title, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field())),
+              if (s.variousArtists) ...[
+                const SizedBox(width: Sp.s),
+                Expanded(flex: 2, child: TextField(controller: s.tracksForm[i].artist, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field(hint: 'Wykonawca'))),
+              ],
+              const SizedBox(width: Sp.m),
+              SizedBox(width: 52, child: Text(ingestClock(s.trackMs(tracks[i])), textAlign: TextAlign.right, style: Ctl.label)),
+              if (verdicts.isNotEmpty) SizedBox(width: 120, child: _verdict(verdicts[tracks[i]['number']])),
+            ],
+          ),
+        ),
+      const SectionTitle('Zapis'),
+      const InfoRow('Format', 'FLAC bez strat, 16 bit / 44,1 kHz, z okładką, opisem i ReplayGain'),
+      if (s.folders['cd'] != null) InfoRow('Folder', '${s.folders['cd']}'),
+      _check('Kopia MP3 192 kb/s na telefon', s.mp3, idle ? (v) => setState(() => s.mp3 = v) : null, sub: 'Osobny folder MP3 obok plików FLAC.'),
+      _check('Wysuń płytę po imporcie', s.eject || s.serial, idle && !s.serial ? (v) => setState(() => s.eject = v) : null),
+      _check(
+        'Tryb seryjny',
+        s.serial,
+        idle ? (v) => setState(() => s.serial = v) : null,
+        sub: 'Po imporcie płyta się wysuwa. Następna jest odczytywana sama i importowana, gdy opis jest jednoznaczny.',
+      ),
+      Collapsible(
+        title: 'Przesunięcie odczytu',
+        card: false,
+        trailing: s.manualOffset != null
+            ? '${s.manualOffset! >= 0 ? '+' : ''}${s.manualOffset} (ręcznie)'
+            : s.savedOffset != null
+            ? '${s.savedOffset! >= 0 ? '+' : ''}${s.savedOffset} (zapamiętane)'
+            : 'wykrywane automatycznie',
+        child: _OffsetField(state: s, enabled: idle),
+      ),
+      const SizedBox(height: Sp.m),
+      FilledButton.icon(
+        style: Ctl.filled,
+        onPressed: idle && chosen > 0 ? () => unawaited(s.rip()) : null,
+        icon: const Icon(Icons.download_rounded, size: 18),
+        label: Text(chosen == tracks.length ? 'Importuj' : 'Importuj zaznaczone ($chosen)'),
+      ),
+      if (chosen > 0) Padding(padding: const EdgeInsets.only(top: Sp.s), child: Text('Do odczytu: ${ingestClock(total)} muzyki.', style: Ctl.label)),
+    ];
+  }
+
+  /// Verification per track number from the running or finished import.
+  Map<Object?, Map<String, dynamic>> _verdicts() => {
+    for (final v in s.status['verdicts'] as List? ?? const []) (v as Map)['track']: Map<String, dynamic>.from(v),
+  };
+
+  bool get _hasAr => ((s.status['discCheck'] as Map?)?['accuraterip'] as num? ?? 0) > 0;
+
+  Widget _verdict(Map<String, dynamic>? v) {
+    if (v == null) return const SizedBox.shrink();
+    final ar = (v['accuraterip'] as num? ?? 0).toInt();
+    final best = (v['accurateripBest'] as num? ?? 0).toInt();
+    final ctdb = (v['ctdb'] as num? ?? 0).toInt();
+    final (icon, color, text) = ar > 0 || ctdb > 0
+        ? (Icons.verified_rounded, accent, [if (ar > 0) 'AR $ar', if (ctdb > 0) 'CTDB $ctdb'].join(' · '))
+        : best > 0
+        ? (Icons.error_outline_rounded, _red, 'niezgodny')
+        : (Icons.help_outline_rounded, secondaryText, _hasAr ? 'brak w bazie' : 'bez weryfikacji');
+    return Tooltip(
+      message: 'CRC ${v['crc']} · AccurateRip v1 ${v['v1']} · v2 ${v['v2']}'
+          '${(v['retriedSectors'] as num? ?? 0) > 0 ? ' · powtórzone sektory: ${v['retriedSectors']}' : ''}',
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: Sp.xs),
+          Flexible(child: Text(text, style: TextStyle(fontSize: 12.5, color: color), overflow: TextOverflow.ellipsis)),
+        ],
+      ),
+    );
+  }
+
+  Widget _ripProgress() {
+    final done = (s.status['done'] as num? ?? 0).toDouble();
+    final total = (s.status['total'] as num? ?? 0).toDouble();
+    final files = (s.status['files'] as List? ?? const []).length;
+    final offset = s.status['offset'];
+    final verdicts = _verdicts();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(total > 0 ? 'Importowanie: ${(done * 100 / total).clamp(0, 100).round()}%' : 'Importowanie', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+        const SizedBox(height: Sp.xs),
+        Text(s.step, style: Ctl.label),
+        const SizedBox(height: Sp.m),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: LinearProgressIndicator(value: total > 0 ? (done / total).clamp(0, 1) : null),
+        ),
+        const SizedBox(height: Sp.s),
+        Text(
+          [
+            'Gotowe pliki: $files',
+            if (offset != null) 'przesunięcie ${(offset as num) >= 0 ? '+' : ''}$offset (${s.status['offsetSource']})',
+          ].join(' · '),
+          style: Ctl.label,
+        ),
+        for (final v in verdicts.values)
+          Padding(
+            padding: const EdgeInsets.only(top: Sp.xs),
+            child: SizedBox(width: 360, child: Row(children: [Text('Ścieżka ${v['track']}', style: Ctl.label), const Spacer(), _verdict(v)])),
+          ),
+        for (final w in s.status['warnings'] as List? ?? const []) _warning('$w'),
+        const SizedBox(height: Sp.l),
+        OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: const Text('Zatrzymaj i zachowaj gotowe pliki')),
+      ],
+    );
+  }
+
+  Widget _ripDone() {
+    final files = (s.status['files'] as List? ?? const []);
+    final cancelled = s.stage == 'cancelled';
+    final verdicts = _verdicts().values.toList();
+    final ok = verdicts.where((v) => (v['accuraterip'] as num? ?? 0) > 0 || (v['ctdb'] as num? ?? 0) > 0).length;
+    final bad = verdicts.where((v) => (v['accuraterip'] as num? ?? 0) == 0 && (v['accurateripBest'] as num? ?? 0) > 0 && (v['ctdb'] as num? ?? 0) == 0).length;
+    final folder = s.status['folder'] as String? ?? '';
+    final disc = s.status['discCheck'] as Map?;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          files.isEmpty ? 'Import zatrzymany, nic nie zapisano' : '${cancelled ? 'Import zatrzymany. ' : ''}Dodano do biblioteki: ${trackCount(files.length)}',
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        ),
+        if (verdicts.isNotEmpty) ...[
+          const SizedBox(height: Sp.s),
+          if (ok == verdicts.length)
+            _note('Wszystkie ścieżki zgodne z bazami AccurateRip lub CTDB.', icon: Icons.verified_rounded)
+          else if (bad > 0)
+            _warning('Niezgodne z bazą: $bad. Przetrzyj płytę i zaimportuj te ścieżki ponownie.')
+          else
+            _note('Zweryfikowane w bazach: $ok z ${verdicts.length}. Reszty płyty nie ma w bazach, więc nie da się jej sprawdzić.'),
+          if (disc?['ctdbConfidence'] != null && (disc!['ctdbConfidence'] as num) > 0) _note('Cała płyta zgodna z CTDB (pewność ${disc['ctdbConfidence']}).', icon: Icons.verified_rounded),
+          if (s.status['offset'] != null) _note('Przesunięcie odczytu: ${(s.status['offset'] as num) >= 0 ? '+' : ''}${s.status['offset']} próbek (${s.status['offsetSource']}).'),
+        ],
+        for (final w in s.status['warnings'] as List? ?? const []) _warning('$w'),
+        const SizedBox(height: Sp.m),
+        for (final f in files) Text('$f'.split(RegExp(r'[\\/]')).last, style: Ctl.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        const SizedBox(height: Sp.l),
+        Wrap(
+          spacing: Sp.s,
+          runSpacing: Sp.s,
+          children: [
+            FilledButton(style: Ctl.filled, onPressed: () => s.nextDisc(), child: const Text('Importuj kolejną płytę')),
+            if (folder.isNotEmpty)
+              OutlinedButton.icon(
+                style: Ctl.outlined,
+                onPressed: () => unawaited(s.openFolder(folder)),
+                icon: const Icon(Icons.folder_open_outlined, size: 18),
+                label: const Text('Otwórz folder z raportem'),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _ripFailed() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text('Import przerwany', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+      _error('${s.status['error'] ?? 'Nieznany błąd'}'),
+      if ((s.status['files'] as List? ?? const []).isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: Sp.s),
+          child: Text('Zachowano gotowe pliki: ${(s.status['files'] as List).length}', style: Ctl.label),
+        ),
+      const SizedBox(height: Sp.l),
+      FilledButton(style: Ctl.filled, onPressed: () => s.nextDisc(), child: const Text('Spróbuj ponownie')),
+    ],
+  );
+
+  // -------------------------------------------------------------- Vinyl, tape
+
+  List<Widget> _analog() => [
+    LayoutBuilder(
+      builder: (context, box) {
+        final wide = box.maxWidth >= 760;
+        final input = _input(), rec = _recording();
+        return _panel(
+          wide
+              ? IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: input),
+                      const Padding(padding: EdgeInsets.symmetric(horizontal: Sp.xl), child: VerticalDivider(width: 1, color: softBorder)),
+                      Expanded(child: rec),
+                    ],
+                  ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [input, const Padding(padding: EdgeInsets.symmetric(vertical: Sp.xl), child: Divider(height: 1, color: softBorder)), rec],
+                ),
+        );
+      },
+    ),
+    if (s.error != null) _error(s.error!),
+    const SizedBox(height: Sp.l),
+    _export(),
+  ];
+
+  Widget _input() {
+    final idle = !s.busy && !s.running;
+    final rates = s.rates;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: Text('Wejście', style: Ctl.section)),
+            IconAction(Icons.help_outline_rounded, help ? 'Ukryj pomoc' : 'Jak podłączyć gramofon lub magnetofon', () => setState(() => help = !help), color: secondaryText),
+          ],
+        ),
+        if (help)
+          Container(
+            margin: const EdgeInsets.only(top: Sp.s),
+            padding: const EdgeInsets.all(Sp.m),
+            decoration: BoxDecoration(color: elevated, borderRadius: BorderRadius.circular(Rad.control)),
+            child: const Text(
+              'Gramofon: przez przedwzmacniacz PHONO do wejścia liniowego karty dźwiękowej albo gramofon z wyjściem USB. '
+              'Magnetofon: z wyjścia LINE OUT do wejścia liniowego.\n'
+              'Ustaw poziom na najgłośniejszym fragmencie płyty: szczyty od -12 do -6 dBFS, bez przesterowań.',
+              style: TextStyle(fontSize: 13, height: 1.45),
+            ),
+          ),
+        const SizedBox(height: Sp.m),
+        const Text('Urządzenie wejściowe', style: Ctl.label),
+        const SizedBox(height: Sp.xs),
+        if (s.inputs.isEmpty && !s.searching)
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Nie wykryto wejścia audio. Podłącz interfejs USB lub włącz wejście w ustawieniach dźwięku Windows.',
+                  style: TextStyle(fontSize: 13.5),
+                ),
+              ),
+              IconAction(Icons.refresh_rounded, 'Odśwież listę wejść', () => unawaited(s.refresh()), color: secondaryText),
+            ],
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: _dropdown<String>(
+                  semantics: 'input',
+                  value: s.input,
+                  items: [for (final d in s.inputs) (d['id'] as String, '${d['name']}')],
+                  onChanged: idle ? s.selectInput : null,
+                ),
+              ),
+              const SizedBox(width: Sp.s),
+              s.searching
+                  ? const SizedBox(width: 36, height: 36, child: Padding(padding: EdgeInsets.all(9), child: CircularProgressIndicator(strokeWidth: 2)))
+                  : IconAction(Icons.refresh_rounded, 'Odśwież listę wejść', idle ? () => unawaited(s.refresh()) : null, color: secondaryText),
+            ],
+          ),
+        const SizedBox(height: Sp.s),
+        Collapsible(
+          title: 'Zaawansowane',
+          card: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Częstotliwość nagrania', style: Ctl.label),
+              const SizedBox(height: Sp.xs),
+              if (rates.length > 1)
+                _dropdown<int>(
+                  semantics: 'rate',
+                  value: s.rate,
+                  items: [for (final r in rates) (r, '${(r / 1000).toString().replaceAll('.', ',')} kHz')],
+                  onChanged: idle ? (v) => s.selectRate(v ?? s.rate) : null,
+                )
+              else
+                Text(rates.isEmpty ? 'Po wybraniu wejścia' : '${(rates.first / 1000).toString().replaceAll('.', ',')} kHz', style: Ctl.fieldText),
+              const SizedBox(height: Sp.m),
+              const Text('Format nagrania', style: Ctl.label),
+              const SizedBox(height: Sp.xs),
+              const Text('WAV 24 bit, bez obróbki (obróbka tylko przy eksporcie kopii)', style: Ctl.fieldText),
+              const SizedBox(height: Sp.m),
+              const Text('Folder nagrań', style: Ctl.label),
+              const SizedBox(height: Sp.xs),
+              Row(
+                children: [
+                  Expanded(child: Text('${s.folders['recordings'] ?? 'Folder danych aplikacji'}', style: Ctl.fieldText, maxLines: 2, overflow: TextOverflow.ellipsis)),
+                  IconAction(Icons.folder_open_outlined, 'Otwórz folder nagrań', s.busy ? null : () => unawaited(s.openFolder()), color: secondaryText),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: Sp.xl, color: softBorder),
+        const Text('Poziom wejścia', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        const SizedBox(height: Sp.m),
+        _meters(),
+        const SizedBox(height: Sp.m),
+        if (s.monitoring)
+          OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: const Text('Zakończ podgląd'))
+        else
+          OutlinedButton(style: Ctl.outlined, onPressed: idle && s.input != null ? () => unawaited(s.monitor()) : null, child: const Text('Sprawdź poziom')),
+      ],
+    );
+  }
+
+  Widget _meters() {
+    final live = s.capturing;
+    final peaks = [for (final p in s.status['peaks'] as List? ?? const []) (p as num).toDouble()];
+    final n = s.channels;
+    final clips = (s.status['clips'] as num? ?? 0).toInt();
+    final dropouts = (s.status['dropouts'] as num? ?? 0).toInt();
+    Widget meter(String name, double peak) {
+      final db = peak > 0 ? 20 * math.log(peak) / math.ln10 : -90.0;
+      final fill = live ? ((db + 60) / 60).clamp(0.0, 1.0) : 0.0;
+      final color = db > -1 ? _red : db > -6 ? _amber : accent;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: Sp.s),
+        child: Row(
+          children: [
+            SizedBox(width: 16, child: Text(name, style: Ctl.label)),
+            Expanded(
+              child: Semantics(
+                label: 'Poziom kanału $name',
+                value: live ? '${db.toStringAsFixed(1)} dBFS' : 'wyłączony',
+                child: Container(
+                  height: 8,
+                  decoration: BoxDecoration(color: elevated, borderRadius: BorderRadius.circular(4)),
+                  alignment: Alignment.centerLeft,
+                  child: FractionallySizedBox(
+                    widthFactor: fill,
+                    child: Container(decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4))),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 76,
+              child: Text(
+                live ? (db <= -89 ? '−∞ dBFS' : '${db.toStringAsFixed(1)} dBFS') : '',
+                textAlign: TextAlign.right,
+                style: Ctl.label.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (n == 1)
+          meter('M', peaks.firstOrNull ?? 0)
+        else ...[
+          meter('L', peaks.elementAtOrNull(0) ?? 0),
+          meter('R', peaks.elementAtOrNull(1) ?? 0),
+        ],
+        if (!live) const Text('Podgląd wyłączony', style: Ctl.label),
+        if (live && clips > 0) _error('Przesterowanie: ${collectionCount(clips, 'próbka', 'próbki', 'próbek')}. Zmniejsz poziom na przedwzmacniaczu lub w Windows.'),
+        if (live && dropouts > 0) _warning('Utracone próbki: $dropouts. Zamknij inne programy korzystające z wejścia.'),
+      ],
+    );
+  }
+
+  Widget _recording() {
+    final frames = (s.status['frames'] as num? ?? 0).toDouble();
+    final hz = (s.status['rate'] as num? ?? s.rate).toDouble();
+    final ms = s.recording ? frames * 1000 / (hz > 0 ? hz : s.rate) : 0.0;
+    final markers = (s.status['markers'] as List? ?? const []).cast<num>();
+    final idle = !s.busy && !s.running;
+    final endedBySilence = s.job == 'record' && !s.running && s.status['ended'] == 'silence';
+    final state = s.paused
+        ? 'Pauza, nic nie jest zapisywane'
+        : s.recording
+        ? 'Nagrywanie'
+        : s.monitoring
+        ? 'Podgląd poziomu, nic nie jest zapisywane'
+        : s.job == 'record' && s.stage == 'error'
+        ? 'Nagranie przerwane'
+        : endedBySilence
+        ? 'Strona zakończona: wykryto ciszę'
+        : s.job == 'record' && (s.stage == 'finished' || s.stage == 'cancelled')
+        ? 'Nagranie zapisane'
+        : 'Nagranie nie zostało rozpoczęte';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Nagranie', style: Ctl.section),
+        const SizedBox(height: Sp.m),
+        _field(s.label, 'Nazwa nagrania', enabled: idle || s.monitoring),
+        _check('Zakończ po ciszy na końcu strony', s.autoStop, idle || s.monitoring ? (v) => setState(() => s.autoStop = v) : null, sub: '8 s ciszy po co najmniej 30 s nagrania.'),
+        const SizedBox(height: Sp.l),
+        Center(
+          child: Text(
+            ingestClock(ms),
+            style: const TextStyle(fontSize: 44, fontWeight: FontWeight.w300, fontFeatures: [FontFeature.tabularFigures()]),
+          ),
+        ),
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (s.recording && !s.paused) ...[
+                Container(width: 8, height: 8, decoration: const BoxDecoration(color: _red, shape: BoxShape.circle)),
+                const SizedBox(width: Sp.s),
+              ],
+              Flexible(child: Text(state, style: Ctl.label, textAlign: TextAlign.center)),
+            ],
+          ),
+        ),
+        if (s.job == 'record' && s.stage == 'error' && s.status['error'] != null) _error('${s.status['error']}'),
+        const SizedBox(height: Sp.l),
+        Center(
+          child: s.recording
+              ? Wrap(
+                  spacing: Sp.s,
+                  runSpacing: Sp.s,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    FilledButton.icon(
+                      style: Ctl.filled,
+                      onPressed: s.busy ? null : () => unawaited(s.stop()),
+                      icon: const Icon(Icons.stop_rounded, size: 18),
+                      label: const Text('Stop'),
+                    ),
+                    OutlinedButton.icon(
+                      style: Ctl.outlined,
+                      onPressed: s.busy ? null : () => unawaited(s.pause(!s.paused)),
+                      icon: Icon(s.paused ? Icons.fiber_manual_record : Icons.pause_rounded, size: 18),
+                      label: Text(s.paused ? 'Wznów' : 'Pauza'),
+                    ),
+                    OutlinedButton.icon(
+                      style: Ctl.outlined,
+                      onPressed: s.busy || s.paused ? null : () => unawaited(s.mark()),
+                      icon: const Icon(Icons.flag_outlined, size: 18),
+                      label: const Text('Znacznik utworu'),
+                    ),
+                  ],
+                )
+              : Wrap(
+                  spacing: Sp.s,
+                  runSpacing: Sp.s,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    FilledButton.icon(
+                      style: Ctl.filled,
+                      onPressed: (idle || s.monitoring) && !s.busy && s.input != null ? () => unawaited(s.record()) : null,
+                      icon: const Icon(Icons.fiber_manual_record, size: 14, color: Color(0xffff3b30)),
+                      label: const Text('Nagraj'),
+                    ),
+                    if (endedBySilence)
+                      OutlinedButton(style: Ctl.outlined, onPressed: idle && s.input != null ? () => unawaited(s.recordSideB()) : null, child: const Text('Nagraj stronę B')),
+                  ],
+                ),
+        ),
+        if (s.recording && markers.isNotEmpty) ...[
+          const SizedBox(height: Sp.m),
+          Text('Znaczniki: ${markers.map(ingestClock).join(', ')}', style: Ctl.label, textAlign: TextAlign.center),
+        ],
+      ],
+    );
+  }
+
+  Widget _export() {
+    final available = s.sessions.isNotEmpty && !s.recording;
+    final selected = s.selectedSession;
+    final idle = !s.busy && !s.running;
+    final exportDone = s.job == 'export' && !s.running && (s.stage == 'finished' || s.stage == 'cancelled');
+    return Collapsible(
+      key: ValueKey('export:$available'),
+      title: 'Podział i eksport',
+      trailing: available ? null : 'Dostępne po nagraniu',
+      enabled: available,
+      initiallyOpen: available && s.session != null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Nagranie', style: Ctl.label),
+          const SizedBox(height: Sp.xs),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: _dropdown<String>(
+              semantics: 'session',
+              value: s.session,
+              items: [
+                for (final x in s.sessions)
+                  (
+                    x['id'] as String,
+                    '${x['label'] ?? 'Nagranie'} · ${ingestClock(x['durationMs'] as num? ?? 0)}${x['partial'] == true ? ' · przerwane' : ''}',
+                  ),
+              ],
+              onChanged: idle
+                  ? (v) {
+                      if (v != null) unawaited(s.selectSession(v));
+                    }
+                  : null,
+            ),
+          ),
+          if (selected != null && selected['partial'] == true) ...[
+            _warning('Nagranie zostało przerwane. Odzyskaj je, aby podzielić i dodać do biblioteki.'),
+            const SizedBox(height: Sp.m),
+            FilledButton(style: Ctl.filled, onPressed: idle ? () => unawaited(s.recover()) : null, child: const Text('Odzyskaj nagranie')),
+          ] else if (selected != null) ...[
+            const SizedBox(height: Sp.l),
+            _tracklist(idle),
+            const SizedBox(height: Sp.l),
+            Row(
+              children: [
+                const Expanded(child: Text('Początki utworów', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
+                TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.analyze()) : null, child: const Text('Zaproponuj według ciszy')),
+              ],
+            ),
+            const SizedBox(height: Sp.s),
+            if (s.waveform != null)
+              WaveformEditor(state: s, enabled: idle)
+            else
+              const SizedBox(height: 120, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+            const SizedBox(height: Sp.l),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  onTap: idle ? () => unawaited(s.chooseCoverFile()) : null,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Tooltip(message: 'Wybierz okładkę', child: _cover(s.cover, size: 64)),
+                ),
+                const SizedBox(width: Sp.l),
+                Expanded(child: _twoFields(_field(s.album, 'Album', enabled: idle), _field(s.artist, 'Wykonawca albumu', enabled: idle))),
+              ],
+            ),
+            const SizedBox(height: Sp.s),
+            Row(
+              children: [
+                Expanded(child: _check('Różni wykonawcy (składanka)', s.variousArtists, idle ? s.setVarious : null)),
+                const Text('Numer pierwszego utworu', style: Ctl.label),
+                const SizedBox(width: Sp.s),
+                SizedBox(
+                  width: 64,
+                  child: TextField(
+                    controller: s.firstTrackField,
+                    enabled: idle,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
+                    style: Ctl.fieldText,
+                    decoration: Ctl.field(),
+                    onChanged: (_) => s.changed(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: Sp.s),
+            for (var i = 0; i < s.tracksForm.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: Sp.xs),
+                child: Row(
+                  children: [
+                    SizedBox(width: 28, child: Text('${i + s.firstTrack}.', textAlign: TextAlign.right, style: Ctl.label)),
+                    const SizedBox(width: Sp.m),
+                    Expanded(flex: 3, child: TextField(controller: s.tracksForm[i].title, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field())),
+                    if (s.variousArtists) ...[
+                      const SizedBox(width: Sp.s),
+                      Expanded(flex: 2, child: TextField(controller: s.tracksForm[i].artist, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field(hint: 'Wykonawca'))),
+                    ],
+                    const SizedBox(width: Sp.m),
+                    SizedBox(
+                      width: 56,
+                      child: Text(
+                        ingestClock(i == 0 ? 0 : s.markers[i - 1]),
+                        textAlign: TextAlign.right,
+                        style: Ctl.label,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: Sp.m),
+            Collapsible(
+              title: 'Obróbka kopii',
+              card: false,
+              trailing: [if (s.declick) 'trzaski', if (s.hum) 'brum', if (s.speed != 0) 'prędkość ${s.speed > 0 ? '+' : ''}${s.speed.toStringAsFixed(1)}%'].join(', '),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Dotyczy tylko plików FLAC i MP3. Oryginalne nagranie WAV zostaje bez zmian.', style: Ctl.label),
+                  _check('Usuń trzaski', s.declick, idle ? (v) => setState(() => s.declick = v) : null, sub: 'Krótkie trzaski i pyknięcia z płyty winylowej.'),
+                  _check('Filtr brumu 50 Hz', s.hum, idle ? (v) => setState(() => s.hum = v) : null, sub: 'Wycina 50, 100 i 150 Hz z przewodów i uziemienia.'),
+                  Row(
+                    children: [
+                      const SizedBox(width: Sp.m),
+                      const Text('Korekta prędkości kasety', style: TextStyle(fontSize: 13.5)),
+                      Expanded(
+                        child: Slider(
+                          value: s.speed,
+                          min: -5,
+                          max: 5,
+                          divisions: 100,
+                          label: '${s.speed > 0 ? '+' : ''}${s.speed.toStringAsFixed(1)}%',
+                          onChanged: idle ? (v) => setState(() => s.speed = (v * 10).round() / 10) : null,
+                        ),
+                      ),
+                      SizedBox(width: 56, child: Text('${s.speed > 0 ? '+' : ''}${s.speed.toStringAsFixed(1)}%', style: Ctl.label)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            _check('Kopia MP3 192 kb/s na telefon', s.mp3, idle ? (v) => setState(() => s.mp3 = v) : null),
+            const SizedBox(height: Sp.s),
+            const Text('Każdy utwór trafi do biblioteki jako FLAC z opisem i ReplayGain. Oryginalne nagranie WAV zostaje.', style: Ctl.label),
+            const SizedBox(height: Sp.m),
+            if (s.exporting) ...[
+              LinearProgressIndicator(
+                value: (s.status['total'] as num? ?? 0) > 0 ? ((s.status['done'] as num? ?? 0) / (s.status['total'] as num)).clamp(0, 1).toDouble() : null,
+              ),
+              const SizedBox(height: Sp.xs),
+              Text(s.step, style: Ctl.label),
+              const SizedBox(height: Sp.s),
+              OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: const Text('Zatrzymaj eksport')),
+            ] else
+              FilledButton.icon(
+                style: Ctl.filled,
+                onPressed: idle && s.tracksForm.isNotEmpty ? () => unawaited(s.export()) : null,
+                icon: const Icon(Icons.library_add_outlined, size: 18),
+                label: const Text('Dodaj do biblioteki'),
+              ),
+            if (exportDone) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: Sp.m),
+                child: Text('Dodano do biblioteki: ${trackCount((s.status['files'] as List? ?? const []).length)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              ),
+              for (final w in s.status['warnings'] as List? ?? const []) _note('$w'),
+              if ((s.status['folder'] as String? ?? '').isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: Sp.s),
+                  child: OutlinedButton.icon(
+                    style: Ctl.outlined,
+                    onPressed: () => unawaited(s.openFolder(s.status['folder'] as String)),
+                    icon: const Icon(Icons.folder_open_outlined, size: 18),
+                    label: const Text('Otwórz folder'),
+                  ),
+                ),
+            ],
+            if (s.job == 'export' && s.stage == 'error' && s.status['error'] != null) _error('${s.status['error']}'),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _tracklist(bool idle) {
+    final info = s.tracklist;
+    return Collapsible(
+      title: 'Lista utworów z MusicBrainz lub Discogs',
+      card: false,
+      initiallyOpen: info == null,
+      trailing: info == null ? null : '${info.release.artist} · ${info.release.title}',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _twoFields(_field(s.searchAlbum, 'Album', enabled: idle), _field(s.searchArtist, 'Wykonawca', enabled: idle)),
+          const SizedBox(height: Sp.s),
+          Wrap(
+            spacing: Sp.s,
+            runSpacing: Sp.s,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              OutlinedButton(style: Ctl.outlined, onPressed: idle ? () => unawaited(s.searchTracklist()) : null, child: const Text('Szukaj w MusicBrainz')),
+              SizedBox(
+                width: 300,
+                child: TextField(
+                  controller: s.discogs,
+                  enabled: idle,
+                  style: Ctl.fieldText,
+                  decoration: Ctl.field(hint: 'albo adres wydania z Discogs'),
+                  onSubmitted: (_) => unawaited(s.loadDiscogs()),
+                ),
+              ),
+              TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.loadDiscogs()) : null, child: const Text('Wczytaj z Discogs')),
+            ],
+          ),
+          for (final r in s.searchResults)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text('${r.artist} · ${r.title}', maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: Text([r.date, r.country, r.format, r.label].where((x) => x.isNotEmpty).join(' · '), style: Ctl.label),
+              trailing: TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.loadTracklist(r)) : null, child: const Text('Wybierz')),
+            ),
+          if (info != null) ...[
+            const SizedBox(height: Sp.m),
+            const Text('Zaznacz utwory z tego nagrania (jednej strony):', style: Ctl.label),
+            for (var i = 0; i < info.tracks.length; i++)
+              _check(
+                '${info.tracks[i].number.isNotEmpty ? '${info.tracks[i].number}  ' : ''}${info.tracks[i].title}',
+                s.tracklistPicked[i],
+                idle ? (v) => s.pickTracklist(i, v) : null,
+                sub: info.tracks[i].durationMs > 0 ? ingestClock(info.tracks[i].durationMs) : 'bez czasu',
+              ),
+            const SizedBox(height: Sp.s),
+            FilledButton(style: Ctl.filled, onPressed: idle ? () => unawaited(s.applyTracklist()) : null, child: const Text('Ustaw znaczniki i tytuły według listy')),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _OffsetField extends StatefulWidget {
+  final IngestState state;
+  final bool enabled;
+  const _OffsetField({required this.state, required this.enabled});
+  @override
+  State<_OffsetField> createState() => _OffsetFieldState();
+}
+
+class _OffsetFieldState extends State<_OffsetField> {
+  late final c = TextEditingController(text: widget.state.manualOffset?.toString() ?? '');
+  @override
+  void dispose() {
+    c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        'Zostaw puste: Mytify użyje wartości zapamiętanej dla napędu albo ustali ją z AccurateRip przy pierwszej płycie, która jest w bazie.',
+        style: Ctl.label,
+      ),
+      const SizedBox(height: Sp.s),
+      SizedBox(
+        width: 160,
+        child: TextField(
+          controller: c,
+          enabled: widget.enabled,
+          style: Ctl.fieldText,
+          keyboardType: const TextInputType.numberWithOptions(signed: true),
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^-?\d{0,4}'))],
+          decoration: Ctl.field(hint: 'np. +6'),
+          onChanged: (v) {
+            widget.state.manualOffset = int.tryParse(v.replaceAll('+', ''));
+            widget.state.changed();
+          },
+        ),
+      ),
+    ],
+  );
+}
+
+/// Real waveform of the recording with draggable track starts, a cursor to listen
+/// from, and zoom. Nothing here is drawn from guessed data.
+class WaveformEditor extends StatefulWidget {
+  final IngestState state;
+  final bool enabled;
+  const WaveformEditor({super.key, required this.state, required this.enabled});
+  @override
+  State<WaveformEditor> createState() => _WaveformEditorState();
+}
+
+class _WaveformEditorState extends State<WaveformEditor> {
+  IngestState get s => widget.state;
+  double zoom = 1;
+  int? dragging;
+  final scroll = ScrollController();
+
+  @override
+  void dispose() {
+    scroll.dispose();
+    super.dispose();
+  }
+
+  int _msAt(double x, double width) {
+    final w = s.waveform!;
+    return (x / width * w.durationMs).round().clamp(0, w.durationMs);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final w = s.waveform!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LayoutBuilder(
+          builder: (context, box) {
+            final width = box.maxWidth * zoom;
+            return SizedBox(
+              height: 132,
+              child: Scrollbar(
+                controller: scroll,
+                thumbVisibility: zoom > 1,
+                child: SingleChildScrollView(
+                  controller: scroll,
+                  scrollDirection: Axis.horizontal,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapUp: widget.enabled ? (d) => s.setCursor(_msAt(d.localPosition.dx, width)) : null,
+                    onDoubleTapDown: widget.enabled ? (d) => s.addMarker(_msAt(d.localPosition.dx, width)) : null,
+                    onHorizontalDragStart: widget.enabled
+                        ? (d) {
+                            // Grab the nearest marker within 10 px.
+                            final x = d.localPosition.dx;
+                            int? best;
+                            var bestDx = 10.0;
+                            for (var i = 0; i < s.markers.length; i++) {
+                              final mx = s.markers[i] / w.durationMs * width;
+                              if ((mx - x).abs() < bestDx) {
+                                bestDx = (mx - x).abs();
+                                best = i;
+                              }
+                            }
+                            setState(() => dragging = best);
+                          }
+                        : null,
+                    onHorizontalDragUpdate: (d) {
+                      final i = dragging;
+                      if (i != null) {
+                        s.moveMarker(i, _msAt(d.localPosition.dx, width));
+                      } else if (scroll.hasClients) {
+                        // No marker under the pointer: drag pans the zoomed waveform.
+                        scroll.jumpTo((scroll.offset - d.delta.dx).clamp(0, scroll.position.maxScrollExtent));
+                      }
+                    },
+                    onHorizontalDragEnd: (_) => setState(() => dragging = null),
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.precise,
+                      child: CustomPaint(
+                        size: Size(width, 132),
+                        painter: _WavePainter(w, s.markers, s.cursorMs, dragging),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: Sp.s),
+        Wrap(
+          spacing: Sp.s,
+          runSpacing: Sp.s,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text('Kursor ${markTime(s.cursorMs)}', style: Ctl.label.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
+            OutlinedButton.icon(
+              style: Ctl.outlined,
+              onPressed: widget.enabled ? () => unawaited(s.preview(s.cursorMs)) : null,
+              icon: const Icon(Icons.play_arrow_rounded, size: 18),
+              label: const Text('Odsłuchaj'),
+            ),
+            IconAction(Icons.stop_rounded, 'Zatrzymaj odsłuch', widget.enabled ? () => unawaited(s.stopPreview()) : null, color: secondaryText),
+            OutlinedButton.icon(
+              style: Ctl.outlined,
+              onPressed: widget.enabled ? () => s.addMarker(s.cursorMs) : null,
+              icon: const Icon(Icons.flag_outlined, size: 18),
+              label: const Text('Znacznik w kursorze'),
+            ),
+            const SizedBox(width: Sp.m),
+            const Icon(Icons.zoom_in_rounded, size: 18, color: secondaryText),
+            SizedBox(
+              width: 140,
+              child: Slider(value: zoom, min: 1, max: 24, onChanged: (v) => setState(() => zoom = v), semanticFormatterCallback: (v) => 'Powiększenie ${v.round()}x'),
+            ),
+          ],
+        ),
+        const Text('Kliknij, aby ustawić kursor. Dwuklik dodaje znacznik, przeciągnij znacznik, aby go przesunąć.', style: Ctl.label),
+        if (s.markers.isNotEmpty) ...[
+          const SizedBox(height: Sp.s),
+          Wrap(
+            spacing: Sp.s,
+            runSpacing: Sp.xs,
+            children: [
+              for (var i = 0; i < s.markers.length; i++)
+                InputChip(
+                  label: Text('${i + 2}: ${markTime(s.markers[i])}', style: const TextStyle(fontSize: 12.5)),
+                  onPressed: widget.enabled
+                      ? () {
+                          s.setCursor(s.markers[i]);
+                          unawaited(s.preview(s.markers[i]));
+                        }
+                      : null,
+                  onDeleted: widget.enabled ? () => s.removeMarker(i) : null,
+                  deleteButtonTooltipMessage: 'Usuń znacznik',
+                  tooltip: 'Odsłuchaj początek utworu ${i + 2}',
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _WavePainter extends CustomPainter {
+  final Waveform w;
+  final List<int> markers;
+  final int cursor;
+  final int? active;
+  _WavePainter(this.w, this.markers, this.cursor, this.active);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRRect(RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(6)), Paint()..color = const Color(0xff141619));
+    final n = w.peaks.length ~/ 2;
+    if (n == 0) return;
+    final mid = size.height / 2;
+    final paint = Paint()
+      ..color = accent.withValues(alpha: .75)
+      ..strokeWidth = math.max(1, size.width / n);
+    final step = size.width / n;
+    for (var i = 0; i < n; i++) {
+      final lo = w.peaks[i * 2], hi = w.peaks[i * 2 + 1];
+      final x = i * step + step / 2;
+      canvas.drawLine(Offset(x, mid - hi * mid * .95), Offset(x, mid - lo * mid * .95 + .5), paint);
+    }
+    final marker = Paint()
+      ..color = primaryText
+      ..strokeWidth = 1.5;
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    for (var i = 0; i < markers.length; i++) {
+      final x = markers[i] / w.durationMs * size.width;
+      marker.color = i == active ? accent : primaryText;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), marker);
+      canvas.drawCircle(Offset(x, 6), 5, marker);
+      tp.text = TextSpan(text: '${i + 2}', style: const TextStyle(fontSize: 10, color: Colors.black, fontWeight: FontWeight.w700));
+      tp.layout();
+      tp.paint(canvas, Offset(x - tp.width / 2, 6 - tp.height / 2));
+    }
+    final cx = cursor / w.durationMs * size.width;
+    canvas.drawLine(Offset(cx, 0), Offset(cx, size.height), Paint()
+      ..color = _amber
+      ..strokeWidth = 1.5);
+  }
+
+  @override
+  bool shouldRepaint(_WavePainter old) => old.w != w || old.markers != markers || old.cursor != cursor || old.active != active;
+}

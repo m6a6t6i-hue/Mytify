@@ -25,7 +25,7 @@ class DesktopRepo extends AndroidLibraryRepository implements IngestRepository {
   Future<dynamic> ingest(Map<String, dynamic> request) async {
     ingestCalls.add(request['action'] as String);
     return switch (request['action']) {
-      'drives' || 'inputs' || 'sessions' => [],
+      'drives' || 'inputs' || 'sessions' || 'media' || 'disc' => [],
       'state' => {'running': false, 'stage': ''},
       'folders' => {'recordings': r'C:\dane\recordings', 'cd': r'C:\dane\cd-imports'},
       _ => {},
@@ -210,7 +210,7 @@ void main() {
     expect(find.byType(Sidebar), findsOneWidget);
     expect(find.byType(PlayerBar), findsOneWidget);
     expect(find.text('Nie wykryto napędu'), findsOneWidget);
-    expect(repo.ingestCalls.toSet().difference({'drives', 'inputs', 'sessions', 'state', 'folders'}), isEmpty);
+    expect(repo.ingestCalls.toSet().difference({'drives', 'inputs', 'sessions', 'state', 'folders', 'media'}), isEmpty);
     expect(commands.where((c) => c['action'] == 'pause'), isEmpty);
     await finish(tester);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));

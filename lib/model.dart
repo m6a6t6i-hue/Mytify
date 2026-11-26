@@ -206,6 +206,9 @@ abstract class LibraryRepository {
   Future<void> cancelImport();
   Future<List<ReleaseCandidate>> findReleases(String album, String artist);
   Future<ReleaseInfo> releaseDetails(String id);
+
+  /// Discogs release by number or page address (PC).
+  Future<ReleaseInfo> discogsRelease(String id) => throw UnsupportedError('Discogs jest dostępny w wersji na PC');
   Future<CoverChoice?> downloadCover(String id);
   Future<CoverChoice?> chooseCover();
   Future<void> editMetadata(List<MetadataEdit> edits);

@@ -95,6 +95,7 @@ Future<void> loadFonts() async {
 class ShotRepo extends AndroidLibraryRepository implements IngestRepository {
   List<dynamic> drives = [];
   List<dynamic> inputs = [];
+  List<dynamic> sessions = [];
   Map<String, dynamic> state = {'running': false, 'stage': ''};
   @override
   bool get hasAudioLevels => true;
@@ -108,11 +109,28 @@ class ShotRepo extends AndroidLibraryRepository implements IngestRepository {
   Future<dynamic> ingest(Map<String, dynamic> r) async => switch (r['action']) {
     'drives' => drives,
     'inputs' => inputs,
-    'sessions' => [],
+    'sessions' => sessions,
+    'media' || 'disc' => [],
     'state' => state,
+    'waveform' => {
+      'rate': 1000,
+      'frames': 1260000,
+      'perPoint': 420,
+      'peaks': [
+        for (var i = 0; i < 3000; i++)
+          for (final sign in [-1, 1])
+            sign * (([300, 760, 1310, 1900, 2480].any((g) => (i - g).abs() < 6) ? .01 : .35 + .3 * ((i * 7919) % 97) / 97)),
+      ],
+    },
     'folders' => {'recordings': r'C:\Users\mat\AppData\Local\Mytify\recordings', 'cd': r'C:\Users\mat\AppData\Local\Mytify\cd-imports'},
     'toc' => {
       'discId': 'shot',
+      'cdText': {
+        'album': 'Kolekcja',
+        'artist': 'Zespół',
+        'titles': ['Wstęp', 'Noc', 'Rzeka', 'Miasto', 'Światło', 'Most', 'Cisza', 'Powrót', 'Koniec'],
+        'artists': [for (var i = 0; i < 9; i++) ''],
+      },
       'tracks': [for (var i = 0; i < 9; i++) {'number': i + 1, 'start': i * 75 * 230, 'end': (i + 1) * 75 * 230 - 75 * (i * 7 % 40)}],
     },
     _ => {},
@@ -314,6 +332,21 @@ void main() {
       repo.state = {'running': true, 'stage': 'monitor', 'channels': 2, 'peaks': [0.32, 0.27], 'clips': 0, 'dropouts': 0, 'rate': 48000};
       unawaited(app.ingest.refresh());
       await shot(tester, '${tag}_6_vinyl');
+      // Split editor on a finished recording (fixture waveform with five quiet gaps).
+      repo.state = {'running': false, 'stage': ''};
+      repo.sessions = [
+        {'id': 's1', 'label': 'Winyl, strona A', 'durationMs': 1260000, 'markers': <int>[]},
+      ];
+      unawaited(app.ingest.refresh().then((_) async {
+        await app.ingest.selectSession('s1');
+        app.ingest.setMarkers([126000, 319200, 550200, 798000, 1041600]);
+        app.ingest.setCursor(319200);
+      }));
+      await settle(tester);
+      if (find.byType(WaveformEditor).evaluate().isNotEmpty) {
+        await tester.ensureVisible(find.byType(WaveformEditor));
+      }
+      await shot(tester, '${tag}_7_split');
       await close(tester);
     }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   }

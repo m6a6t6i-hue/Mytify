@@ -133,6 +133,10 @@ class WebLibraryRepository extends LibraryRepository
     Map<String, dynamic>.from(await _meta('release', id) as Map),
   );
   @override
+  Future<ReleaseInfo> discogsRelease(String id) async => ReleaseInfo.fromJson(
+    Map<String, dynamic>.from(await _meta('discogs', id) as Map),
+  );
+  @override
   Future<CoverChoice?> downloadCover(String id) async => CoverChoice.fromJson(
     Map<String, dynamic>.from(await _meta('cover', id) as Map),
   );

@@ -64,12 +64,16 @@ class ReleaseCandidate {
 class ReleaseSong {
   final String title, artist;
   final int discNumber, trackNumber, durationMs;
+
+  /// Printed position, e.g. "A1" on vinyl (may be empty).
+  final String number;
   const ReleaseSong({
     required this.title,
     required this.artist,
     required this.discNumber,
     required this.trackNumber,
     required this.durationMs,
+    this.number = '',
   });
   factory ReleaseSong.fromJson(Map<String, dynamic> j) => ReleaseSong(
     title: j['title'] as String,
@@ -77,6 +81,7 @@ class ReleaseSong {
     discNumber: (j['discNumber'] as num).toInt(),
     trackNumber: (j['trackNumber'] as num).toInt(),
     durationMs: (j['durationMs'] as num).toInt(),
+    number: j['number'] as String? ?? '',
   );
   String get position => '$discNumber.$trackNumber';
 }

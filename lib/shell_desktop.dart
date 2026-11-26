@@ -591,6 +591,29 @@ class IngestStatus extends StatelessWidget {
     return ListenableBuilder(
       listenable: s,
       builder: (context, _) {
+        if (!s.running && s.inserted != null && app.route.page != 'import') {
+          // A disc appeared while Mytify runs: offer to import it, never start on its own.
+          return Padding(
+            padding: const EdgeInsets.only(right: Sp.s),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.album_outlined, size: 16, color: accent),
+                const SizedBox(width: Sp.s),
+                const Text('Wykryto płytę. Importować?', style: TextStyle(fontSize: 13)),
+                TextButton(
+                  style: Ctl.text,
+                  onPressed: () {
+                    app.openIngest(true);
+                    unawaited(s.useInserted());
+                  },
+                  child: const Text('Importuj'),
+                ),
+                IconAction(Icons.close_rounded, 'Nie teraz', s.dismissInserted, size: 16, box: 30, color: secondaryText),
+              ],
+            ),
+          );
+        }
         if (!s.running || app.route.page == 'import') return const SizedBox.shrink();
         final done = (s.status['done'] as num? ?? 0).toDouble();
         final total = (s.status['total'] as num? ?? 0).toDouble();
