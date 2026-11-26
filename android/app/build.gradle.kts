@@ -84,6 +84,8 @@ tasks.register("mytifyRuntimeArtifacts") {
 
 tasks.withType<Test>().configureEach {
     maxHeapSize = "1g"
+    // Conscrypt (as on a phone) needs this on the desktop JVM to run a TLS server in tests.
+    jvmArgs("--add-opens=java.base/java.net=ALL-UNNAMED")
     testLogging {
         events("passed", "skipped", "failed")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

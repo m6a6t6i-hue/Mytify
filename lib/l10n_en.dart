@@ -510,7 +510,7 @@ const enStrings = <String, String>{
   'WAV 24 bit, bez obróbki (obróbka tylko przy eksporcie kopii)': 'WAV 24 bit, unprocessed (processing only when exporting copies)',
   'Wczytaj z Discogs': 'Load from Discogs',
   'Wejście': 'Input',
-  'Wersja 0.20.1': 'Version 0.20.1',
+  'Wersja {0}': 'Version {0}',
   'Widok listy': 'List view',
   'Widok siatki': 'Grid view',
   'Winyl i kaseta': 'Vinyl and tape',
