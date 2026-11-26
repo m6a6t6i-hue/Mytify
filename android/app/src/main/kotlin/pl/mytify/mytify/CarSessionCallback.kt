@@ -43,12 +43,12 @@ class CarSessionCallback(
         val shuffle = player.shuffleModeEnabled
         return ImmutableList.of(
             CommandButton.Builder(if (liked) CommandButton.ICON_HEART_FILLED else CommandButton.ICON_HEART_UNFILLED)
-                .setDisplayName(if (liked) "Usuń z polubionych" else "Polub")
+                .setDisplayName(if (liked) Lang.t("Usuń z polubionych") else Lang.t("Polub"))
                 .setSessionCommand(LIKE)
                 .setEnabled(id != null)
                 .build(),
             CommandButton.Builder(if (shuffle) CommandButton.ICON_SHUFFLE_ON else CommandButton.ICON_SHUFFLE_OFF)
-                .setDisplayName(if (shuffle) "Wyłącz losową kolejność" else "Losowa kolejność")
+                .setDisplayName(if (shuffle) Lang.t("Wyłącz losową kolejność") else Lang.t("Losowa kolejność"))
                 .setSessionCommand(SHUFFLE)
                 .build(),
         )

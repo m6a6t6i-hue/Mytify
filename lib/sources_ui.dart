@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'design.dart';
 import 'main.dart';
 import 'model.dart';
+import 'l10n.dart';
 
 /// Readable text of a failed operation: no class names or stack traces.
 String readableError(Object e) {
@@ -18,7 +19,7 @@ String readableError(Object e) {
   return text
       .replaceFirst(RegExp(r'^(Exception|Error|Bad state|JSError|TypeError): ?'), '')
       .trim()
-      .ifEmptyThen('Operacja nie powiodła się.');
+      .ifEmptyThen(tr('Operacja nie powiodła się.'));
 }
 
 extension on String {
@@ -27,10 +28,10 @@ extension on String {
 
 /// Entries of "Dodaj źródło". Only protocols that really work here are listed.
 List<({String protocol, String label, IconData icon})> networkKinds(List<String> protocols) => [
-  if (protocols.contains('smb')) (protocol: 'smb', label: 'Folder sieciowy SMB', icon: Icons.lan_outlined),
-  if (protocols.contains('webdav')) (protocol: 'webdav', label: 'WebDAV (HTTPS)', icon: Icons.cloud_outlined),
+  if (protocols.contains('smb')) (protocol: 'smb', label: tr('Folder sieciowy SMB'), icon: Icons.lan_outlined),
+  if (protocols.contains('webdav')) (protocol: 'webdav', label: tr('WebDAV (HTTPS)'), icon: Icons.cloud_outlined),
   if (protocols.contains('subsonic'))
-    (protocol: 'subsonic', label: 'Serwer muzyczny OpenSubsonic / Navidrome', icon: Icons.dns_outlined),
+    (protocol: 'subsonic', label: tr('Serwer muzyczny OpenSubsonic / Navidrome'), icon: Icons.dns_outlined),
 ];
 
 Future<void> showNetworkSourceForm(LibraryScreenState app, {LibrarySource? source, String protocol = 'smb'}) async {
@@ -145,14 +146,14 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
   };
 
   Future<void> test() async {
-    setState(() {status = _Status.connecting; statusText = 'Łączenie…';});
+    setState(() {status = _Status.connecting; statusText = tr('Łączenie…');});
     try {
       final result = await app.repository.testSource(config(), id: id);
       if (!mounted) return;
       setState(() {
         status = _Status.ok;
         statusText = result.message ??
-            (result.folders.isEmpty ? 'Połączono.' : 'Połączono. Podfoldery: ${result.folders.length}.');
+            (result.folders.isEmpty ? tr('Połączono.') : tr('Połączono. Podfoldery: {0}.', [result.folders.length]));
       });
     } catch (e) {
       if (mounted) setState(() {status = _Status.failed; statusText = readableError(e);});
@@ -168,7 +169,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
   }
 
   Future<void> save() async {
-    setState(() {saving = true; status = _Status.connecting; statusText = 'Łączenie…';});
+    setState(() {saving = true; status = _Status.connecting; statusText = tr('Łączenie…');});
     try {
       // Save only what works: the same login and folder check as the test button.
       await app.repository.testSource(config(), id: id);
@@ -207,9 +208,9 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
     child: DropdownButtonFormField<String>(
       initialValue: value,
       decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
-      items: const [
-        DropdownMenuItem(value: 'original', child: Text('Oryginalna (bez kompresji)')),
-        DropdownMenuItem(value: 'saver', child: Text('Oszczędzanie transferu (MP3 192 kb/s)')),
+      items: [
+        DropdownMenuItem(value: 'original', child: Text(tr('Oryginalna (bez kompresji)'))),
+        DropdownMenuItem(value: 'saver', child: Text(tr('Oszczędzanie transferu (MP3 192 kb/s)'))),
       ],
       onChanged: (v) => onChanged(v ?? 'original'),
     ),
@@ -232,19 +233,19 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
         children: [
           Text(
             server
-                ? (editing ? 'Edytuj serwer muzyczny' : 'Serwer muzyczny')
+                ? (editing ? tr('Edytuj serwer muzyczny') : tr('Serwer muzyczny'))
                 : dav
-                ? (editing ? 'Edytuj WebDAV' : 'WebDAV')
-                : (editing ? 'Edytuj folder sieciowy' : 'Folder sieciowy SMB'),
+                ? (editing ? tr('Edytuj WebDAV') : tr('WebDAV'))
+                : (editing ? tr('Edytuj folder sieciowy') : tr('Folder sieciowy SMB')),
             style: Txt.title,
           ),
           const SizedBox(height: 4),
           Text(
             server
-                ? 'OpenSubsonic, np. Navidrome. Biblioteka, polubienia i playlisty pochodzą z serwera.'
+                ? tr('OpenSubsonic, np. Navidrome. Biblioteka, polubienia i playlisty pochodzą z serwera.')
                 : dav
-                ? 'Folder na serwerze przez HTTPS, np. NAS z włączonym WebDAV. Mytify tylko odczytuje muzykę.'
-                : 'Udział z NAS-a lub komputera w tej samej sieci. Mytify tylko odczytuje muzykę.',
+                ? tr('Folder na serwerze przez HTTPS, np. NAS z włączonym WebDAV. Mytify tylko odczytuje muzykę.')
+                : tr('Udział z NAS-a lub komputera w tej samej sieci. Mytify tylko odczytuje muzykę.'),
             style: Txt.sub,
           ),
           const SizedBox(height: Sp.l),
@@ -254,48 +255,48 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
             if (dav)
               field(
                 url,
-                'Adres serwera',
+                tr('Adres serwera'),
                 hint: server ? 'https://music.example.com' : 'https://nas.example.com:5006/music',
                 type: TextInputType.url,
               )
             else ...[
-              field(host, 'Adres serwera', hint: 'np. nas.local lub 192.168.1.20', type: TextInputType.url),
-              field(share, 'Udział', hint: 'np. music'),
+              field(host, tr('Adres serwera'), hint: tr('np. nas.local lub 192.168.1.20'), type: TextInputType.url),
+              field(share, tr('Udział'), hint: tr('np. music')),
             ],
             if (!server)
             field(
               folder,
-              'Folder (opcjonalnie)',
-              hint: 'cały udział',
-              suffix: IconButton(tooltip: 'Wybierz folder', icon: const Icon(Icons.folder_open_outlined), onPressed: busy ? null : pickFolder),
+              tr('Folder (opcjonalnie)'),
+              hint: tr('cały udział'),
+              suffix: IconButton(tooltip: tr('Wybierz folder'), icon: const Icon(Icons.folder_open_outlined), onPressed: busy ? null : pickFolder),
             ),
-            field(user, 'Użytkownik'),
+            field(user, tr('Użytkownik')),
             field(
               password,
-              editing && hasPassword ? 'Hasło (bez zmian)' : 'Hasło',
+              editing && hasPassword ? tr('Hasło (bez zmian)') : tr('Hasło'),
               secret: true,
               suffix: IconButton(
-                tooltip: hidden ? 'Pokaż hasło' : 'Ukryj hasło',
+                tooltip: hidden ? tr('Pokaż hasło') : tr('Ukryj hasło'),
                 icon: Icon(hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                 onPressed: () => setState(() => hidden = !hidden),
               ),
             ),
             if (mobileQuality) ...[
-              quality('Jakość przez Wi-Fi', qualityWifi, (v) => setState(() => qualityWifi = v)),
-              quality('Jakość w sieci komórkowej', qualityMobile, (v) => setState(() => qualityMobile = v)),
+              quality(tr('Jakość przez Wi-Fi'), qualityWifi, (v) => setState(() => qualityWifi = v)),
+              quality(tr('Jakość w sieci komórkowej'), qualityMobile, (v) => setState(() => qualityMobile = v)),
             ],
             if (server && url.text.trim().startsWith('http://'))
               Padding(
                 padding: EdgeInsets.only(bottom: Sp.m),
-                child: Text('Połączenie bez HTTPS nie jest szyfrowane. Używaj go tylko w sieci domowej.', style: Txt.meta),
+                child: Text(tr('Połączenie bez HTTPS nie jest szyfrowane. Używaj go tylko w sieci domowej.'), style: Txt.meta),
               ),
             if (more) ...[
-              if (!dav) field(domain, 'Domena (jeśli wymagana)'),
-              field(name, 'Nazwa w bibliotece', hint: 'domyślnie nazwa folderu'),
+              if (!dav) field(domain, tr('Domena (jeśli wymagana)')),
+              field(name, tr('Nazwa w bibliotece'), hint: tr('domyślnie nazwa folderu')),
             ] else
               Align(
                 alignment: Alignment.centerLeft,
-                child: TextButton(onPressed: () => setState(() => more = true), child: const Text('Więcej opcji')),
+                child: TextButton(onPressed: () => setState(() => more = true), child: Text(tr('Więcej opcji'))),
               ),
             AnimatedSize(
               duration: motion(context, Dur.standard),
@@ -320,9 +321,9 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
               spacing: Sp.s,
               runSpacing: Sp.s,
               children: [
-                TextButton(onPressed: saving ? null : () => Navigator.of(context).pop(), child: const Text('Anuluj')),
-                OutlinedButton(onPressed: busy ? null : test, child: const Text('Sprawdź połączenie')),
-                FilledButton(onPressed: busy ? null : save, child: Text(editing ? 'Zapisz' : 'Dodaj i skanuj')),
+                TextButton(onPressed: saving ? null : () => Navigator.of(context).pop(), child: Text(tr('Anuluj'))),
+                OutlinedButton(onPressed: busy ? null : test, child: Text(tr('Sprawdź połączenie'))),
+                FilledButton(onPressed: busy ? null : save, child: Text(editing ? tr('Zapisz') : tr('Dodaj i skanuj'))),
               ],
             ),
           ],
@@ -387,10 +388,10 @@ class _FolderPickerState extends State<_FolderPicker> {
                   if (path.isNotEmpty)
                     ListTile(
                       leading: const Icon(Icons.arrow_upward_rounded),
-                      title: const Text('W górę'),
+                      title: Text(tr('W górę')),
                       onTap: () => open(path.sublist(0, path.length - 1)),
                     ),
-                  if (folders!.isEmpty) Padding(padding: EdgeInsets.all(Sp.l), child: Text('Brak podfolderów.', style: Txt.sub)),
+                  if (folders!.isEmpty) Padding(padding: EdgeInsets.all(Sp.l), child: Text(tr('Brak podfolderów.'), style: Txt.sub)),
                   for (final f in folders!)
                     ListTile(
                       leading: const Icon(Icons.folder_outlined),
@@ -401,10 +402,10 @@ class _FolderPickerState extends State<_FolderPicker> {
               ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Anuluj')),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(tr('Anuluj'))),
         FilledButton(
           onPressed: error != null ? null : () => Navigator.of(context).pop(path.join('/')),
-          child: const Text('Wybierz ten folder'),
+          child: Text(tr('Wybierz ten folder')),
         ),
       ],
     );

@@ -7,6 +7,7 @@ import 'main.dart';
 import 'model.dart';
 import 'player_ui.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 
 /// Kind of output, derived from the id the engine gives it.
 enum DeviceKind { local, airplay, dlna, test }
@@ -37,13 +38,13 @@ bool isPhoneOutput = false;
 /// Splits "Salon · Yamaha / MusicCast (DLNA)" into a name and a short description.
 (String, String?) deviceLabel(AudioDevice d) {
   if (d.id == 'auto') {
-    return (isPhoneOutput ? 'Ten telefon' : 'Ten komputer', isPhoneOutput ? null : 'Domyślne wyjście systemu');
+    return (isPhoneOutput ? tr('Ten telefon') : tr('Ten komputer'), isPhoneOutput ? null : tr('Domyślne wyjście systemu'));
   }
   final parts = d.name.split(' · ');
   final kind = switch (kindOf(d.id)) {
     DeviceKind.airplay => 'AirPlay',
-    DeviceKind.dlna => d.name.toLowerCase().contains('yamaha') ? 'MusicCast' : 'DLNA',
-    DeviceKind.test => 'Bez dźwięku',
+    DeviceKind.dlna => d.name.toLowerCase().contains('yamaha') ? tr('MusicCast') : 'DLNA',
+    DeviceKind.test => tr('Bez dźwięku'),
     DeviceKind.local => null,
   };
   return (parts.first.trim(), kind);
@@ -68,7 +69,7 @@ class OutputDevices extends ChangeNotifier {
       devices = await app.player.devices();
       searched = true;
     } catch (_) {
-      error = 'Nie udało się wyszukać urządzeń';
+      error = tr('Nie udało się wyszukać urządzeń');
     } finally {
       searching = false;
       notifyListeners();
@@ -129,7 +130,7 @@ Future<void> showDevicePicker(LibraryScreenState app, {Offset? at}) {
   return showGeneralDialog<void>(
     context: context,
     barrierDismissible: true,
-    barrierLabel: 'Zamknij',
+    barrierLabel: tr('Zamknij'),
     barrierColor: Colors.transparent,
     transitionDuration: motion(context, Dur.standard),
     pageBuilder: (context, _, _) => Stack(
@@ -190,11 +191,11 @@ class _DevicePanelState extends State<DevicePanel> {
     if (v == null) return null;
     final name = '${v['name'] ?? ''}'.trim();
     return switch (v['kind']) {
-      'bluetooth' => name.isEmpty ? 'Słuchawki Bluetooth' : '$name · Bluetooth',
-      'usb' => name.isEmpty ? 'Urządzenie USB' : '$name · USB',
-      'wired' => 'Słuchawki przewodowe',
+      'bluetooth' => name.isEmpty ? tr('Słuchawki Bluetooth') : tr('{0} · Bluetooth', [name]),
+      'usb' => name.isEmpty ? tr('Urządzenie USB') : tr('{0} · USB', [name]),
+      'wired' => tr('Słuchawki przewodowe'),
       'hdmi' => 'HDMI',
-      _ => 'Głośnik telefonu',
+      _ => tr('Głośnik telefonu'),
     };
   }
 
@@ -202,7 +203,7 @@ class _DevicePanelState extends State<DevicePanel> {
     // Bluetooth plays what the phone plays: leave AirPlay or DLNA first.
     if (app.player.state.selectedDevice != 'auto') await out.choose('auto');
     final opened = await app.repository.openSystemOutputs().catchError((Object _) => false);
-    if (!opened) app.message('Ten telefon nie ma systemowego wyboru wyjścia. Połącz słuchawki w ustawieniach Bluetooth.');
+    if (!opened) app.message(tr('Ten telefon nie ma systemowego wyboru wyjścia. Połącz słuchawki w ustawieniach Bluetooth.'));
   }
 
   LibraryScreenState get app => widget.app;
@@ -246,7 +247,7 @@ class _DevicePanelState extends State<DevicePanel> {
       final selected = s.selectedDevice;
       final all = [...devices];
       if (!all.any((d) => d.id == selected)) {
-        all.insert(0, AudioDevice(selected, s.output?['name']?.toString() ?? 'Zapisane urządzenie'));
+        all.insert(0, AudioDevice(selected, s.output?['name']?.toString() ?? tr('Zapisane urządzenie')));
       }
       final current = all.firstWhere((d) => d.id == selected);
       final others = all.where((d) => d.id != selected).toList();
@@ -259,34 +260,34 @@ class _DevicePanelState extends State<DevicePanel> {
         children: [
           Row(
             children: [
-              const Expanded(child: Text('Połącz z urządzeniem', style: Txt.title)),
+              Expanded(child: Text(tr('Połącz z urządzeniem'), style: Txt.title)),
               if (searching)
                 const Padding(
                   padding: EdgeInsets.all(10),
                   child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                 )
               else
-                IconAction(Icons.refresh_rounded, 'Odśwież', () => unawaited(out.refresh()), color: secondaryText, box: 40),
+                IconAction(Icons.refresh_rounded, tr('Odśwież'), () => unawaited(out.refresh()), color: secondaryText, box: 40),
             ],
           ),
           const SizedBox(height: Sp.s),
-          Text('Aktualne urządzenie', style: Txt.meta),
+          Text(tr('Aktualne urządzenie'), style: Txt.meta),
           _DeviceTile(
             device: current,
             active: true,
             status: connecting == selected
-                ? 'Łączenie…'
+                ? tr('Łączenie…')
                 : s.pairingRequired
-                ? 'Wymaga PIN'
+                ? tr('Wymaga PIN')
                 : currentMissing
-                ? 'Niedostępne'
+                ? tr('Niedostępne')
                 : s.buffering
-                ? 'Buforowanie'
+                ? tr('Buforowanie')
                 : selected == 'auto' && _systemLabel != null
                 ? _systemLabel!
                 : s.playing
-                ? 'Odtwarza'
-                : 'Połączono',
+                ? tr('Odtwarza')
+                : tr('Połączono'),
             onTap: null,
           ),
           if (s.pairingRequired) ...[
@@ -299,14 +300,14 @@ class _DevicePanelState extends State<DevicePanel> {
                     keyboardType: TextInputType.number,
                     maxLength: 4,
                     autofocus: true,
-                    decoration: const InputDecoration(hintText: 'PIN z ekranu odbiornika', counterText: ''),
+                    decoration: InputDecoration(hintText: tr('PIN z ekranu odbiornika'), counterText: ''),
                     onSubmitted: (v) => unawaited(out.command({'action': 'pin', 'value': v.trim()})),
                   ),
                 ),
                 const SizedBox(width: Sp.s),
                 FilledButton(
                   onPressed: () => unawaited(out.command({'action': 'pin', 'value': pin.text.trim()})),
-                  child: const Text('Połącz'),
+                  child: Text(tr('Połącz')),
                 ),
               ],
             ),
@@ -317,7 +318,7 @@ class _DevicePanelState extends State<DevicePanel> {
               child: TextButton.icon(
                 onPressed: () => unawaited(out.command({'action': 'receiverPower'})),
                 icon: const Icon(Icons.power_settings_new_rounded, size: 18),
-                label: const Text('Włącz amplituner'),
+                label: Text(tr('Włącz amplituner')),
               ),
             ),
           const SizedBox(height: Sp.s),
@@ -325,7 +326,7 @@ class _DevicePanelState extends State<DevicePanel> {
             children: [
               IconAction(
                 s.volume <= 0 ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                s.volume <= 0 ? 'Przywróć dźwięk' : 'Wycisz',
+                s.volume <= 0 ? tr('Przywróć dźwięk') : tr('Wycisz'),
                 s.volumeAvailable ? () => unawaited(app.toggleMute()) : null,
                 color: secondaryText,
               ),
@@ -342,7 +343,7 @@ class _DevicePanelState extends State<DevicePanel> {
           if (!s.volumeAvailable)
             Padding(
               padding: EdgeInsets.only(left: 44),
-              child: Text('Głośność ustawisz na odbiorniku', style: Txt.meta),
+              child: Text(tr('Głośność ustawisz na odbiorniku'), style: Txt.meta),
             ),
           if (error != null)
             Container(
@@ -357,30 +358,30 @@ class _DevicePanelState extends State<DevicePanel> {
                 children: [
                   Icon(Icons.error_outline_rounded, size: 18, color: dangerText),
                   const SizedBox(width: Sp.s),
-                  Expanded(child: Text(error, style: const TextStyle(fontSize: 13))),
+                  Expanded(child: Text(trMessage(error), style: const TextStyle(fontSize: 13))),
                 ],
               ),
             ),
           const SizedBox(height: Sp.m),
           Divider(height: 1, color: softBorder),
           const SizedBox(height: Sp.m),
-          Text('Dostępne urządzenia', style: Txt.meta),
+          Text(tr('Dostępne urządzenia'), style: Txt.meta),
           if (!searching && others.isEmpty)
             Padding(
               padding: EdgeInsets.symmetric(vertical: Sp.m),
-              child: Text('Nie znaleziono innych urządzeń w tej sieci', style: Txt.sub),
+              child: Text(tr('Nie znaleziono innych urządzeń w tej sieci'), style: Txt.sub),
             ),
           for (final d in others)
             _DeviceTile(
               device: d,
               active: false,
-              status: connecting == d.id ? 'Łączenie…' : null,
+              status: connecting == d.id ? tr('Łączenie…') : null,
               onTap: connecting == null ? () => unawaited(out.choose(d.id)) : null,
             ),
           if (searching && others.isEmpty)
             Padding(
               padding: EdgeInsets.symmetric(vertical: Sp.m),
-              child: Text('Szukam urządzeń…', style: Txt.sub),
+              child: Text(tr('Szukam urządzeń…'), style: Txt.sub),
             ),
           if (app.isPhone)
             InkWell(
@@ -401,8 +402,8 @@ class _DevicePanelState extends State<DevicePanel> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Bluetooth i słuchawki', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                          Text('Wybór wyjścia Androida', style: Txt.meta),
+                          Text(tr('Bluetooth i słuchawki'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                          Text(tr('Wybór wyjścia Androida'), style: Txt.meta),
                         ],
                       ),
                     ),
@@ -459,7 +460,7 @@ class _DeviceTile extends StatelessWidget {
                 ],
               ),
             ),
-            if (status == 'Łączenie…')
+            if (status == tr('Łączenie…'))
               const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
             else if (active)
               Icon(Icons.check_circle_rounded, color: accent, size: 20),

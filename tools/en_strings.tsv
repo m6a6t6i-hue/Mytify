@@ -1,0 +1,823 @@
+ · powtórzone sektory: {0}	 · re-read sectors: {0}
+ · przerwane	 · interrupted
+ · płyta {0} z {1}	 · disc {0} of {1}
+ · wolne {0}	 · free {0}
+8 s ciszy po co najmniej 30 s nagrania.	8 s of silence after at least 30 s of recording.
+Aby przenieść bibliotekę przeglądarkową 0.1, uruchom MIGRACJA_0.1.cmd.	To move the 0.1 browser library, run MIGRACJA_0.1.cmd.
+Adres PC w Twojej sieci	PC address in your network
+Adres serwera	Server address
+Adres telefonu w Twojej sieci	Phone address in your network
+Aktualne urządzenie	Current device
+Akustyczna	Acoustic
+Album · {0}	Album · {0}
+Albumy z brakami ({0})	Incomplete albums ({0})
+Albumy · {0}	Albums · {0}
+Albumy	Albums
+Ametyst	Amethyst
+Anuluj	Cancel
+Artysta	Artist
+Artyści	Artists
+Autor	Author
+Barwa dźwięku	Sound
+Bas	Bass
+Bez albumu	No album
+Bez dźwięku	Muted
+Biblioteka jest aktualna	Library is up to date
+Biblioteka jest pusta	Library is empty
+Biblioteka	Library
+Bluetooth i słuchawki	Bluetooth and headphones
+Brak bieżącego utworu w kolejce.	No current track in the queue.
+Brak danych o dźwięku z tego wyjścia: obraz nie reaguje na muzykę.	No sound data from this output: the picture does not react to the music.
+Brak duplikatów: każdy utwór jest w bibliotece raz.	No duplicates: every track is in the library once.
+Brak pobranych utworów. Wybierz „Pobierz offline” w menu utworu, albumu lub playlisty.	No downloaded tracks. Choose "Download offline" in the menu of a track, album or playlist.
+Brak podfolderów.	No subfolders.
+Brak połączenia z odtwarzaczem: {0}	No connection to the player: {0}
+Brak płyty w napędzie. Włóż płytę Audio CD.	No disc in the drive. Insert an Audio CD.
+Brak płyty	No disc
+Brak tego artysty w bibliotece	This artist is not in the library
+Brak utworów	No tracks
+Brak wydań. Spróbuj krótszej nazwy lub usuń wykonawcę.	No releases. Try a shorter name or remove the artist.
+Brak wyników	No results
+Brakuje mytify_backend.exe. Zbuduj rdzeń Rust lub uruchom Mytify.exe z paczki 0.4.	mytify_backend.exe is missing. Build the Rust core or run Mytify.exe from the 0.4 package.
+Buforowanie	Buffering
+Bursztyn	Amber
+Błąd katalogu.	Catalog error.
+Cała biblioteka	Whole library
+Cała płyta zgodna z CTDB (pewność {0}).	Whole disc matches CTDB (confidence {0}).
+Cicho nocą	Quiet night
+Cofnij dostęp	Revoke access
+Czas	Time
+Czeka: {0}	Waiting: {0}
+Czerń OLED	OLED black
+Częstotliwość nagrania	Recording sample rate
+Częstotliwość wyjścia	Output sample rate
+DLNA i Yamaha MusicCast	DLNA and Yamaha MusicCast
+Dalej (Alt+→)	Forward (Alt+→)
+Dane skopiowane z drugiego urządzenia	Data copied from the other device
+Dane: MusicBrainz · Okładki: Cover Art Archive	Data: MusicBrainz · Covers: Cover Art Archive
+Dekodowanie w silniku Mytify, wyjście przez Windows WASAPI w trybie współdzielonym. Bufor odtwarzania mieści około 3 sekund zdekodowanego dźwięku.	Decoding in the Mytify engine, output through Windows WASAPI in shared mode. The playback buffer holds about 3 seconds of decoded sound.
+Dekodowanie	Decoding
+Diagnostyka dźwięku	Sound diagnostics
+Discogs jest dostępny w wersji na PC	Discogs is available in the PC version
+Dla tego wydania nie znaleziono przedniej okładki.	No front cover was found for this release.
+Do odczytu: {0} muzyki.	To read: {0} of music.
+Dodaj do biblioteki	Add to library
+Dodaj do kolejki	Add to queue
+Dodaj do playlisty	Add to playlist
+Dodaj folder	Add folder
+Dodaj i skanuj	Add and scan
+Dodaj muzykę	Add music
+Dodaj pliki	Add files
+Dodaj utwory z menu utworu.	Add tracks from the track menu.
+Dodaj źródło	Add source
+Dodano do biblioteki: {0}	Added to library: {0}
+Dodano do kolejki	Added to queue
+Dodano do kolejki: {0}	Added to queue: {0}
+Dodano do „{0}”	Added to "{0}"
+Dodano	Added
+Dodano: {0}\nZaktualizowano: {1}\nBez zmian: {2}\nDodatkowe lokalizacje: {3}\nNowe braki: {4}\nNiedostępne źródła: {5}\nPominięte pliki: {6}	Added: {0}\nUpdated: {1}\nUnchanged: {2}\nExtra locations: {3}\nNewly missing: {4}\nUnavailable sources: {5}\nSkipped files: {6}
+Domena (jeśli wymagana)	Domain (if required)
+Domyślne wyjście systemu	System default output
+Domyślnie tylko przez Wi-Fi.	Wi-Fi only by default.
+Dopasowanie {0}	Match {0}
+Dostępne po nagraniu	Available after recording
+Dostępne urządzenia	Available devices
+Dotyczy tylko plików FLAC i MP3. Oryginalne nagranie WAV zostaje bez zmian.	Applies only to the FLAC and MP3 files. The original WAV recording stays untouched.
+Duplikaty ({0})	Duplicates ({0})
+Długość	Length
+Edytuj WebDAV	Edit WebDAV
+Edytuj album	Edit album
+Edytuj folder sieciowy	Edit network folder
+Edytuj informacje	Edit info
+Edytuj playlistę	Edit playlist
+Edytuj połączenie	Edit connection
+Edytuj serwer muzyczny	Edit music server
+Edytuj utwór	Edit track
+Eksport {0} z {1}	Export {0} of {1}
+Elektronika	Electronic
+Etap {0} z 3	Step {0} of 3
+FLAC bez strat, 16 bit / 44,1 kHz, z okładką, opisem i ReplayGain	Lossless FLAC, 16 bit / 44.1 kHz, with cover, tags and ReplayGain
+Filtr brumu 50 Hz	50 Hz hum filter
+Filtruj	Filter
+Folder (opcjonalnie)	Folder (optional)
+Folder danych aplikacji	App data folder
+Folder na serwerze przez HTTPS, np. NAS z włączonym WebDAV. Mytify tylko odczytuje muzykę.	A folder on a server over HTTPS, e.g. a NAS with WebDAV on. Mytify only reads the music.
+Folder nagrań	Recordings folder
+Folder sieciowy SMB	SMB network folder
+Format nagrania	Recording format
+Format próbek	Sample format
+Gdy gra muzyka, a komputer nie jest używany. Ruch myszy lub klawisz zamyka.	While music plays and the computer is idle. Moving the mouse or a key closes it.
+Gotowe pliki: {0}	Finished files: {0}
+Gotowe. Muzyka działa offline.	Done. The music works offline.
+Gotowe: {0}	Done: {0}
+Gramofon: przez przedwzmacniacz PHONO do wejścia liniowego karty dźwiękowej albo gramofon z wyjściem USB. Magnetofon: z wyjścia LINE OUT do wejścia liniowego.\nUstaw poziom na najgłośniejszym fragmencie płyty: szczyty od -12 do -6 dBFS, bez przesterowań.	Turntable: through a PHONO preamp into the line input of the sound card, or a turntable with USB output. Tape deck: from LINE OUT into the line input.\nSet the level on the loudest part of the record: peaks from -12 to -6 dBFS, no clipping.
+Głośniej / ciszej	Louder / quieter
+Głośnik telefonu	Phone speaker
+Głośność ustawisz na odbiorniku	Set the volume on the receiver
+Głośność	Volume
+Hasło (bez zmian)	Password (unchanged)
+Hasło	Password
+Import CD{0}	CD import{0}
+Import przerwany	Import stopped
+Import zatrzymany, nic nie zapisano	Import stopped, nothing was saved
+Import zatrzymany. 	Import stopped.
+Import {0} z {1}	Import {0} of {1}
+Importowanie	Importing
+Importowanie: {0}%	Importing: {0}%
+Importuj Audio CD	Import Audio CD
+Importuj kolejną płytę	Import another disc
+Importuj zaznaczone ({0})	Import selected ({0})
+Importuj	Import
+Informacje o utworze	Track info
+Informacje	About
+Inne wydania	Other releases
+Jak podłączyć gramofon lub magnetofon	How to connect a turntable or tape deck
+Jakość przez Wi-Fi	Quality over Wi-Fi
+Jakość w sieci komórkowej	Quality on mobile data
+Jakość	Quality
+Jasny	Light
+Kanały	Channels
+Każdy utwór trafi do biblioteki jako FLAC z opisem i ReplayGain. Oryginalne nagranie WAV zostaje.	Every track goes to the library as FLAC with tags and ReplayGain. The original WAV recording stays.
+Klasyka	Classical
+Kliknij, aby ustawić kursor. Dwuklik dodaje znacznik, przeciągnij znacznik, aby go przesunąć.	Click to set the cursor. Double-click adds a marker, drag a marker to move it.
+Kod QR do sparowania	Pairing QR code
+Kod jest jednorazowy i ważny przez 2 minuty.	The code works once and is valid for 2 minutes.
+Kod kreskowy: {0}	Barcode: {0}
+Kod wygasł lub został użyty. Wygeneruj nowy kod QR.	The code expired or was used. Generate a new QR code.
+Kolejka i miejsce	Queue and storage
+Kolejka jest pusta	The queue is empty
+Kolejka	Queue
+Kolekcja	Collection
+Kolory okładki	Cover colours
+Kolory okładki: wyłączone	Cover colours: off
+Kolory okładki: włączone	Cover colours: on
+Kolory	Colours
+Kolumny	Columns
+Kompaktowa tabela utworów	Compact track table
+Koniec kolejki	End of queue
+Kontynuuj słuchanie	Continue listening
+Konwersja częstotliwości	Sample rate conversion
+Kopia MP3 192 kb/s na telefon	MP3 192 kb/s copy for the phone
+Kopie offline, kolejka pobierania, zajęte miejsce	Offline copies, download queue, used space
+Kopiuj dane parowania	Copy pairing data
+Korekta prędkości kasety	Tape speed correction
+Korektor	Equalizer
+Krótkie trzaski i pyknięcia z płyty winylowej.	Short clicks and pops from a vinyl record.
+Kursor {0}	Cursor {0}
+Liczba albumów	Album count
+Liczba utworów się różni. Sprawdź dopasowanie.	The track count differs. Check the match.
+Liczba utworów	Track count
+Lista nie ma czasów wszystkich utworów. Ustaw znaczniki ręcznie.	The list lacks times for some tracks. Set the markers by hand.
+Lista utworów z MusicBrainz lub Discogs	Tracklist from MusicBrainz or Discogs
+Losowa kolejność	Shuffle
+Losowo	Shuffle
+Maksymalnie 500 znaków	At most 500 characters
+Malina	Raspberry
+Media3 / AudioTrack, format wyjścia wybiera Android	Media3 / AudioTrack, Android chooses the output format
+Migrację wersji PC wykonaj na komputerze.	Migrate the PC version on the computer.
+Mini odtwarzacz (Ctrl+M)	Mini player (Ctrl+M)
+MusicBrainz niedostępny: {0}.	MusicBrainz unavailable: {0}.
+Muzyka na urządzeniu	Music on this device
+Mytify jest zamknięte.	Mytify is closed.
+Mytify wysyła dźwięk stereo 16 bit / 44,1 kHz bez strat. Odbiornik gra z kilkusekundowym opóźnieniem, dlatego wizualizacja w pasku postępu jest wtedy statyczna.	Mytify sends lossless stereo 16 bit / 44.1 kHz. The receiver plays a few seconds late, so the seek bar visualization is static then.
+Mytify zapamięta lokalizacje muzyki na dysku. Nie kopiuje ani nie zmienia Twoich plików. Katalog i polubienia zapisuje na tym komputerze.	Mytify remembers where your music is on the disk. It does not copy or change your files. The catalog and likes are saved on this computer.
+Mytify zapamięta położenie muzyki na dysku. Nie utworzy dodatkowych kopii i nie zmieni oryginałów. Katalog i polubienia zapisuje na tym komputerze.	Mytify remembers where your music is on the disk. It makes no extra copies and does not change the originals. The catalog and likes are saved on this computer.
+Na drugim telefonie: Ustawienia, potem Z komputera lub telefonu, Skanuj kod. Udostępniasz muzykę zapisaną w tym telefonie, dopóki ten ekran jest otwarty.	On the other phone: Settings, then From a computer or phone, Scan code. You share the music stored on this phone while this screen is open.
+Na telefonie: Ustawienia, potem Z komputera lub telefonu. Oba urządzenia muszą być w tej samej sieci.	On the phone: Settings, then From a computer or phone. Both devices must be on the same network.
+Na tym urządzeniu nie ma plików do pobrania.	There are no files to download on this device.
+Nagraj stronę B	Record side B
+Nagraj winyl lub kasetę	Record vinyl or tape
+Nagraj	Record
+Nagranie nie zostało rozpoczęte	Recording not started
+Nagranie przerwane	Recording interrupted
+Nagranie zapisane	Recording saved
+Nagranie zostało przerwane. Odzyskaj je, aby podzielić i dodać do biblioteki.	The recording was interrupted. Recover it to split it and add it to the library.
+Nagranie	Recording
+Nagranie, podział i opis utworów	Recording, splitting and track info
+Nagrywanie {0}	Recording {0}
+Nagrywanie	Recording
+Najczęściej słuchane	Most played
+Najlepszy wynik	Top result
+Najmniejszy odtwarzacz	Smallest player
+Napęd {0}	Drive {0}
+Napęd	Drive
+Następna wizualizacja (→)	Next visualization (→)
+Następne: {0}	Up next: {0}
+Następny / poprzedni utwór	Next / previous track
+Następny utwór	Next track
+Następny	Next
+Nazwa albumu	Album name
+Nazwa i wykonawca albumu powyżej.	Album name and artist above.
+Nazwa nagrania	Recording name
+Nazwa playlisty	Playlist name
+Nazwa w bibliotece	Name in the library
+Nazwa	Name
+Nic nie czeka na pobranie.	Nothing is waiting to download.
+Nic nie jest odtwarzane	Nothing is playing
+Nic nie pasuje do „{0}”	Nothing matches "{0}"
+Nic nie znaleziono w MusicBrainz.	Nothing found in MusicBrainz.
+Nie dodano jeszcze żadnego źródła.	No source added yet.
+Nie ma tej płyty w MusicBrainz.	This disc is not in MusicBrainz.
+Nie można odczytać	Cannot read
+Nie można otworzyć biblioteki: {0}	Cannot open the library: {0}
+Nie można otworzyć strony.	Cannot open the page.
+Nie można uruchomić odtwarzania: {0}	Cannot start playback: {0}
+Nie teraz	Not now
+Nie trzymaj na wierzchu	Don't keep on top
+Nie udało się odtworzyć pliku: {0}	Could not play the file: {0}
+Nie udało się odłączyć źródła: {0}	Could not remove the source: {0}
+Nie udało się przerwać operacji: {0}	Could not stop the operation: {0}
+Nie udało się usunąć wpisu: {0}	Could not remove the entry: {0}
+Nie udało się wyszukać urządzeń	Could not search for devices
+Nie udało się zapisać polubienia: {0}	Could not save the like: {0}
+Nie udało się zmienić korektora: {0}	Could not change the equalizer: {0}
+Nie udało się	Failed
+Nie utrzymuj offline	Don't keep offline
+Nie wykryto napędu	No drive found
+Nie wykryto wejścia audio. Podłącz interfejs USB lub włącz wejście w ustawieniach dźwięku Windows.	No audio input found. Connect a USB interface or enable an input in the Windows sound settings.
+Nie znaleziono innych urządzeń w tej sieci	No other devices found on this network
+Niedobory bufora	Buffer underruns
+Niedostępne	Unavailable
+Nieprawidłowy adres lokalnego katalogu.	Invalid local catalog address.
+Niezgodne z bazą: {0}. Przetrzyj płytę i zaimportuj te ścieżki ponownie.	Not matching the database: {0}. Clean the disc and import those tracks again.
+Nieznany błąd	Unknown error
+Nieznany wykonawca	Unknown artist
+Niższe wiersze, bez okładek. Kolumny wybierzesz prawym przyciskiem na nagłówku tabeli.	Lower rows, no covers. Choose columns with a right click on the table header.
+Nowa playlista (Ctrl+N)	New playlist (Ctrl+N)
+Nowa playlista	New playlist
+Nowy kod QR	New QR code
+Numer pierwszego utworu	First track number
+Numer płyty	Disc number
+Numer utworu	Track number
+Obróbka kopii	Copy processing
+Obsługiwane płyty	Supported discs
+Odbierz	Receive
+Odbiornik DLNA sam dekoduje plik, korektor działa tylko przy grze na tym urządzeniu i przez AirPlay.	A DLNA receiver decodes the file itself; the equalizer works only when playing on this device and over AirPlay.
+Odbiornik DLNA, z oryginalnego pliku	DLNA receiver, from the original file
+Odbiornik dostaje oryginalny plik i sam go dekoduje, więc musi obsługiwać jego format. MusicCast działa jako pojedynczy odbiornik DLNA, grupy ustawisz w aplikacji Yamahy.	The receiver gets the original file and decodes it itself, so it must support its format. MusicCast works as a single DLNA receiver; set up groups in the Yamaha app.
+Odczyt cyfrowy, opis z MusicBrainz, FLAC	Digital read, MusicBrainz info, FLAC
+Odczytaj ponownie	Read again
+Odczytaj	Read
+Odczytuję spis utworów…	Reading the table of contents…
+Odepnij	Unpin
+Odsłuchaj początek utworu {0}	Listen to the start of track {0}
+Odsłuchaj	Listen
+Odtwarza	Playing
+Odtwarzacz niedostępny	Player unavailable
+Odtwarzaj	Play
+Odtwarzane	Played
+Odtwarzanie przez Media3. Dźwięk idzie tam, gdzie wskaże Android: głośnik, słuchawki albo Bluetooth. Wybierzesz je w „Połącz z urządzeniem” → Bluetooth i słuchawki.	Playback through Media3. Sound goes where Android sends it: speaker, headphones or Bluetooth. Choose it in "Connect to a device" → Bluetooth and headphones.
+Odtwarzanie w toku	Playing
+Odtwarzanie wstrzymane	Paused
+Odtwarzanie	Playback
+Odtwarzanie: {0}	Playback: {0}
+Odtworzenia	Plays
+Odtwórz / wstrzymaj	Play / pause
+Odtwórz jako następny	Play next
+Odtwórz losowo	Shuffle play
+Odtwórz playlistę	Play playlist
+Odtwórz zaznaczony utwór	Play the selected track
+Odtwórz	Play
+Odznacz wszystkie	Deselect all
+Odzyskaj nagranie	Recover recording
+Odłącz źródło	Remove source
+Odłącz	Remove
+Odłączyć źródło?	Remove the source?
+Odśwież listę napędów	Refresh drive list
+Odśwież listę urządzeń	Refresh device list
+Odśwież listę wejść	Refresh input list
+Odśwież	Refresh
+Opcje źródła	Source options
+OpenSubsonic, np. Navidrome. Biblioteka, polubienia i playlisty pochodzą z serwera.	OpenSubsonic, e.g. Navidrome. Library, likes and playlists come from the server.
+Operacja nie powiodła się.	The operation failed.
+Operacja nie powiodła się: {0}	The operation failed: {0}
+Opis i okładka z MusicBrainz. Każdy album zatwierdzasz sam.	Info and cover from MusicBrainz. You confirm each album yourself.
+Opis z MusicBrainz: {0}{1}	Info from MusicBrainz: {0}{1}
+Oryginalna (bez kompresji)	Original (no compression)
+Oryginalne pliki, bez konwersji. Każdy plik jest sprawdzany sumą SHA-256.	Original files, no conversion. Every file is checked with SHA-256.
+Osobny folder MP3 obok plików FLAC.	A separate MP3 folder next to the FLAC files.
+Ostatni błąd	Last error
+Ostatni wynik importu	Last import result
+Ostatnie wyszukiwania	Recent searches
+Ostatnio dodane	Recently added
+Ostatnio słuchane	Recently played
+Oszczędzanie transferu (MP3 192 kb/s)	Data saver (MP3 192 kb/s)
+Otwórz album	Open album
+Otwórz folder nagrań	Open recordings folder
+Otwórz folder z raportem	Open folder with the report
+Otwórz folder	Open folder
+Otwórz panel	Open panel
+PIN z ekranu odbiornika	PIN from the receiver screen
+Parametry wyjścia i źródła są widoczne podczas odtwarzania.	Output and source details are shown during playback.
+Pauza	Pause
+Pauza, nic nie jest zapisywane	Paused, nothing is being saved
+Pełna aplikacja (dwuklik)	Full app (double-click)
+Pełny ekran (F11)	Full screen (F11)
+Pełny ekran odtwarzacza	Full screen player
+Playlista	Playlist
+Playlista: {0}	Playlist: {0}
+Playlisty	Playlists
+Plazma	Plasma
+Plazma, wstęgi i wir biorą barwy z okładki grającego albumu.	Plasma, ribbons and vortex take their colours from the cover of the playing album.
+Plik	File
+Po imporcie płyta się wysuwa. Następna jest odczytywana sama i importowana, gdy opis jest jednoznaczny.	After import the disc ejects. The next one is read automatically and imported when the match is unambiguous.
+Po wybraniu wejścia	After choosing an input
+Po {0} min	After {0} min
+Pobieraj przez sieć komórkową	Download on mobile data
+Pobieranie offline nie jest dostępne w tej wersji.	Offline downloads are not available in this version.
+Pobieranie {0}%	Downloading {0}%
+Pobieranie	Downloading
+Pobieranie: {0}	Downloading: {0}
+Pobierz na telefon	Download to phone
+Pobierz offline	Download offline
+Pobierz okładkę z CAA	Get cover from CAA
+Pobierz	Download
+Pobrane i miejsce	Downloads and storage
+Pobrane	Downloads
+Pobrać album offline?	Download the album offline?
+Pobrać offline?	Download offline?
+Pobrać playlistę offline?	Download the playlist offline?
+Początki utworów	Track starts
+Podaj nazwę playlisty.	Enter a playlist name.
+Podgląd poziomu	Level preview
+Podgląd poziomu, nic nie jest zapisywane	Level preview, nothing is being saved
+Podgląd wyłączony	Preview off
+Podział i eksport	Split and export
+Podłącz napęd USB i odśwież listę.	Connect a USB drive and refresh the list.
+Pojedyncze pliki	Single files
+Pokaż hasło	Show password
+Pokaż muzykę	Show music
+Pokaż pobrane utwory	Show downloaded tracks
+Polub bieżący utwór	Like the current track
+Polub utwory sercem, a pojawią się tutaj.	Like tracks with the heart and they will show up here.
+Polub	Like
+Polubione	Liked
+Pomiń do końca sesji	Skip for this session
+Popraw po kolei ({0})	Fix one by one ({0})
+Poprawianie…	Fixing…
+Poprzedni utwór	Previous track
+Poprzedni	Previous
+Poprzednia wizualizacja (←)	Previous visualization (←)
+Porządki w bibliotece	Library cleanup
+Porządki	Cleanup
+Postęp utworu	Track progress
+Powiększenie {0}x	Zoom {0}x
+Powtarzaj kolejkę	Repeat queue
+Poziom kanału {0}	Channel {0} level
+Poziom sygnału wysyłanego z Mytify. Głośność odbiornika bez zmian.	Level of the signal Mytify sends. The receiver volume stays as it is.
+Poziom wejścia	Input level
+Połącz telefon	Connect phone
+Połącz z urządzeniem	Connect to a device
+Połącz	Connect
+Połączenie bez HTTPS nie jest szyfrowane. Używaj go tylko w sieci domowej.	A connection without HTTPS is not encrypted. Use it only on your home network.
+Połączono	Connected
+Połączono. Podfoldery: {0}.	Connected. Subfolders: {0}.
+Połączono.	Connected.
+Protokoły i zgodność	Protocols and compatibility
+Przeciągnij utwory na tę playlistę w panelu bocznym albo użyj menu utworu.	Drag tracks onto this playlist in the sidebar or use the track menu.
+Przejdź do albumu	Go to album
+Przejdź do artysty	Go to artist
+Przerywanie	Stopping
+Przesterowanie: {0}. Zmniejsz poziom na przedwzmacniaczu lub w Windows.	Clipping: {0}. Lower the level on the preamp or in Windows.
+Przesunięcie odczytu	Read offset
+Przesunięcie odczytu: {0}{1} próbek ({2}).	Read offset: {0}{1} samples ({2}).
+Przesyłanie muzyki	Music transfer
+Przygotowanie	Preparing
+Przypięte	Pinned
+Przypnij	Pin
+Przywrócić dane z plików?	Restore info from the files?
+Przywróć dane z plików	Restore info from the files
+Przywróć domyślne	Restore defaults
+Przywróć dźwięk	Unmute
+Przywróć	Restore
+Płasko	Flat
+Płyta {0}	Disc {0}
+Płyty Audio CD (CD-DA), odczyt cyfrowy bez strat. Płyty ze ścieżkami danych (CD-Extra, CD-ROM), DVD i Blu-ray nie są obsługiwane.\nKażdy fragment jest odczytywany co najmniej dwa razy i porównywany. Wynik jest sprawdzany w bazach AccurateRip i CTDB, gdy płyta tam jest. Przerwy między utworami są dołączane do poprzedniego utworu.	Audio CDs (CD-DA), lossless digital read. Discs with data tracks (CD-Extra, CD-ROM), DVD and Blu-ray are not supported.\nEvery part is read at least twice and compared. The result is checked against the AccurateRip and CTDB databases when the disc is there. Gaps between tracks are added to the previous track.
+Płyty CD i winyle	CDs and vinyl
+Rozmiar okładek w siatce	Cover size in the grid
+Rozmiar okładek	Cover size
+Rozmiar	Size
+Rozwiń panel	Expand panel
+Różni wykonawcy (składanka)	Various artists (compilation)
+Serwer muzyczny OpenSubsonic / Navidrome	OpenSubsonic / Navidrome music server
+Serwer muzyczny	Music server
+Serwer nie podał rozmiaru części plików.	The server did not report the size of some files.
+Silnik	Engine
+Skanowanie	Scanning
+Skanuj kod	Scan code
+Skanuj ponownie	Scan again
+Skanuj wszystkie	Scan all
+Skróty klawiaturowe	Keyboard shortcuts
+Sortowanie	Sorting
+Spacja	Space
+Sparowane telefony	Paired phones
+Sprawdź poziom	Check level
+Sprawdź połączenie	Test connection
+Sprawdź propozycje	Review suggestions
+Spróbuj ponownie	Try again
+Stan	Status
+Strona zakończona: wykryto ciszę	Side finished: silence detected
+Strona	Side
+Szczegóły	Details
+Szukaj opisu ponownie	Search for info again
+Szukaj utworów	Search tracks
+Szukaj w MusicBrainz	Search MusicBrainz
+Szukaj	Search
+Szukam napędów	Looking for drives
+Szukam płyty w MusicBrainz…	Looking up the disc in MusicBrainz…
+Szukam urządzeń…	Looking for devices…
+Słuchawki Bluetooth	Bluetooth headphones
+Słuchawki przewodowe	Wired headphones
+Ta płyta ma kilka wydań w MusicBrainz. Wybierz swoje.	This disc has several releases in MusicBrainz. Choose yours.
+Tak, filtr sinc	Yes, sinc filter
+Te pliki są teraz niedostępne. Podłącz źródło muzyki.	These files are unavailable now. Connect the music source.
+Te utwory już są w „{0}”	These tracks are already in "{0}"
+Tego albumu nie ma już w bibliotece	This album is no longer in the library
+Tej playlisty już nie ma	This playlist no longer exists
+Telefon i komputer	Phone and computer
+Telefony z dostępem	Phones with access
+Ten komputer	This computer
+Ten odbiornik nie udostępnia głośności. Użyj jego pilota.	This receiver does not expose its volume. Use its remote.
+Ten plik jest niedostępny. Podłącz źródło lub wskaż folder ponownie.	This file is unavailable. Connect the source or pick the folder again.
+Ten sam wykonawca, tytuł i długość (do 3 s różnicy). Pierwsza jest najlepsza kopia.	Same artist, title and length (within 3 s). The first one is the best copy.
+Ten telefon nie ma systemowego wyboru wyjścia. Połącz słuchawki w ustawieniach Bluetooth.	This phone has no system output picker. Connect headphones in the Bluetooth settings.
+Ten telefon	This phone
+Teraz odtwarzane	Now playing
+To ostatni utwór	This is the last track
+To potrwa chwilę.	This takes a moment.
+Transfer: port {0}. Jeśli Windows zapyta o dostęp do sieci, zezwól dla sieci prywatnej.	Transfer: port {0}. If Windows asks about network access, allow it for private networks.
+Tryb kompaktowy	Compact mode
+Tryb seryjny	Batch mode
+Tryb seryjny: płyta zostanie odczytana i opisana sama. Gdy opis jest jednoznaczny, import ruszy bez pytania.	Batch mode: the disc is read and described automatically. When the match is unambiguous, the import starts without asking.
+Twoja biblioteka: {0} · wydanie: {1}	Your library: {0} · release: {1}
+Tytuł	Title
+Udostępnij telefonowi	Share with a phone
+Udostępnij	Share
+Udział z NAS-a lub komputera w tej samej sieci. Mytify tylko odczytuje muzykę.	A share on a NAS or computer on the same network. Mytify only reads the music.
+Udział	Share
+Ukryj hasło	Hide password
+Ukryj pomoc	Hide help
+Ulubieni artyści	Favourite artists
+Urządzenie USB	USB device
+Urządzenie odtwarzania	Playback device
+Urządzenie wejściowe	Input device
+Urządzenie	Device
+Ustaw znaczniki i tytuły według listy	Set markers and titles from the list
+Ustawienia (Ctrl+,)	Settings (Ctrl+,)
+Ustawienia	Settings
+Usuniemy pliki częściowe. Utwory już dodane do biblioteki pozostaną w telefonie.	Partial files will be deleted. Tracks already in the library stay on the phone.
+Usuniemy pliki pobrane z tego urządzenia. Oryginały i muzyka z innych źródeł zostaną.	Files downloaded from this device will be deleted. Originals and music from other sources stay.
+Usunięto pobrane kopie. Oryginały na serwerze zostały bez zmian.	Downloaded copies deleted. The originals on the server are untouched.
+Usunąć kopie z telefonu?	Delete the copies from the phone?
+Usunąć niedokończone pobranie?	Delete the unfinished download?
+Usunąć playlistę?	Delete the playlist?
+Usunąć z biblioteki?	Remove from the library?
+Usunąć {0}?	Remove {0}?
+Usuń kopie	Delete copies
+Usuń niedokończone pobranie	Delete unfinished download
+Usuń okładkę	Remove cover
+Usuń playlistę	Delete playlist
+Usuń playlistę?	Delete the playlist?
+Usuń pobranie	Delete download
+Usuń trzaski	Remove clicks
+Usuń z biblioteki	Remove from library
+Usuń z kolejki	Remove from queue
+Usuń z polubionych	Remove from liked
+Usuń z tej playlisty	Remove from this playlist
+Usuń z telefonu kopie z tego urządzenia	Delete this device's copies from the phone
+Usuń zaznaczone	Remove selected
+Usuń znacznik	Remove marker
+Usuń	Remove
+Utracone próbki: {0}. Zamknij inne programy korzystające z wejścia.	Lost samples: {0}. Close other programs using the input.
+Utrzymuj offline	Keep offline
+Utwory	Tracks
+Utwory, albumy, artyści	Tracks, albums, artists
+Utworzono „{0}”	Created "{0}"
+Utwór {0}	Track {0}
+Utwór · {0}	Track · {0}
+Utwór	Track
+Utwórz playlistę i wybierz utwory.	Create a playlist and choose tracks.
+Utwórz	Create
+Uwaga	Note
+Uwagi: {0}	Notes: {0}
+Uzupełnij nazwę i wykonawcę albumu	Fill in the album name and artist
+Uzupełnij tytuły i wykonawców utworów	Fill in the track titles and artists
+Użytkownik	User
+W górę	Up
+W kolejce	Queued
+WAV 24 bit, bez obróbki (obróbka tylko przy eksporcie kopii)	WAV 24 bit, unprocessed (processing only when exporting copies)
+Wczytaj z Discogs	Load from Discogs
+Wejście	Input
+Wersja 0.20.1	Version 0.20.1
+Widok listy	List view
+Widok siatki	Grid view
+Winyl i kaseta	Vinyl and tape
+Winyl, strona A	Vinyl, side A
+Wir	Vortex
+Wizualizacja (Ctrl+Shift+V)	Visualization (Ctrl+Shift+V)
+Wizualizacja	Visualization
+Wizualizacje	Visualizations
+Więcej opcji	More options
+Więcej	More
+Większy mini odtwarzacz	Larger mini player
+Wklej dane parowania	Paste pairing data
+Wokal	Vocal
+Wolne miejsce: {0}.	Free space: {0}.
+Wpisane nazwy trafią do MusicBrainz. Katalog zmieni się dopiero po zapisaniu.	The names you type are sent to MusicBrainz. The catalog changes only after saving.
+Wpisy znikną z Mytify. Pliki na dysku pozostaną bez zmian i możesz dodać je ponownie.	The entries disappear from Mytify. The files on disk stay and you can add them again.
+Wpisz liczbę od 0 do 9999	Enter a number from 0 to 9999
+Wpisz tytuł	Enter a title
+Wpisz tytuł, album lub artystę.	Enter a title, album or artist.
+Wpisz, czego szukasz. Ctrl+F przenosi tu kursor.	Type what you are looking for. Ctrl+F moves the cursor here.
+Wskaż folder ponownie	Pick the folder again
+Wstecz (Alt+←)	Back (Alt+←)
+Wstecz / dalej	Back / forward
+Wstecz	Back
+Wstrzymaj pobieranie	Pause download
+Wstrzymaj	Pause
+Wstrzymane	Paused
+Wstęgi	Ribbons
+Wszystkie albumy mają nazwę, wykonawcę, okładkę i numery utworów.	Every album has a name, artist, cover and track numbers.
+Wszystkie ścieżki zgodne z bazami AccurateRip lub CTDB.	All tracks match AccurateRip or CTDB.
+Wszystkie	All
+Wszystko jest już pobrane.	Everything is downloaded already.
+Wybierz folder Muzyka lub pojedyncze pliki. Mytify zapamięta dostęp i odczyta tagi oraz okładki. Nie kopiuje ani nie zmienia muzyki. Duży import pozostaw otwarty; po przerwaniu możesz ponowić skan.	Choose the Music folder or single files. Mytify remembers the access and reads tags and covers. It does not copy or change the music. Leave a large import open; if interrupted, you can scan again.
+Wybierz folder	Choose folder
+Wybierz odpowiadającą ścieżkę. Bez dopasowania tytuł zostaje.	Choose the matching track. Without a match the title stays.
+Wybierz okładkę	Choose cover
+Wybierz ten folder	Choose this folder
+Wybierz utwór	Choose a track
+Wybierz	Choose
+Wybrano {0} · {1} MB	Selected {0} · {1} MB
+Wybrany utwór nie należy do kolejki.	The selected track is not in the queue.
+Wybór wyjścia Androida	Android output picker
+Wycina 50, 100 i 150 Hz z przewodów i uziemienia.	Removes 50, 100 and 150 Hz from cables and grounding.
+Wycisz	Mute
+Wyczyść	Clear
+Wydanie „{0}” ma inną liczbę utworów niż płyta. Wybierz inne albo wpisz nazwy.	Release "{0}" has a different track count than the disc. Choose another or type the names.
+Wygaszacz z wizualizacją	Visualization screensaver
+Wygląd	Appearance
+Wyjście testowe, bez dźwięku	Test output, no sound
+Wyjście	Output
+Wykonawca (opcjonalnie)	Artist (optional)
+Wykonawca albumu	Album artist
+Wykonawca	Artist
+Wykryto płytę. Importować?	Disc detected. Import it?
+Wymaga PIN	PIN required
+Wymaga ponownego skanu	Needs a new scan
+Wynik importu	Import result
+Wysuń płytę po imporcie	Eject the disc after import
+Wysuń płytę	Eject disc
+Wyzeruj	Reset
+Wyłącz losowanie	Turn off shuffle
+Wyłącz powtarzanie	Turn off repeat
+Wyłącz transfer	Turn off transfer
+Wyłączony	Off
+Wznów pobieranie	Resume download
+Wznów	Resume
+Własne okładki są dostępne w Mytify.exe z paczki 0.4.	Custom covers are available in Mytify.exe from the 0.4 package.
+Własne poprawki i wybrane okładki zostaną cofnięte. Pliki na dysku zostaną bez zmian.	Your edits and chosen covers will be undone. The files on disk stay as they are.
+Własne ustawienia	Custom
+Włóż następną płytę	Insert the next disc
+Włącz amplituner	Turn on the receiver
+Włącz parowanie	Turn on pairing
+Z komputera lub telefonu	From a computer or phone
+Za mało miejsca: potrzeba {0}, wolne {1}.	Not enough space: {0} needed, {1} free.
+Zaawansowane	Advanced
+Zachowaj obecne dane	Keep current info
+Zachowano gotowe pliki: {0}	Finished files kept: {0}
+Zagra jako następny	Plays next
+Zagrają jako następne	Play next
+Zakończ po ciszy na końcu strony	Stop after the silence at the end of a side
+Zakończ podgląd	Stop preview
+Zakończ tryb seryjny	End batch mode
+Zamknij dopasowanie	Close matching
+Zamknij panel lub okno	Close panel or window
+Zamknij panel	Close panel
+Zamknij wizualizację (Esc)	Close visualization (Esc)
+Zamknij	Close
+Zapis	Saving
+Zapisane urządzenie	Saved device
+Zapisano zmiany.	Changes saved.
+Zapisz poprawki	Save edits
+Zapisz wybrane propozycje	Save selected suggestions
+Zapisz	Save
+Zaproponuj według ciszy	Suggest from silence
+Zastosuj pobraną okładkę	Use the downloaded cover
+Zastąp także własne poprawki	Also replace my edits
+Zatrzymaj eksport	Stop export
+Zatrzymaj i zachowaj gotowe pliki	Stop and keep finished files
+Zatrzymaj odsłuch	Stop listening
+Zatrzymaj po bieżącym pliku	Stop after the current file
+Zawsze na wierzchu	Always on top
+Zaznacz utwory z tego nagrania (jednej strony):	Select the tracks in this recording (one side):
+Zaznacz wszystkie utwory	Select all tracks
+Zaznacz wszystkie	Select all
+Zaznaczone: {0} z {1}	Selected: {0} of {1}
+Zeskanuj kod Mytify z komputera albo z drugiego telefonu i wybierz albumy. Pobrane utwory działają bez sieci.	Scan a Mytify code from a computer or another phone and choose albums. Downloaded tracks work without a network.
+Zmiany: {0} z {1}. Własne poprawki są chronione.	Changes: {0} of {1}. Your edits are protected.
+Zmień nazwę	Rename
+Zmień okładkę	Change cover
+Znacznik utworu	Track marker
+Znacznik w kursorze	Marker at cursor
+Znaczniki: {0}	Markers: {0}
+Znajdź dane i okładkę	Find info and cover
+Znajdź w MusicBrainz	Find in MusicBrainz
+Znajdź wydanie albumu	Find album release
+Zobacz wszystkie	See all
+Zostaw najlepsze kopie (usuń {0})	Keep the best copies (remove {0})
+Zostaw puste: Mytify użyje wartości zapamiętanej dla napędu albo ustali ją z AccurateRip przy pierwszej płycie, która jest w bazie.	Leave empty: Mytify uses the value remembered for the drive or finds it from AccurateRip with the first disc that is in the database.
+Zweryfikowane w bazach: {0} z {1}. Reszty płyty nie ma w bazach, więc nie da się jej sprawdzić.	Verified in the databases: {0} of {1}. The rest of the disc is not in the databases, so it cannot be checked.
+Zwinięty panel boczny	Collapsed sidebar
+Zwiń panel	Collapse panel
+albo adres wydania z Discogs	or a Discogs release address
+albumów	albums
+bez czasu	no time
+bez nazwy albumu	no album name
+bez numerów utworów	no track numbers
+bez okładki	no cover
+bez weryfikacji	not verified
+bez wykonawcy	no artist
+brak danych	no data
+brak w bazie	not in database
+brakuje {0}	{0} missing
+cały udział	whole share
+co najmniej 	at least
+dodano {0}	added {0}
+domyślnie nazwa folderu	folder name by default
+kanał	channel
+kanały	channels
+kanałów	channels
+kodek stratny	lossy codec
+konwersja {0} → {1}	conversion {0} → {1}
+najlepsza kopia	best copy
+niedostępne	unavailable
+niedostępny	unavailable
+np. +6	e.g. +6
+np. music	e.g. music
+np. nas.local lub 192.168.1.20	e.g. nas.local or 192.168.1.20
+nr {0}	no. {0}
+ok. {0}	approx. {0}
+powtórzone numery	repeated numbers
+przesunięcie {0}{1} ({2})	offset {0}{1} ({2})
+próbek	samples
+próbka	sample
+próbki	samples
+prędkość {0}{1}%	speed {0}{1}%
+płyta {0}, nr {1}	disc {0}, no. {1}
+strona A	side A
+strona B	side B
+utworów	tracks
+utwór	track
+utwory	tracks
+album	album
+albumy	albums
+wykrywane automatycznie	detected automatically
+wyłączony	off
+zaktualizowano {0}	updated {0}
+{0} / {1} utworów	{0} / {1} tracks
+{0} Opis z CD-Text zapisanego na płycie.	{0} Info from the CD-Text stored on the disc.
+{0} Wpisz nazwy ręcznie.	{0} Type the names yourself.
+{0} Zobacz „Obsługiwane płyty”.	{0} See "Supported discs".
+{0} godz. {1} min	{0} h {1} min
+{0} offline · {1}{2}	{0} offline · {1}{2}
+{0} próbek od uruchomienia	{0} samples since start
+{0} utworów	{0} tracks
+{0} wybranych · kolejność dodawania	{0} selected · in order of adding
+{0} · niedostępny	{0} · unavailable
+{0}, strona B	{0}, side B
+{0}Dodano do biblioteki: {1}	{0}Added to library: {1}
+{0}\nTrafność wyszukiwania: {1}/100	{0}\nSearch relevance: {1}/100
+{0}\nna serwerze w sieci	{0}\non a network server
+{0}\nz serwera, pobrany na urządzenie	{0}\nfrom a server, downloaded to this device
+{0}{1} (ręcznie)	{0}{1} (manual)
+{0}{1} (zapamiętane)	{0}{1} (remembered)
+Łączenie…	Connecting…
+Ścieżka {0}	Track {0}
+Źródła muzyki	Music sources
+Źródła sieciowe nie są dostępne w tej wersji.	Network sources are not available in this version.
+Źródło jest niedostępne. Podłącz je i wykonaj skan.	The source is unavailable. Connect it and scan.
+Źródło niedostępne	Source unavailable
+Źródło	Source
+„{0}” zniknie z Mytify. Utwory zostaną w bibliotece.	"{0}" will disappear from Mytify. The tracks stay in the library.
+„{0}” zniknie z katalogu, a zapisane hasło zostanie usunięte. Pliki na serwerze zostaną bez zmian.	"{0}" will disappear from the catalog and the saved password will be deleted. The files on the server stay.
+„{0}” zniknie z katalogu. Pliki i foldery na dysku zostaną bez zmian.	"{0}" will disappear from the catalog. Files and folders on disk stay.
+Język	Language
+Język aplikacji	App language
+Polski	Polski
+English	English
+Start	Home
+PIN AirPlay	AirPlay PIN
+Brak adresu sieci lokalnej. Połącz PC z Wi-Fi lub Ethernet.	No local network address. Connect the PC to Wi-Fi or Ethernet.
+Brak dostępu do folderu.	No access to the folder.
+Brak dostępu do tego folderu.	No access to this folder.
+Brak dostępu do udziału dla tego konta.	This account has no access to the share.
+Brak połączenia z siecią.	No network connection.
+Brak płyty w napędzie.	No disc in the drive.
+Błąd dekodowania pliku audio	Audio file decoding error
+Błąd dekodowania: {0}	Decoding error: {0}
+Błąd odtwarzania: {0}	Playback error: {0}
+Błąd serwera. Spróbuj później.	Server error. Try again later.
+Błąd zapisu: {0}. Zachowano plik częściowy do odzyskania.	Write error: {0}. The partial file was kept for recovery.
+Certyfikat serwera nie jest zaufany. Mytify nie łączy się z serwerem bez ważnego certyfikatu HTTPS.	The server certificate is not trusted. Mytify does not connect to a server without a valid HTTPS certificate.
+Domyślne urządzenie systemu	System default device
+Import Audio CD jest dostępny w wersji Windows	Audio CD import is available in the Windows version
+Katalog pochodzi z nowszej wersji Mytify. Nie został zmieniony.	The catalog comes from a newer Mytify version. It was not changed.
+Konto na serwerze jest zablokowane albo wygasło.	The server account is locked or expired.
+Nagranie jest za krótkie	The recording is too short
+Nagranie zatrzymano po błędzie wejścia lub utracie próbek ({0}). Zachowano zapisany fragment, bez ukrywania przerwy.	Recording stopped after an input error or lost samples ({0}). The recorded part was kept, with the gap left visible.
+Najpierw wybierz utwór.	Choose a track first.
+Nie można odczytać płyty: {0}	Cannot read the disc: {0}
+Nie można odtworzyć utworu: {0}	Cannot play the track: {0}
+Nie można otworzyć napędu: {0}	Cannot open the drive: {0}
+Nie można otworzyć transferu: {0}	Cannot open the transfer: {0}
+Nie można połączyć się z serwisem. Sprawdź internet i spróbuj ponownie.	Cannot connect to the service. Check the internet and try again.
+Nie można połączyć z udziałem (kod {0}).	Cannot connect to the share (code {0}).
+Nie można wysunąć płyty: {0}	Cannot eject the disc: {0}
+Nie można zapisać hasła w Menedżerze poświadczeń Windows.	Cannot save the password in Windows Credential Manager.
+Nie udało się uruchomić AirPlay	Could not start AirPlay
+Nie wpisuj loginu ani hasła w adresie. Użyj pól poniżej.	Do not put a login or password in the address. Use the fields below.
+Nie znaleziono serwera. Sprawdź adres i czy komputer jest w tej samej sieci.	Server not found. Check the address and that the computer is on the same network.
+Nie znaleziono serwera. Sprawdź adres.	Server not found. Check the address.
+Nie znaleziono utworu. Odśwież bibliotekę.	Track not found. Refresh the library.
+Nieobsługiwany format pliku.	Unsupported file format.
+Nieprawidłowy użytkownik lub hasło.	Wrong user name or password.
+Obróbka kopii i zapis	Processing and saving copies
+Obsługujemy obecnie muzykę mono i stereo; ten plik ma {0} kanałów.	Only mono and stereo music is supported now; this file has {0} channels.
+Odbiornik nie wykonał {0}: {1}. Sprawdź DMC Control i zgodność formatu.	The receiver did not do {0}: {1}. Check DMC Control and the format support.
+Odbiornik wymaga hasła AirPlay. Wybierz DLNA lub wyłącz hasło na odbiorniku.	The receiver needs an AirPlay password. Choose DLNA or turn off the password on the receiver.
+Odczyt ścieżki {0} z {1}	Reading track {0} of {1}
+Odtwarzacz nie odpowiedział. Spróbuj ponownie.	The player did not respond. Try again.
+Operacja została przerwana. Zachowano ukończone pliki i nagrania do odzyskania.	The operation was stopped. Finished files and recordings were kept for recovery.
+Opis utworów i ReplayGain	Track tags and ReplayGain
+Osiągnięto limit 4 GB nagrania. Zapisano dotychczasowe audio; rozpocznij nową stronę.	The 4 GB recording limit was reached. The audio so far was saved; start a new side.
+Plik jest niedostępny. Podłącz źródło i wykonaj ponowny skan.	The file is unavailable. Connect the source and scan again.
+Plik na serwerze zmienił się. Wykonaj ponowny skan źródła.	The file on the server changed. Scan the source again.
+Pobrany plik jest niekompletny albo zmienił się na serwerze. Pobieranie zacznie się od nowa.	The downloaded file is incomplete or changed on the server. The download starts over.
+Połączenie przerwane: {0}	Connection lost: {0}
+Połączenie z serwerem nie powiodło się.	Connecting to the server failed.
+Połączenie z serwerem zostało przerwane.	The connection to the server was lost.
+Połączono z {0} (OpenSubsonic).	Connected to {0} (OpenSubsonic).
+Połączono z {0}.	Connected to {0}.
+Przeglądam {0}… ({1} plików)	Browsing {0}… ({1} files)
+Przesunięcie odczytu musi mieścić się w zakresie ±3000 próbek	The read offset must be within ±3000 samples
+Płyta zawiera ścieżki z danymi (CD-Extra, CD-ROM lub DVD). Mytify importuje tylko płyty Audio CD.	The disc has data tracks (CD-Extra, CD-ROM or DVD). Mytify imports only Audio CDs.
+Płyta zmieniła się. Odczytaj listę ścieżek ponownie.	The disc changed. Read the track list again.
+Serwer jest nieosiągalny.	The server is unreachable.
+Serwer nie ma udziału o tej nazwie.	The server has no share with this name.
+Serwer odrzucił żądanie (HTTP {0}).	The server rejected the request (HTTP {0}).
+Serwer odrzucił żądanie.	The server rejected the request.
+Serwis jest chwilowo zajęty. Spróbuj ponownie za minutę.	The service is busy. Try again in a minute.
+Serwis zwrócił błąd HTTP {0}. Spróbuj ponownie później.	The service returned HTTP error {0}. Try again later.
+Sesja wygasła. Otwórz Mytify ponownie.	The session expired. Open Mytify again.
+Skan został przerwany przez błąd. Zapisane dane pozostają w katalogu.	The scan stopped with an error. The saved data stays in the catalog.
+Sprawdzanie płyty w AccurateRip i CTDB	Checking the disc in AccurateRip and CTDB
+Sprawdzanie płyty w AccurateRip	Checking the disc in AccurateRip
+Sprawdzanie ukrytego utworu przed ścieżką 1	Checking for a hidden track before track 1
+Ta wersja serwera nie jest obsługiwana.	This server version is not supported.
+Ten folder jest już dodany do biblioteki.	This folder is already in the library.
+Ten folder sieciowy jest już dodany.	This network folder is already added.
+Ten kodek nie jest jeszcze obsługiwany przez odtwarzacz	The player does not support this codec yet
+To konto nie ma uprawnień do tej operacji.	This account has no permission for this operation.
+Trwa już import lub skan biblioteki.	An import or library scan is already running.
+Trwa już skanowanie biblioteki.	A library scan is already running.
+Urządzenie jest niedostępne. Wybierz inne wyjście w ustawieniach dźwięku.	The device is unavailable. Choose another output in the sound settings.
+Ustalanie przesunięcia odczytu napędu	Finding the drive read offset
+Usunięto trzaski: {0}.	Clicks removed: {0}.
+Utracono wyjście audio. Wybierz urządzenie ponownie w ustawieniach dźwięku.	The audio output was lost. Choose the device again in the sound settings.
+Utracono łączność z odbiornikiem: {0}	Lost connection to the receiver: {0}
+WebDAV wymaga połączenia HTTPS (adres zaczyna się od https://).	WebDAV needs an HTTPS connection (the address starts with https://).
+Wejście audio jest niedostępne	The audio input is unavailable
+Weryfikacja online niedostępna: {0}	Online verification unavailable: {0}
+Windows ma już połączenie z tym serwerem na innym koncie. Użyj tego samego konta.	Windows is already connected to this server with another account. Use the same account.
+Wpisz nazwę albumu.	Enter the album name.
+Wybierz dostępny napęd optyczny	Choose an available optical drive
+Wyjście wymaga nieobsługiwanego formatu próbek. Wybierz inne urządzenie.	The output needs an unsupported sample format. Choose another device.
+Zakończ bieżący import lub nagranie	Finish the current import or recording
+Zakończ bieżący import	Finish the current import
+Zakończ bieżącą operację	Finish the current operation
+Zapis utworów	Saving tracks
+Zapis ścieżki {0}	Saving track {0}
+Zaznacz co najmniej jeden utwór	Select at least one track
+Znaczniki muszą rosnąć, mieścić się w nagraniu i nie tworzyć pustych utworów	Markers must increase, fit in the recording and not create empty tracks
+nieznane (płyta nie pozwoliła go ustalić)	unknown (the disc did not allow finding it)
+nieznane (płyty nie ma w AccurateRip)	unknown (the disc is not in AccurateRip)
+ustawione ręcznie	set manually
+zapamiętane dla napędu	remembered for the drive
+wykryte z AccurateRip	detected from AccurateRip
+Łączenie z {0}…	Connecting to {0}…
+Źródło niedostępne. {0}	Source unavailable. {0}
+Nie można odtworzyć pliku ({0}). Sprawdź dostęp i format.	Cannot play the file ({0}). Check the access and format.
+Wybierz komputer w lokalnej sieci Wi-Fi	Choose a computer on the local Wi-Fi network
+To nie jest kod Mytify	This is not a Mytify code
+Nieprawidłowy kod parowania	Invalid pairing code
+PC odmówił dostępu. Odśwież kod QR i sparuj ponownie.	Access refused. Refresh the QR code and pair again.
+PC zwrócił błąd {0}	The device returned error {0}
+Certyfikat PC się zmienił. Sparuj urządzenia ponownie.	The device certificate changed. Pair the devices again.
+Za mało miejsca w telefonie. Potrzeba około {0} MB.	Not enough space on the phone. About {0} MB is needed.
+Wstrzymano. Możesz wznowić pobieranie.	Paused. You can resume the download.
+Gotowe, muzyka jest w telefonie	Done, the music is on the phone
+Suma SHA-256 pliku jest niezgodna. Plik nie został dodany do biblioteki. Wykonaj ponowny skan biblioteki na PC i spróbuj jeszcze raz.	The file SHA-256 does not match. The file was not added. Scan the library on the other device and try again.
+Brak adresu w sieci lokalnej. Połącz telefon z Wi-Fi.	No local network address. Connect the phone to Wi-Fi.
+Włącz udostępnianie	Turn on sharing
+Wygląd i język	Appearance and language

@@ -332,6 +332,12 @@ class MainActivity : FlutterActivity() {
                     val bands = PlaybackService.instance?.levelBands()
                     r.success(JSONObject().put("bands", bands?.let { JSONArray(it.toList()) } ?: JSONObject.NULL).toString())
                 }
+                "setLanguage" -> {
+                    Lang.set(applicationContext, call.arguments as? String ?: "pl")
+                    // Android Auto and the notification buttons follow at once.
+                    PlaybackService.instance?.libraryChanged()
+                    r.success(null)
+                }
                 "systemOutput" -> r.success(systemOutput())
                 "openSystemOutputs" -> r.success(openSystemOutputs())
                 "keepScreenOn" -> {

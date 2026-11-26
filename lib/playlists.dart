@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'design.dart';
 import 'model.dart';
+import 'l10n.dart';
 
 class MusicPlaylist {
   final String id, name;
@@ -79,16 +80,16 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     final yes = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Usuń playlistę?'),
+        title: Text(tr('Usuń playlistę?')),
         content: Text(p.name),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: const Text('Anuluj'),
+            child: Text(tr('Anuluj')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: const Text('Usuń'),
+            child: Text(tr('Usuń')),
           ),
         ],
       ),
@@ -108,11 +109,11 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Playlisty')),
+    appBar: AppBar(title: Text(tr('Playlisty'))),
     floatingActionButton: FloatingActionButton.extended(
       onPressed: () => edit(),
       icon: const Icon(Icons.add),
-      label: const Text('Nowa playlista'),
+      label: Text(tr('Nowa playlista')),
     ),
     body: busy
         ? const Center(child: CircularProgressIndicator())
@@ -122,21 +123,21 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
               if (error != null)
                 Text(error!, style: const TextStyle(color: Colors.redAccent)),
               if (items.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.all(24),
-                  child: Text('Utwórz playlistę i wybierz utwory.'),
+                  child: Text(tr('Utwórz playlistę i wybierz utwory.')),
                 ),
               ...items.map(
                 (p) => ListTile(
                   leading: const Icon(Icons.queue_music),
                   title: Text(p.name),
-                  subtitle: Text(collectionCount(p.ids.length, 'utwór', 'utwory', 'utworów')),
+                  subtitle: Text(collectionCount(p.ids.length, tr('utwór'), 'utwory', tr('utworów'))),
                   onTap: () => edit(p),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        tooltip: 'Odtwórz playlistę',
+                        tooltip: tr('Odtwórz playlistę'),
                         onPressed: () {
                           final byId = {for (final t in widget.tracks) t.id: t};
                           final selection = p.ids
@@ -151,7 +152,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                         icon: const Icon(Icons.play_arrow),
                       ),
                       IconButton(
-                        tooltip: 'Usuń playlistę',
+                        tooltip: tr('Usuń playlistę'),
                         onPressed: () => remove(p),
                         icon: const Icon(Icons.delete_outline),
                       ),
@@ -194,7 +195,7 @@ class _PlaylistEditorState extends State<_PlaylistEditor> {
 
   Future<void> save() async {
     if (name.text.trim().isEmpty) {
-      setState(() => error = 'Podaj nazwę playlisty.');
+      setState(() => error = tr('Podaj nazwę playlisty.'));
       return;
     }
     setState(() => busy = true);
@@ -225,7 +226,7 @@ class _PlaylistEditorState extends State<_PlaylistEditor> {
       canPop: !busy,
       child: AlertDialog(
         title: Text(
-          widget.playlist == null ? 'Nowa playlista' : 'Edytuj playlistę',
+          widget.playlist == null ? tr('Nowa playlista') : tr('Edytuj playlistę'),
         ),
         content: SizedBox(
           width: 520,
@@ -235,17 +236,17 @@ class _PlaylistEditorState extends State<_PlaylistEditor> {
               TextField(
                 controller: name,
                 maxLength: 100,
-                decoration: const InputDecoration(labelText: 'Nazwa playlisty'),
+                decoration: InputDecoration(labelText: tr('Nazwa playlisty')),
               ),
               TextField(
                 onChanged: (s) => setState(() => query = s),
-                decoration: const InputDecoration(
-                  labelText: 'Szukaj utworów',
+                decoration: InputDecoration(
+                  labelText: tr('Szukaj utworów'),
                   prefixIcon: Icon(Icons.search),
                 ),
               ),
               Text(
-                '${selected.length} wybranych · kolejność dodawania',
+                tr('{0} wybranych · kolejność dodawania', [selected.length]),
                 style: const TextStyle(fontSize: 12),
               ),
               if (error != null)
@@ -287,11 +288,11 @@ class _PlaylistEditorState extends State<_PlaylistEditor> {
         actions: [
           TextButton(
             onPressed: busy ? null : () => Navigator.pop(context, false),
-            child: const Text('Anuluj'),
+            child: Text(tr('Anuluj')),
           ),
           FilledButton(
             onPressed: busy ? null : save,
-            child: const Text('Zapisz'),
+            child: Text(tr('Zapisz')),
           ),
         ],
       ),

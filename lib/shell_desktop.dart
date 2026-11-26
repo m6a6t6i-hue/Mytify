@@ -11,6 +11,7 @@ import 'player_ui.dart';
 import 'playlists.dart';
 import 'views.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 
 Color get sidebarColor => sidebarTone;
 
@@ -289,8 +290,8 @@ class Toolbar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: Sp.m),
       child: Row(
         children: [
-          IconAction(Icons.chevron_left_rounded, 'Wstecz (Alt+←)', app.canGoBack ? app.back : null, size: 24, box: 34),
-          IconAction(Icons.chevron_right_rounded, 'Dalej (Alt+→)', app.canGoForward ? app.forward : null, size: 24, box: 34),
+          IconAction(Icons.chevron_left_rounded, tr('Wstecz (Alt+←)'), app.canGoBack ? app.back : null, size: 24, box: 34),
+          IconAction(Icons.chevron_right_rounded, tr('Dalej (Alt+→)'), app.canGoForward ? app.forward : null, size: 24, box: 34),
           const SizedBox(width: Sp.m),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 380, minWidth: 180),
@@ -303,15 +304,15 @@ class Toolbar extends StatelessWidget {
                 onSubmitted: (v) => app.prefs.rememberSearch(v),
                 style: const TextStyle(fontSize: 13.5),
                 decoration: InputDecoration(
-                  hintText: 'Szukaj',
+                  hintText: tr('Szukaj'),
                   prefixIcon: Icon(Icons.search_rounded, size: 18, color: secondaryText),
                   prefixIconConstraints: const BoxConstraints(minWidth: 36),
                   suffixIcon: app.query.isEmpty
                       ? Padding(
                           padding: EdgeInsets.only(right: 10, top: 10),
-                          child: Text('Ctrl+F', style: TextStyle(fontSize: 11, color: secondaryText)),
+                          child: Text(tr('Ctrl+F'), style: TextStyle(fontSize: 11, color: secondaryText)),
                         )
-                      : IconAction(Icons.close_rounded, 'Wyczyść', () {
+                      : IconAction(Icons.close_rounded, tr('Wyczyść'), () {
                           app.searchText.clear();
                           app.refresh();
                         }, size: 16, box: 30),
@@ -326,7 +327,7 @@ class Toolbar extends StatelessWidget {
           Builder(
             builder: (context) => IconAction(
               Icons.add_rounded,
-              'Dodaj źródło',
+              tr('Dodaj źródło'),
               () {
                 final box = context.findRenderObject() as RenderBox?;
                 app.showAddMusic(at: box?.localToGlobal(box.size.bottomLeft(Offset.zero)));
@@ -334,7 +335,7 @@ class Toolbar extends StatelessWidget {
               color: secondaryText,
             ),
           ),
-          IconAction(Icons.settings_outlined, 'Ustawienia (Ctrl+,)', () => app.go(const Nav('settings')), color: secondaryText, size: 20),
+          IconAction(Icons.settings_outlined, tr('Ustawienia (Ctrl+,)'), () => app.go(const Nav('settings')), color: secondaryText, size: 20),
         ],
       ),
     ),
@@ -348,7 +349,7 @@ class ImportStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = app.progress;
-    final label = p.total == 0 ? 'Import' : 'Import ${p.done} z ${p.total}';
+    final label = p.total == 0 ? tr('Import') : tr('Import {0} z {1}', [p.done, p.total]);
     return Tooltip(
       message: p.name,
       child: Padding(
@@ -368,7 +369,7 @@ class ImportStatus extends StatelessWidget {
             Text(label, style: Txt.meta),
             IconAction(
               Icons.close_rounded,
-              app.cancelling ? 'Przerywanie' : 'Zatrzymaj po bieżącym pliku',
+              app.cancelling ? tr('Przerywanie') : tr('Zatrzymaj po bieżącym pliku'),
               app.cancelling ? null : () => unawaited(app.cancelImport()),
               size: 16,
               box: 30,
@@ -461,7 +462,7 @@ class Sidebar extends StatelessWidget {
                 ],
                 IconAction(
                   collapsed ? Icons.menu_rounded : Icons.menu_open_rounded,
-                  collapsed ? 'Rozwiń panel' : 'Zwiń panel',
+                  collapsed ? tr('Rozwiń panel') : tr('Zwiń panel'),
                   onToggle,
                   color: secondaryText,
                   size: 20,
@@ -474,24 +475,24 @@ class Sidebar extends StatelessWidget {
             child: LayoutBuilder(
               builder: (context, box) {
                 final nav = <Widget>[
-                  _item(Icons.home_outlined, Icons.home_rounded, 'Start', Nav.home),
-                  _item(Icons.search_rounded, Icons.manage_search_rounded, 'Szukaj', Nav.search),
-                  _label('Biblioteka'),
-                  _item(Icons.album_outlined, Icons.album_rounded, 'Albumy', const Nav('library', 'albums'), active: _active('library', 'albums') || _active('library', 'all') || _active('album')),
-                  _item(Icons.person_outline_rounded, Icons.person_rounded, 'Artyści', const Nav('library', 'artists'), active: _active('library', 'artists') || _active('artist')),
-                  _item(Icons.music_note_outlined, Icons.music_note_rounded, 'Utwory', const Nav('library', 'tracks')),
-                  _item(Icons.favorite_border_rounded, Icons.favorite_rounded, 'Polubione', const Nav('liked')),
-                  _item(Icons.schedule_rounded, Icons.schedule_rounded, 'Ostatnio dodane', const Nav('recent')),
+                  _item(Icons.home_outlined, Icons.home_rounded, tr('Start'), Nav.home),
+                  _item(Icons.search_rounded, Icons.manage_search_rounded, tr('Szukaj'), Nav.search),
+                  _label(tr('Biblioteka')),
+                  _item(Icons.album_outlined, Icons.album_rounded, tr('Albumy'), const Nav('library', 'albums'), active: _active('library', 'albums') || _active('library', 'all') || _active('album')),
+                  _item(Icons.person_outline_rounded, Icons.person_rounded, tr('Artyści'), const Nav('library', 'artists'), active: _active('library', 'artists') || _active('artist')),
+                  _item(Icons.music_note_outlined, Icons.music_note_rounded, tr('Utwory'), const Nav('library', 'tracks')),
+                  _item(Icons.favorite_border_rounded, Icons.favorite_rounded, tr('Polubione'), const Nav('liked')),
+                  _item(Icons.schedule_rounded, Icons.schedule_rounded, tr('Ostatnio dodane'), const Nav('recent')),
                   if (app.playlistRepo != null)
                     _label(
-                      'Playlisty',
-                      trailing: IconAction(Icons.add_rounded, 'Nowa playlista (Ctrl+N)', () => unawaited(app.createPlaylist()), size: 18, box: 28, color: secondaryText),
+                      tr('Playlisty'),
+                      trailing: IconAction(Icons.add_rounded, tr('Nowa playlista (Ctrl+N)'), () => unawaited(app.createPlaylist()), size: 18, box: 28, color: secondaryText),
                     ),
                 ];
                 final items = [
                   for (final p in playlists) _PlaylistItem(app: app, playlist: p, collapsed: collapsed),
                   if (collapsed && app.playlistRepo != null)
-                    Center(child: IconAction(Icons.add_rounded, 'Nowa playlista', () => unawaited(app.createPlaylist()), color: secondaryText)),
+                    Center(child: IconAction(Icons.add_rounded, tr('Nowa playlista'), () => unawaited(app.createPlaylist()), color: secondaryText)),
                 ];
                 // Tall windows: playlists scroll on their own under fixed navigation.
                 if (box.maxHeight >= 520) {
@@ -512,10 +513,10 @@ class Sidebar extends StatelessWidget {
           Divider(height: 1, color: softBorder),
           const SizedBox(height: Sp.xs),
           if (app.importing && !collapsed) ImportStatus(app: app),
-          _item(Icons.folder_open_outlined, Icons.folder_rounded, 'Źródła muzyki', const Nav('sources'), active: _active('sources') || _active('settings', 'sources') || _active('downloads')),
+          _item(Icons.folder_open_outlined, Icons.folder_rounded, tr('Źródła muzyki'), const Nav('sources'), active: _active('sources') || _active('settings', 'sources') || _active('downloads')),
           if (app.canTransfer)
-            _item(Icons.phonelink_rounded, Icons.phonelink_rounded, 'Połącz telefon', const Nav('settings', 'phone')),
-          _item(Icons.settings_outlined, Icons.settings_rounded, 'Ustawienia', const Nav('settings'), active: (_active('settings') && !_active('settings', 'sources') && !_active('settings', 'phone')) || _active('import')),
+            _item(Icons.phonelink_rounded, Icons.phonelink_rounded, tr('Połącz telefon'), const Nav('settings', 'phone')),
+          _item(Icons.settings_outlined, Icons.settings_rounded, tr('Ustawienia'), const Nav('settings'), active: (_active('settings') && !_active('settings', 'sources') && !_active('settings', 'phone')) || _active('import')),
           const SizedBox(height: Sp.s),
         ],
       ),
@@ -600,16 +601,16 @@ class IngestStatus extends StatelessWidget {
               children: [
                 Icon(Icons.album_outlined, size: 16, color: accent),
                 const SizedBox(width: Sp.s),
-                const Text('Wykryto płytę. Importować?', style: TextStyle(fontSize: 13)),
+                Text(tr('Wykryto płytę. Importować?'), style: TextStyle(fontSize: 13)),
                 TextButton(
                   style: Ctl.text,
                   onPressed: () {
                     app.openIngest(true);
                     unawaited(s.useInserted());
                   },
-                  child: const Text('Importuj'),
+                  child: Text(tr('Importuj')),
                 ),
-                IconAction(Icons.close_rounded, 'Nie teraz', s.dismissInserted, size: 16, box: 30, color: secondaryText),
+                IconAction(Icons.close_rounded, tr('Nie teraz'), s.dismissInserted, size: 16, box: 30, color: secondaryText),
               ],
             ),
           );
@@ -620,14 +621,14 @@ class IngestStatus extends StatelessWidget {
         final frames = (s.status['frames'] as num? ?? 0).toDouble();
         final rate = (s.status['rate'] as num? ?? 0).toDouble();
         final label = s.recording
-            ? 'Nagrywanie ${clock(rate > 0 ? (frames * 1000 / rate).round() : 0)}'
+            ? tr('Nagrywanie {0}', [clock(rate > 0 ? (frames * 1000 / rate).round() : 0)])
             : s.monitoring
-            ? 'Podgląd poziomu'
+            ? tr('Podgląd poziomu')
             : s.ripping
-            ? 'Import CD${total > 0 ? ' ${(done * 100 / total).clamp(0, 100).round()}%' : ''}'
+            ? tr('Import CD{0}', [total > 0 ? ' ${(done * 100 / total).clamp(0, 100).round()}%' : ''])
             : s.exporting
-            ? 'Eksport ${done.round()} z ${total.round()}'
-            : 'Import';
+            ? tr('Eksport {0} z {1}', [done.round(), total.round()])
+            : tr('Import');
         return Padding(
           padding: const EdgeInsets.only(right: Sp.s),
           child: TextButton.icon(

@@ -6,6 +6,7 @@ import 'design.dart';
 import 'main.dart';
 import 'player_ui.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 
 /// Floating mini player on the desktop: 244×82 ("mini") or 196×44 ("nano"),
 /// borderless and on top. Drag anywhere to move, double click to open the full app.
@@ -27,7 +28,7 @@ class _FloatingPlayerState extends State<FloatingPlayer> {
       IconAction(icon, tip, onTap, size: size, box: box, color: onTap == null ? secondaryText.withValues(alpha: .5) : color ?? primaryText);
 
   Widget _play(bool playing, bool enabled, double d) => Tooltip(
-    message: playing ? 'Pauza' : 'Odtwarzaj',
+    message: playing ? tr('Pauza') : tr('Odtwarzaj'),
     child: Material(
       color: enabled ? accent : elevated,
       shape: const CircleBorder(),
@@ -85,7 +86,7 @@ class _FloatingPlayerState extends State<FloatingPlayer> {
               final enabled = t != null;
               final progress = s.duration > Duration.zero ? s.position.inMilliseconds / s.duration.inMilliseconds : 0.0;
               final title = Text(
-                t?.title ?? 'Wybierz utwór',
+                t?.title ?? tr('Wybierz utwór'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: widget.nano ? 11.5 : 12.5, fontWeight: FontWeight.w700),
@@ -100,7 +101,7 @@ class _FloatingPlayerState extends State<FloatingPlayer> {
                 if (hover)
                   _button(
                     pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
-                    pinned ? 'Nie trzymaj na wierzchu' : 'Zawsze na wierzchu',
+                    pinned ? tr('Nie trzymaj na wierzchu') : tr('Zawsze na wierzchu'),
                     () => app.setFloatingPin(!pinned),
                     size: 13,
                     box: 20,
@@ -109,13 +110,13 @@ class _FloatingPlayerState extends State<FloatingPlayer> {
                 if (hover)
                   _button(
                     widget.nano ? Icons.unfold_more_rounded : Icons.unfold_less_rounded,
-                    widget.nano ? 'Większy mini odtwarzacz' : 'Najmniejszy odtwarzacz',
+                    widget.nano ? tr('Większy mini odtwarzacz') : tr('Najmniejszy odtwarzacz'),
                     () => app.setFloating(widget.nano ? 'mini' : 'nano'),
                     size: 13,
                     box: 20,
                     color: secondaryText,
                   ),
-                _button(Icons.open_in_full_rounded, 'Pełna aplikacja (dwuklik)', () => app.setFloating(null), size: 13, box: 20, color: secondaryText),
+                _button(Icons.open_in_full_rounded, tr('Pełna aplikacja (dwuklik)'), () => app.setFloating(null), size: 13, box: 20, color: secondaryText),
               ];
               if (widget.nano) {
                 return Column(
@@ -170,11 +171,11 @@ class _FloatingPlayerState extends State<FloatingPlayer> {
                                   children: [
                                     LevelBars(playing: s.playing, width: 18, height: 14),
                                     const Spacer(),
-                                    _button(Icons.skip_previous_rounded, 'Poprzedni', enabled ? () => unawaited(app.previousTrack()) : null),
+                                    _button(Icons.skip_previous_rounded, tr('Poprzedni'), enabled ? () => unawaited(app.previousTrack()) : null),
                                     const SizedBox(width: 4),
                                     _play(s.playing, enabled, 28),
                                     const SizedBox(width: 4),
-                                    _button(Icons.skip_next_rounded, 'Następny', enabled ? () => unawaited(app.nextTrack()) : null),
+                                    _button(Icons.skip_next_rounded, tr('Następny'), enabled ? () => unawaited(app.nextTrack()) : null),
                                     const Spacer(),
                                     const SizedBox(width: 18),
                                   ],

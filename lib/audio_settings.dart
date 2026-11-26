@@ -10,6 +10,7 @@ import 'main.dart';
 import 'model.dart';
 import 'player_ui.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 
 /// Settings → Audio: output, volume and mute in place, details folded below.
 /// Uses the same state as the player's device popover. Opening it changes nothing.
@@ -68,12 +69,12 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
         final selected = s.selectedDevice;
         final all = [...out.devices];
         if (!all.any((d) => d.id == selected)) {
-          all.insert(0, AudioDevice(selected, s.output?['name']?.toString() ?? 'Zapisane urządzenie'));
+          all.insert(0, AudioDevice(selected, s.output?['name']?.toString() ?? tr('Zapisane urządzenie')));
         }
         final missing = out.searched && !out.devices.any((d) => d.id == selected);
         String name(AudioDevice d) {
           final (n, kind) = deviceLabel(d);
-          final suffix = [?kind, if (d.id == selected && missing) 'niedostępne'].join(', ');
+          final suffix = [?kind, if (d.id == selected && missing) tr('niedostępne')].join(', ');
           return suffix.isEmpty ? n : '$n ($suffix)';
         }
 
@@ -83,9 +84,9 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SectionTitle('Wyjście', padding: EdgeInsets.only(bottom: Sp.s)),
+            SectionTitle(tr('Wyjście'), padding: EdgeInsets.only(bottom: Sp.s)),
             _labelled(
-              'Urządzenie odtwarzania',
+              tr('Urządzenie odtwarzania'),
               narrow: narrow,
               Row(
                 children: [
@@ -126,14 +127,14 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
                           height: 36,
                           child: Padding(padding: EdgeInsets.all(9), child: CircularProgressIndicator(strokeWidth: 2)),
                         )
-                      : IconAction(Icons.refresh_rounded, 'Odśwież listę urządzeń', () => unawaited(out.refresh()), color: secondaryText),
+                      : IconAction(Icons.refresh_rounded, tr('Odśwież listę urządzeń'), () => unawaited(out.refresh()), color: secondaryText),
                 ],
               ),
             ),
-            if (out.connecting != null) Padding(padding: EdgeInsets.only(left: 200), child: Text('Łączenie…', style: Ctl.label)),
+            if (out.connecting != null) Padding(padding: EdgeInsets.only(left: 200), child: Text(tr('Łączenie…'), style: Ctl.label)),
             if (s.pairingRequired)
               _labelled(
-                'PIN AirPlay',
+                tr('PIN AirPlay'),
                 narrow: narrow,
                 Row(
                   children: [
@@ -143,7 +144,7 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
                         keyboardType: TextInputType.number,
                         maxLength: 4,
                         style: Ctl.fieldText,
-                        decoration: Ctl.field(hint: 'PIN z ekranu odbiornika').copyWith(counterText: ''),
+                        decoration: Ctl.field(hint: tr('PIN z ekranu odbiornika')).copyWith(counterText: ''),
                         onSubmitted: (v) => unawaited(out.command({'action': 'pin', 'value': v.trim()})),
                       ),
                     ),
@@ -151,7 +152,7 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
                     FilledButton(
                       style: Ctl.filled,
                       onPressed: () => unawaited(out.command({'action': 'pin', 'value': pin.text.trim()})),
-                      child: const Text('Połącz'),
+                      child: Text(tr('Połącz')),
                     ),
                   ],
                 ),
@@ -165,18 +166,18 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
                     style: Ctl.text,
                     onPressed: () => unawaited(out.command({'action': 'receiverPower'})),
                     icon: const Icon(Icons.power_settings_new_rounded, size: 18),
-                    label: const Text('Włącz amplituner'),
+                    label: Text(tr('Włącz amplituner')),
                   ),
                 ),
               ),
             _labelled(
-              'Głośność',
+              tr('Głośność'),
               narrow: narrow,
               Row(
                 children: [
                   IconAction(
                     muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                    muted ? 'Przywróć dźwięk' : 'Wycisz',
+                    muted ? tr('Przywróć dźwięk') : tr('Wycisz'),
                     s.volumeAvailable ? () => unawaited(app.toggleMute()) : null,
                     active: muted,
                     color: muted ? accent : secondaryText,
@@ -205,25 +206,25 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
             if (!s.volumeAvailable)
               Padding(
                 padding: EdgeInsets.only(left: narrow ? 0 : 200),
-                child: Text('Ten odbiornik nie udostępnia głośności. Użyj jego pilota.', style: Ctl.label),
+                child: Text(tr('Ten odbiornik nie udostępnia głośności. Użyj jego pilota.'), style: Ctl.label),
               )
             else if (kindOf(selected) == DeviceKind.airplay)
               Padding(
                 padding: EdgeInsets.only(left: narrow ? 0 : 200),
-                child: Text('Poziom sygnału wysyłanego z Mytify. Głośność odbiornika bez zmian.', style: Ctl.label),
+                child: Text(tr('Poziom sygnału wysyłanego z Mytify. Głośność odbiornika bez zmian.'), style: Ctl.label),
               ),
             if (out.error != null)
               Padding(
                 padding: EdgeInsets.only(left: narrow ? 0 : 200, top: Sp.s),
-                child: Text(out.error!, style: TextStyle(fontSize: 13.5, color: dangerText)),
+                child: Text(trMessage(out.error!), style: TextStyle(fontSize: 13.5, color: dangerText)),
               ),
             if (s.equalizer != null) ...[
-              const SectionTitle('Barwa dźwięku'),
+              SectionTitle(tr('Barwa dźwięku')),
               EqualizerPanel(app: app, snapshot: s),
             ],
-            const SectionTitle('Zaawansowane'),
-            Collapsible(title: 'Diagnostyka dźwięku', child: _diagnostics(s)),
-            Collapsible(title: 'Protokoły i zgodność', child: _protocols()),
+            SectionTitle(tr('Zaawansowane')),
+            Collapsible(title: tr('Diagnostyka dźwięku'), child: _diagnostics(s)),
+            Collapsible(title: tr('Protokoły i zgodność'), child: _protocols()),
           ],
         );
       },
@@ -244,48 +245,48 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         InfoRow(
-          'Stan',
+          tr('Stan'),
           !s.available
-              ? 'Odtwarzacz niedostępny'
+              ? tr('Odtwarzacz niedostępny')
               : s.buffering
-              ? 'Buforowanie'
+              ? tr('Buforowanie')
               : s.playing
-              ? 'Odtwarzanie'
+              ? tr('Odtwarzanie')
               : s.completed
-              ? 'Koniec kolejki'
+              ? tr('Koniec kolejki')
               : s.currentId != null
-              ? 'Pauza'
-              : 'Nic nie jest odtwarzane',
+              ? tr('Pauza')
+              : tr('Nic nie jest odtwarzane'),
         ),
         if (active) ...[
-          InfoRow('Wyjście', '${o['name'] ?? ''}'),
-          if (o['testSink'] == true) InfoRow('Uwaga', 'Wyjście testowe, bez dźwięku', color: warningText),
+          InfoRow(tr('Wyjście'), '${o['name'] ?? ''}'),
+          if (o['testSink'] == true) InfoRow(tr('Uwaga'), tr('Wyjście testowe, bez dźwięku'), color: warningText),
           if (kind == DeviceKind.dlna)
-            const InfoRow('Dekodowanie', 'Odbiornik DLNA, z oryginalnego pliku')
+            InfoRow(tr('Dekodowanie'), tr('Odbiornik DLNA, z oryginalnego pliku'))
           else if (android && kind == DeviceKind.local)
-            const InfoRow('Silnik', 'Media3 / AudioTrack, format wyjścia wybiera Android')
+            InfoRow(tr('Silnik'), tr('Media3 / AudioTrack, format wyjścia wybiera Android'))
           else ...[
-            if ('${o['backend'] ?? ''}'.isNotEmpty) InfoRow('Silnik', '${o['backend']}'),
-            if (rate > 0) InfoRow('Częstotliwość wyjścia', sampleRateLabel(rate)),
-            if (format.isNotEmpty) InfoRow('Format próbek', format),
-            if (channels > 0) InfoRow('Kanały', '$channels'),
+            if ('${o['backend'] ?? ''}'.isNotEmpty) InfoRow(tr('Silnik'), '${o['backend']}'),
+            if (rate > 0) InfoRow(tr('Częstotliwość wyjścia'), sampleRateLabel(rate)),
+            if (format.isNotEmpty) InfoRow(tr('Format próbek'), format),
+            if (channels > 0) InfoRow(tr('Kanały'), '$channels'),
           ],
           if (srcRate > 0)
             InfoRow(
-              'Źródło',
+              tr('Źródło'),
               [
                 sampleRateLabel(srcRate),
-                bits > 0 ? '$bits bit' : 'kodek stratny',
-                if (srcChannels > 0) collectionCount(srcChannels, 'kanał', 'kanały', 'kanałów'),
+                bits > 0 ? tr('{0} bit', [bits]) : tr('kodek stratny'),
+                if (srcChannels > 0) collectionCount(srcChannels, tr('kanał'), tr('kanały'), tr('kanałów')),
               ].join(' · '),
             ),
-          if (src?['resampled'] == true) const InfoRow('Konwersja częstotliwości', 'Tak, filtr sinc'),
+          if (src?['resampled'] == true) InfoRow(tr('Konwersja częstotliwości'), tr('Tak, filtr sinc')),
         ],
-        if (!android && s.available) InfoRow('Niedobory bufora', '${s.underrunFrames} próbek od uruchomienia'),
-        if (s.error != null) InfoRow('Ostatni błąd', s.error!),
+        if (!android && s.available) InfoRow(tr('Niedobory bufora'), tr('{0} próbek od uruchomienia', [s.underrunFrames])),
+        if (s.error != null) InfoRow(tr('Ostatni błąd'), s.error!),
         if (!active) ...[
           Divider(height: Sp.l, color: softBorder),
-          Text('Parametry wyjścia i źródła są widoczne podczas odtwarzania.', style: Ctl.label),
+          Text(tr('Parametry wyjścia i źródła są widoczne podczas odtwarzania.'), style: Ctl.label),
         ],
       ],
     );
@@ -307,26 +308,22 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         item(
-          'DLNA i Yamaha MusicCast',
-          'Odbiornik dostaje oryginalny plik i sam go dekoduje, więc musi obsługiwać jego format. '
-              'MusicCast działa jako pojedynczy odbiornik DLNA, grupy ustawisz w aplikacji Yamahy.',
+          tr('DLNA i Yamaha MusicCast'),
+          tr('Odbiornik dostaje oryginalny plik i sam go dekoduje, więc musi obsługiwać jego format. MusicCast działa jako pojedynczy odbiornik DLNA, grupy ustawisz w aplikacji Yamahy.'),
         ),
         item(
           'AirPlay',
-          'Mytify wysyła dźwięk stereo 16 bit / 44,1 kHz bez strat. Odbiornik gra z kilkusekundowym opóźnieniem, '
-              'dlatego wizualizacja w pasku postępu jest wtedy statyczna.',
+          tr('Mytify wysyła dźwięk stereo 16 bit / 44,1 kHz bez strat. Odbiornik gra z kilkusekundowym opóźnieniem, dlatego wizualizacja w pasku postępu jest wtedy statyczna.'),
         ),
         if (android)
           item(
-            'Ten telefon',
-            'Odtwarzanie przez Media3. Dźwięk idzie tam, gdzie wskaże Android: głośnik, słuchawki albo Bluetooth. '
-                'Wybierzesz je w „Połącz z urządzeniem” → Bluetooth i słuchawki.',
+            tr('Ten telefon'),
+            tr('Odtwarzanie przez Media3. Dźwięk idzie tam, gdzie wskaże Android: głośnik, słuchawki albo Bluetooth. Wybierzesz je w „Połącz z urządzeniem” → Bluetooth i słuchawki.'),
           )
         else
           item(
-            'Ten komputer',
-            'Dekodowanie w silniku Mytify, wyjście przez Windows WASAPI w trybie współdzielonym. '
-                'Bufor odtwarzania mieści około 3 sekund zdekodowanego dźwięku.',
+            tr('Ten komputer'),
+            tr('Dekodowanie w silniku Mytify, wyjście przez Windows WASAPI w trybie współdzielonym. Bufor odtwarzania mieści około 3 sekund zdekodowanego dźwięku.'),
           ),
       ],
     );

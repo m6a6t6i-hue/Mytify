@@ -59,9 +59,9 @@ class CarLibrary(private val context: Context,private val catalog: Catalog) {
     fun root()=folder(ROOT,"Mytify").buildUpon().setMediaMetadata(folder(ROOT,"Mytify").mediaMetadata.buildUpon().setExtras(Bundle().apply { putBoolean("android.media.browse.SEARCH_SUPPORTED",true);putInt("android.media.browse.CONTENT_STYLE_BROWSABLE_HINT",2);putInt("android.media.browse.CONTENT_STYLE_PLAYABLE_HINT",1) }).build()).build()
     private data class Row(val id: String,val title: String,val subtitle: String="",val song: Song?=null,val parent: String="")
     private fun rows(parent: String): List<Row> = when {
-        parent==ROOT ->listOf(Row("albums","Albumy"),Row("playlists","Playlisty"),Row("liked","Polubione"),Row("all","Utwory"))
+        parent==ROOT ->listOf(Row("albums",Lang.t("Albumy")),Row("playlists",Lang.t("Playlisty")),Row("liked",Lang.t("Polubione")),Row("all",Lang.t("Utwory")))
         parent=="albums" ->songs().filter { it.available }.groupBy { it.albumId }.entries.sortedWith(compareBy({ normalized(it.value.first().album) },{ normalized(it.value.first().albumArtist) },{ it.key })).map { (id,s)->Row(id,s.first().album.ifBlank { s.first().title },s.first().albumArtist) }
-        parent=="playlists" -> { val a=PlaylistStore(catalog).list();listOf(Row("recent","Ostatnio dodane"))+(0 until a.length()).map { val p=a.getJSONObject(it);Row("playlist:"+p.getString("id"),p.getString("name")) } }
+        parent=="playlists" -> { val a=PlaylistStore(catalog).list();listOf(Row("recent",Lang.t("Ostatnio dodane")))+(0 until a.length()).map { val p=a.getJSONObject(it);Row("playlist:"+p.getString("id"),p.getString("name")) } }
         else ->collection(parent).map { Row(trackId(it.id,parent),it.title,it.artist,it,parent) }
     }
     fun children(parent: String,page: Int,size: Int,client: String?=null): List<MediaItem> {
@@ -101,21 +101,21 @@ class CarLibrary(private val context: Context,private val catalog: Catalog) {
         return MediaMetadata.Builder().setTitle(song.title).setArtist(song.artist).setAlbumTitle(song.album).setAlbumArtist(song.albumArtist).setArtworkUri(cover).setIsPlayable(true).setIsBrowsable(false).setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC).build()
     }
     fun playable(id: String): MediaItem {
-        val hash=canonical(id);val song=Song(catalog.track(hash));require(song.available) { "Plik jest niedostępny" }
+        val hash=canonical(id);val song=Song(catalog.track(hash));require(song.available) { Lang.t("Plik jest niedostępny") }
         return MediaItem.Builder().setMediaId(hash).setUri(catalog.uri(hash)).setMediaMetadata(metadata(song,null)).build()
     }
     fun get(id: String,client: String?=null): MediaItem {
         if(id==ROOT) return root()
-        if(id in ROOT_IDS || id=="recent") return children(ROOT,0,4).firstOrNull { it.mediaId==id }?:folder(id,"Ostatnio dodane")
-        if(id.startsWith("album:")) { val s=collection(id).firstOrNull()?:error("Album niedostępny");return folder(id,s.album.ifBlank { s.title },s.albumArtist) }
+        if(id in ROOT_IDS || id=="recent") return children(ROOT,0,4).firstOrNull { it.mediaId==id }?:folder(id,Lang.t("Ostatnio dodane"))
+        if(id.startsWith("album:")) { val s=collection(id).firstOrNull()?:error(Lang.t("Album niedostępny"));return folder(id,s.album.ifBlank { s.title },s.albumArtist) }
         if(id.startsWith("playlist:")) { val a=PlaylistStore(catalog).list();val p=(0 until a.length()).map { a.getJSONObject(it) }.first { "playlist:"+it.getString("id")==id };return folder(id,p.getString("name")) }
-        if(id.startsWith("bucket:")) return folder(id,"Utwory")
+        if(id.startsWith("bucket:")) return folder(id,Lang.t("Utwory"))
         val s=Song(catalog.track(canonical(id)));require(s.available);return browse(s,parent(id)?:"all",client)
     }
     fun resolve(requested: List<MediaItem>,startIndex: Int,position: Long): androidx.media3.session.MediaSession.MediaItemsWithStartPosition {
         require(requested.isNotEmpty() && requested.size<=10000)
         val first=requested.first();val query=first.requestMetadata.searchQuery
-        if(query!=null) { require(query.length<=256);val matches=collection(if(query.isBlank()) "recent" else "search:$query");require(matches.isNotEmpty()) { "Brak wyników" };return androidx.media3.session.MediaSession.MediaItemsWithStartPosition(matches.map { playable(it.id) },0,0) }
+        if(query!=null) { require(query.length<=256);val matches=collection(if(query.isBlank()) "recent" else "search:$query");require(matches.isNotEmpty()) { Lang.t("Brak wyników") };return androidx.media3.session.MediaSession.MediaItemsWithStartPosition(matches.map { playable(it.id) },0,0) }
         val parent=if(requested.size==1) parent(first.mediaId) else null
         if(parent!=null) {
             val hash=canonical(first.mediaId);val contextItems=collection(parent);val index=contextItems.indexOfFirst { it.id==hash };require(index>=0)

@@ -6,6 +6,7 @@ import 'main.dart';
 import 'player_ui.dart';
 import 'views.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 
 /// Android / narrow layout: three tabs, compact header, mini-player above the bar.
 class MobileShell extends StatelessWidget {
@@ -92,10 +93,10 @@ class MobileShell extends StatelessWidget {
                   HapticFeedback.selectionClick();
                   app.selectTab(i);
                 },
-                destinations: const [
-                  NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Start'),
-                  NavigationDestination(icon: Icon(Icons.search_rounded), selectedIcon: Icon(Icons.manage_search_rounded), label: 'Szukaj'),
-                  NavigationDestination(icon: Icon(Icons.library_music_outlined), selectedIcon: Icon(Icons.library_music_rounded), label: 'Biblioteka'),
+                destinations: [
+                  NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: tr('Start')),
+                  NavigationDestination(icon: Icon(Icons.search_rounded), selectedIcon: Icon(Icons.manage_search_rounded), label: tr('Szukaj')),
+                  NavigationDestination(icon: Icon(Icons.library_music_outlined), selectedIcon: Icon(Icons.library_music_rounded), label: tr('Biblioteka')),
                 ],
               ),
             ],
@@ -117,12 +118,12 @@ class _Header extends StatelessWidget {
       if (route.page == 'home') DeviceButton(app: app, size: 22),
       if (route.page == 'library')
         Builder(
-          builder: (context) => IconAction(Icons.add_rounded, 'Dodaj źródło', () => app.showAddMusic(), size: 24, box: 48),
+          builder: (context) => IconAction(Icons.add_rounded, tr('Dodaj źródło'), () => app.showAddMusic(), size: 24, box: 48),
         ),
       if (route.page == 'playlist' && app.playlistById(route.arg) != null)
-        IconAction(Icons.more_vert_rounded, 'Więcej', () => app.playlistMenu(app.playlistById(route.arg)!), size: 22, box: 48),
+        IconAction(Icons.more_vert_rounded, tr('Więcej'), () => app.playlistMenu(app.playlistById(route.arg)!), size: 22, box: 48),
       if (root && route.page != 'settings')
-        IconAction(Icons.settings_outlined, 'Ustawienia', () => app.go(const Nav('settings')), size: 22, box: 48, color: secondaryText),
+        IconAction(Icons.settings_outlined, tr('Ustawienia'), () => app.go(const Nav('settings')), size: 22, box: 48, color: secondaryText),
     ];
     return SizedBox(
       height: 52,
@@ -131,7 +132,7 @@ class _Header extends StatelessWidget {
         child: Row(
           children: [
             if (!root)
-              IconAction(Icons.arrow_back_rounded, 'Wstecz', app.back, size: 24, box: 48)
+              IconAction(Icons.arrow_back_rounded, tr('Wstecz'), app.back, size: 24, box: 48)
             else
               const SizedBox(width: Sp.m),
             if (root && route.page == 'home')

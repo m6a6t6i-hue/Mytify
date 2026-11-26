@@ -6,6 +6,7 @@ import 'main.dart';
 import 'model.dart';
 import 'ui_prefs.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 
 /// Optional columns of the desktop track table. Title is always shown and flexible.
 class TableColumn {
@@ -16,14 +17,14 @@ class TableColumn {
   const TableColumn(this.key, this.label, this.width, {this.right = false, this.sort});
 }
 
-const tableColumns = [
-  TableColumn('artist', 'Artysta', 180, sort: 'artist'),
-  TableColumn('album', 'Album', 220, sort: 'album'),
-  TableColumn('format', 'Format', 72),
-  TableColumn('bitrate', 'Bitrate', 92, right: true),
-  TableColumn('added', 'Dodano', 104, right: true, sort: 'added'),
-  TableColumn('plays', 'Odtworzenia', 104, right: true, sort: 'plays'),
-  TableColumn('time', 'Czas', 64, right: true, sort: 'duration'),
+List<TableColumn> get tableColumns => [
+  TableColumn('artist', tr('Artysta'), 180, sort: 'artist'),
+  TableColumn('album', tr('Album'), 220, sort: 'album'),
+  TableColumn('format', tr('Format'), 72),
+  TableColumn('bitrate', tr('Bitrate'), 92, right: true),
+  TableColumn('added', tr('Dodano'), 104, right: true, sort: 'added'),
+  TableColumn('plays', tr('Odtworzenia'), 104, right: true, sort: 'plays'),
+  TableColumn('time', tr('Czas'), 64, right: true, sort: 'duration'),
 ];
 
 const _defaultColumns = ['album', 'time'];
@@ -89,8 +90,8 @@ Future<void> showColumnMenu(LibraryScreenState app, Offset at) async {
       for (final c in tableColumns)
         CheckedPopupMenuItem<String>(value: c.key, checked: cols.contains(c.key), height: 36, child: Text(c.label)),
       const PopupMenuDivider(height: 8),
-      CheckedPopupMenuItem<String>(value: '#compact', checked: compactTable(app.prefs), height: 36, child: const Text('Tryb kompaktowy')),
-      const PopupMenuItem<String>(value: '#reset', height: 36, child: Text('Przywróć domyślne')),
+      CheckedPopupMenuItem<String>(value: '#compact', checked: compactTable(app.prefs), height: 36, child: Text(tr('Tryb kompaktowy'))),
+      PopupMenuItem<String>(value: '#reset', height: 36, child: Text(tr('Przywróć domyślne'))),
     ],
   );
   if (chosen == null) return;
@@ -160,7 +161,7 @@ class TrackTableHeader extends StatelessWidget {
           children: [
             SizedBox(width: 36, child: Text(numbered ? '#' : '', textAlign: TextAlign.center, style: Txt.meta)),
             if (cover && !compact) const SizedBox(width: 52) else const SizedBox(width: Sp.s),
-            Expanded(child: _label('Tytuł', 'title')),
+            Expanded(child: _label(tr('Tytuł'), 'title')),
             for (final c in visibleColumns(app.prefs))
               SizedBox(
                 width: columnWidth(app.prefs, c),
@@ -179,7 +180,7 @@ class TrackTableHeader extends StatelessWidget {
             Builder(
               builder: (context) => IconAction(
                 Icons.view_column_outlined,
-                'Kolumny',
+                tr('Kolumny'),
                 () {
                   final box = context.findRenderObject() as RenderBox?;
                   if (box != null) showColumnMenu(app, box.localToGlobal(box.size.bottomLeft(Offset.zero)));

@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'design.dart';
 import 'model.dart';
+import 'l10n.dart';
 
 abstract interface class LibraryChangesRepository {
   Stream<void> get changes;
@@ -131,18 +132,18 @@ class _TransferScreenState extends State<TransferScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Usunąć niedokończone pobranie?'),
-        content: const Text(
-          'Usuniemy pliki częściowe. Utwory już dodane do biblioteki pozostaną w telefonie.',
+        title: Text(tr('Usunąć niedokończone pobranie?')),
+        content: Text(
+          tr('Usuniemy pliki częściowe. Utwory już dodane do biblioteki pozostaną w telefonie.'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Anuluj'),
+            child: Text(tr('Anuluj')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Usuń pobranie'),
+            child: Text(tr('Usuń pobranie')),
           ),
         ],
       ),
@@ -209,18 +210,18 @@ class _TransferScreenState extends State<TransferScreen> {
     final yes = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Usunąć kopie z telefonu?'),
-        content: const Text(
-          'Usuniemy pliki pobrane z tego urządzenia. Oryginały i muzyka z innych źródeł zostaną.',
+        title: Text(tr('Usunąć kopie z telefonu?')),
+        content: Text(
+          tr('Usuniemy pliki pobrane z tego urządzenia. Oryginały i muzyka z innych źródeł zostaną.'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: const Text('Anuluj'),
+            child: Text(tr('Anuluj')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: const Text('Usuń kopie'),
+            child: Text(tr('Usuń kopie')),
           ),
         ],
       ),
@@ -240,7 +241,7 @@ class _TransferScreenState extends State<TransferScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            !receiver ? 'Połącz telefon' : sharing ? 'Udostępnij telefonowi' : 'Z komputera lub telefonu',
+            !receiver ? tr('Połącz telefon') : sharing ? tr('Udostępnij telefonowi') : tr('Z komputera lub telefonu'),
             style: const TextStyle(
               fontSize: 30,
               fontWeight: FontWeight.w800,
@@ -250,18 +251,18 @@ class _TransferScreenState extends State<TransferScreen> {
           const SizedBox(height: 10),
           Text(
             !receiver
-                ? 'Na telefonie: Ustawienia, potem Z komputera lub telefonu. Oba urządzenia muszą być w tej samej sieci.'
+                ? tr('Na telefonie: Ustawienia, potem Z komputera lub telefonu. Oba urządzenia muszą być w tej samej sieci.')
                 : sharing
-                ? 'Na drugim telefonie: Ustawienia, potem Z komputera lub telefonu, Skanuj kod. Udostępniasz muzykę zapisaną w tym telefonie, dopóki ten ekran jest otwarty.'
-                : 'Zeskanuj kod Mytify z komputera albo z drugiego telefonu i wybierz albumy. Pobrane utwory działają bez sieci.',
+                ? tr('Na drugim telefonie: Ustawienia, potem Z komputera lub telefonu, Skanuj kod. Udostępniasz muzykę zapisaną w tym telefonie, dopóki ten ekran jest otwarty.')
+                : tr('Zeskanuj kod Mytify z komputera albo z drugiego telefonu i wybierz albumy. Pobrane utwory działają bez sieci.'),
             style: TextStyle(color: secondaryText, height: 1.5),
           ),
           if (receiver) ...[
             const SizedBox(height: 16),
             SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, icon: Icon(Icons.download_rounded), label: Text('Odbierz')),
-                ButtonSegment(value: true, icon: Icon(Icons.upload_rounded), label: Text('Udostępnij')),
+              segments: [
+                ButtonSegment(value: false, icon: Icon(Icons.download_rounded), label: Text(tr('Odbierz'))),
+                ButtonSegment(value: true, icon: Icon(Icons.upload_rounded), label: Text(tr('Udostępnij'))),
               ],
               selected: {sharing},
               showSelectedIcon: false,
@@ -274,7 +275,7 @@ class _TransferScreenState extends State<TransferScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 14),
               child: SelectableText(
-                error!,
+                trMessage(error!),
                 style: const TextStyle(color: Colors.orangeAccent),
               ),
             ),
@@ -294,14 +295,14 @@ class _TransferScreenState extends State<TransferScreen> {
                   icon: const Icon(Icons.qr_code_rounded),
                   label: Text(
                     state['enabled'] == true
-                        ? 'Nowy kod QR'
-                        : 'Włącz parowanie',
+                        ? tr('Nowy kod QR')
+                        : tr('Włącz parowanie'),
                   ),
                 ),
                 if (state['enabled'] == true)
                   OutlinedButton(
                     onPressed: busy ? null : () => action({'action': 'stop'}),
-                    child: const Text('Wyłącz transfer'),
+                    child: Text(tr('Wyłącz transfer')),
                   ),
               ],
             ),
@@ -320,7 +321,7 @@ class _TransferScreenState extends State<TransferScreen> {
                               : state['addresses'][0])
                           as String?,
                   decoration: InputDecoration(
-                    labelText: receiver ? 'Adres telefonu w Twojej sieci' : 'Adres PC w Twojej sieci',
+                    labelText: receiver ? tr('Adres telefonu w Twojej sieci') : tr('Adres PC w Twojej sieci'),
                   ),
                   items: [
                     for (final a in state['addresses'] as List)
@@ -339,21 +340,21 @@ class _TransferScreenState extends State<TransferScreen> {
                       borderRadius: BorderRadius.circular(18),
                       child: Image.memory(
                         qr!,
-                        semanticLabel: 'Kod QR do sparowania',
+                        semanticLabel: tr('Kod QR do sparowania'),
                       ),
                     ),
                   ),
                 )
               else
-                const Padding(
+                Padding(
                   padding: EdgeInsets.all(20),
                   child: Text(
-                    'Kod wygasł lub został użyty. Wygeneruj nowy kod QR.',
+                    tr('Kod wygasł lub został użyty. Wygeneruj nowy kod QR.'),
                   ),
                 ),
               const SizedBox(height: 12),
               Text(
-                'Kod jest jednorazowy i ważny przez 2 minuty.',
+                tr('Kod jest jednorazowy i ważny przez 2 minuty.'),
                 style: TextStyle(color: secondaryText, fontSize: 12),
               ),
               if (state['pairUri'] != null)
@@ -362,17 +363,17 @@ class _TransferScreenState extends State<TransferScreen> {
                     ClipboardData(text: state['pairUri'] as String),
                   ),
                   icon: const Icon(Icons.copy_rounded),
-                  label: const Text('Kopiuj dane parowania'),
+                  label: Text(tr('Kopiuj dane parowania')),
                 ),
               if (!receiver)
                 Text(
-                  'Transfer: port ${state['port']}. Jeśli Windows zapyta o dostęp do sieci, zezwól dla sieci prywatnej.',
+                  tr('Transfer: port {0}. Jeśli Windows zapyta o dostęp do sieci, zezwól dla sieci prywatnej.', [state['port']]),
                   style: TextStyle(color: secondaryText, fontSize: 12),
                 ),
             ],
             const SizedBox(height: 24),
             Text(
-              receiver ? 'Telefony z dostępem' : 'Sparowane telefony',
+              receiver ? tr('Telefony z dostępem') : tr('Sparowane telefony'),
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
             for (final p in peers)
@@ -384,29 +385,29 @@ class _TransferScreenState extends State<TransferScreen> {
                   onPressed: busy
                       ? null
                       : () => action({'action': 'revoke', 'id': p['id']}),
-                  child: const Text('Cofnij dostęp'),
+                  child: Text(tr('Cofnij dostęp')),
                 ),
               ),
           ] else ...[
             FilledButton.icon(
               onPressed: busy ? null : scan,
               icon: const Icon(Icons.qr_code_scanner_rounded),
-              label: const Text('Skanuj kod'),
+              label: Text(tr('Skanuj kod')),
             ),
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
-              title: const Text('Wklej dane parowania'),
+              title: Text(tr('Wklej dane parowania')),
               children: [
                 TextField(
                   controller: link,
                   maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Dane skopiowane z drugiego urządzenia',
+                  decoration: InputDecoration(
+                    labelText: tr('Dane skopiowane z drugiego urządzenia'),
                   ),
                 ),
                 TextButton(
                   onPressed: busy ? null : () => pair(link.text),
-                  child: const Text('Połącz'),
+                  child: Text(tr('Połącz')),
                 ),
               ],
             ),
@@ -416,7 +417,7 @@ class _TransferScreenState extends State<TransferScreen> {
                 isExpanded: true,
                 key: ValueKey(peer),
                 initialValue: peers.any((p) => p['id'] == peer) ? peer : null,
-                decoration: const InputDecoration(labelText: 'Urządzenie'),
+                decoration: InputDecoration(labelText: tr('Urządzenie')),
                 items: [
                   for (final p in peers)
                     DropdownMenuItem(
@@ -442,11 +443,11 @@ class _TransferScreenState extends State<TransferScreen> {
               OutlinedButton.icon(
                 onPressed: busy ? null : load,
                 icon: const Icon(Icons.library_music_outlined),
-                label: const Text('Pokaż muzykę'),
+                label: Text(tr('Pokaż muzykę')),
               ),
               TextButton(
                 onPressed: busy ? null : deleteCopies,
-                child: const Text('Usuń z telefonu kopie z tego urządzenia'),
+                child: Text(tr('Usuń z telefonu kopie z tego urządzenia')),
               ),
             ],
             if (state['state'] != 'idle' && state['state'] != null) ...[
@@ -459,7 +460,7 @@ class _TransferScreenState extends State<TransferScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        '${state['done'] ?? 0} / ${state['total'] ?? 0} utworów',
+                        tr('{0} / {1} utworów', [state['done'] ?? 0, state['total'] ?? 0]),
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 8),
@@ -478,7 +479,7 @@ class _TransferScreenState extends State<TransferScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${((state['doneBytes'] as num? ?? 0) / 1048576).toStringAsFixed(1)} / ${((state['totalBytes'] as num? ?? 0) / 1048576).toStringAsFixed(1)} MB',
+                        tr('{0} / {1} MB', [((state['doneBytes'] as num? ?? 0) / 1048576).toStringAsFixed(1), ((state['totalBytes'] as num? ?? 0) / 1048576).toStringAsFixed(1)]),
                         style: TextStyle(
                           color: secondaryText,
                           fontSize: 12,
@@ -486,30 +487,30 @@ class _TransferScreenState extends State<TransferScreen> {
                       ),
                       if ((state['error'] as String?)?.isNotEmpty == true)
                         Text(
-                          state['error'] as String,
+                          trMessage(state['error'] as String),
                           style: const TextStyle(color: Colors.orangeAccent),
                         ),
                       if (state['state'] == 'complete')
                         Text(
-                          'Gotowe. Muzyka działa offline.',
+                          tr('Gotowe. Muzyka działa offline.'),
                           style: TextStyle(color: accent),
                         ),
                       if (['downloading', 'queued'].contains(state['state']))
                         TextButton(
                           onPressed: () => action({'action': 'pause'}),
-                          child: const Text('Wstrzymaj'),
+                          child: Text(tr('Wstrzymaj')),
                         )
                       else if (state['state'] == 'paused')
                         FilledButton(
                           onPressed: busy
                               ? null
                               : () => action({'action': 'resume'}),
-                          child: const Text('Wznów pobieranie'),
+                          child: Text(tr('Wznów pobieranie')),
                         ),
                       if (state['state'] == 'paused')
                         TextButton(
                           onPressed: busy ? null : discard,
-                          child: const Text('Usuń niedokończone pobranie'),
+                          child: Text(tr('Usuń niedokończone pobranie')),
                         ),
                       for (final w in (state['warnings'] as List? ?? []))
                         Text(
@@ -552,14 +553,14 @@ class _TransferScreenState extends State<TransferScreen> {
     return [
       const SizedBox(height: 24),
       Text(
-        'Albumy · ${groups.length}',
+        tr('Albumy · {0}', [groups.length]),
         style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
       ),
       if (tracks.isEmpty)
-        const Padding(
+        Padding(
           padding: EdgeInsets.all(20),
           child: Text(
-            'Na tym urządzeniu nie ma plików do pobrania.',
+            tr('Na tym urządzeniu nie ma plików do pobrania.'),
           ),
         ),
       TextButton(
@@ -574,8 +575,8 @@ class _TransferScreenState extends State<TransferScreen> {
               }),
         child: Text(
           selected.length == tracks.length
-              ? 'Odznacz wszystkie'
-              : 'Zaznacz wszystkie',
+              ? tr('Odznacz wszystkie')
+              : tr('Zaznacz wszystkie'),
         ),
       ),
       for (final group in groups.values)
@@ -589,7 +590,7 @@ class _TransferScreenState extends State<TransferScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: Text(
-            '${group.first.displayArtist} · ${collectionCount(group.length, 'utwór', 'utwory', 'utworów')}',
+            '${group.first.displayArtist} · ${collectionCount(group.length, tr('utwór'), 'utwory', tr('utworów'))}',
           ),
           secondary: Icon(Icons.album_outlined, color: accent),
           onChanged: busy
@@ -604,10 +605,10 @@ class _TransferScreenState extends State<TransferScreen> {
                 }),
         ),
       if (lists.isNotEmpty)
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(top: 20),
           child: Text(
-            'Playlisty',
+            tr('Playlisty'),
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
           ),
         ),
@@ -616,7 +617,7 @@ class _TransferScreenState extends State<TransferScreen> {
           contentPadding: EdgeInsets.zero,
           value: playlists.contains(p['id']),
           title: Text(p['name'] as String),
-          subtitle: Text(collectionCount((p['ids'] as List).length, 'utwór', 'utwory', 'utworów')),
+          subtitle: Text(collectionCount((p['ids'] as List).length, tr('utwór'), 'utwory', tr('utworów'))),
           onChanged: busy
               ? null
               : (v) => setState(() {
@@ -629,7 +630,7 @@ class _TransferScreenState extends State<TransferScreen> {
         ),
       const SizedBox(height: 16),
       Text(
-        'Wybrano ${collectionCount(chosen.length, 'utwór', 'utwory', 'utworów')} · ${(bytes / 1048576).toStringAsFixed(1)} MB',
+        tr('Wybrano {0} · {1} MB', [collectionCount(chosen.length, tr('utwór'), 'utwory', tr('utworów')), (bytes / 1048576).toStringAsFixed(1)]),
         style: TextStyle(color: secondaryText),
       ),
       const SizedBox(height: 8),
@@ -646,11 +647,11 @@ class _TransferScreenState extends State<TransferScreen> {
                 'playlists': playlists.toList(),
               }),
         icon: const Icon(Icons.download_rounded),
-        label: Text('Pobierz na telefon'),
+        label: Text(tr('Pobierz na telefon')),
       ),
       const SizedBox(height: 8),
       Text(
-        'Oryginalne pliki, bez konwersji. Każdy plik jest sprawdzany sumą SHA-256.',
+        tr('Oryginalne pliki, bez konwersji. Każdy plik jest sprawdzany sumą SHA-256.'),
         style: TextStyle(color: secondaryText, fontSize: 12, height: 1.5),
       ),
     ];

@@ -6,6 +6,7 @@ import 'audio_models.dart';
 import 'design.dart';
 import 'devices.dart';
 import 'main.dart';
+import 'l10n.dart';
 
 const eqBands = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 const eqMax = 12.0;
@@ -101,7 +102,7 @@ class _EqualizerPanelState extends State<EqualizerPanel> {
     _sentAt = DateTime.now();
     await widget.app.player
         .command({'action': 'equalizer', 'enabled': enabled, 'gains': gains})
-        .catchError((Object e) => widget.app.message('Nie udało się zmienić korektora: $e'));
+        .catchError((Object e) => widget.app.message(tr('Nie udało się zmienić korektora: {0}', [e])));
   }
 
   /// While dragging, send at most every 120 ms so the sound follows the finger.
@@ -127,8 +128,8 @@ class _EqualizerPanelState extends State<EqualizerPanel> {
       children: [
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Korektor', style: TextStyle(fontSize: 14.5)),
-          subtitle: Text(enabled ? (preset ?? 'Własne ustawienia') : 'Wyłączony', style: Txt.meta),
+          title: Text(tr('Korektor'), style: TextStyle(fontSize: 14.5)),
+          subtitle: Text(enabled ? (preset == null ? tr('Własne ustawienia') : tr(preset)) : tr('Wyłączony'), style: Txt.meta),
           value: enabled,
           onChanged: (v) {
             enabled = v;
@@ -138,7 +139,7 @@ class _EqualizerPanelState extends State<EqualizerPanel> {
         if (kindOf(selected) == DeviceKind.dlna)
           Padding(
             padding: EdgeInsets.only(bottom: Sp.s),
-            child: Text('Odbiornik DLNA sam dekoduje plik, korektor działa tylko przy grze na tym urządzeniu i przez AirPlay.', style: Ctl.label),
+            child: Text(tr('Odbiornik DLNA sam dekoduje plik, korektor działa tylko przy grze na tym urządzeniu i przez AirPlay.'), style: Ctl.label),
           ),
         Wrap(
           spacing: Sp.s,
@@ -146,7 +147,7 @@ class _EqualizerPanelState extends State<EqualizerPanel> {
           children: [
             for (final (name, values) in eqPresets)
               ChoiceChip(
-                label: Text(name),
+                label: Text(tr(name)),
                 selected: enabled && preset == name,
                 onSelected: (_) {
                   enabled = true;
@@ -185,7 +186,7 @@ class _EqualizerPanelState extends State<EqualizerPanel> {
                                 min: -eqMax,
                                 max: eqMax,
                                 divisions: 48,
-                                semanticFormatterCallback: (v) => '${eqBandLabel(eqBands[i])} Hz: ${v.toStringAsFixed(1)} dB',
+                                semanticFormatterCallback: (v) => tr('{0} Hz: {1} dB', [eqBandLabel(eqBands[i]), v.toStringAsFixed(1)]),
                                 onChanged: enabled
                                     ? (v) {
                                         gains[i] = (v * 2).round() / 2;
@@ -215,7 +216,7 @@ class _EqualizerPanelState extends State<EqualizerPanel> {
                     _changed(now: true);
                   }
                 : null,
-            child: const Text('Wyzeruj'),
+            child: Text(tr('Wyzeruj')),
           ),
         ),
       ],

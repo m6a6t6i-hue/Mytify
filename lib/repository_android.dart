@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'model.dart';
 import 'playlists.dart';
+import 'l10n.dart';
 
 class AndroidLibraryRepository extends LibraryRepository
     implements
@@ -66,7 +67,7 @@ class AndroidLibraryRepository extends LibraryRepository
 
   @override
   String get storageDescription =>
-      'Wybierz folder Muzyka lub pojedyncze pliki. Mytify zapamięta dostęp i odczyta tagi oraz okładki. Nie kopiuje ani nie zmienia muzyki. Duży import pozostaw otwarty; po przerwaniu możesz ponowić skan.';
+      tr('Wybierz folder Muzyka lub pojedyncze pliki. Mytify zapamięta dostęp i odczyta tagi oraz okładki. Nie kopiuje ani nie zmienia muzyki. Duży import pozostaw otwarty; po przerwaniu możesz ponowić skan.');
   @override
   Future<List<Track>> load() async => (await _call('load') as List)
       .map((v) => Track.fromJson(_map(v)))
@@ -120,7 +121,7 @@ class AndroidLibraryRepository extends LibraryRepository
   @override
   Future<ImportReport> migrateLegacy({
     required void Function(ImportProgress) onProgress,
-  }) => Future.error(StateError('Migrację wersji PC wykonaj na komputerze.'));
+  }) => Future.error(StateError(tr('Migrację wersji PC wykonaj na komputerze.')));
   @override
   Future<List<ReleaseCandidate>> findReleases(
     String album,
@@ -160,6 +161,9 @@ class AndroidLibraryRepository extends LibraryRepository
     final v = await _channel.invokeMethod<Object?>('systemOutput');
     return v is Map ? Map<String, dynamic>.from(v) : null;
   }
+
+  @override
+  Future<void> setLanguage(String code) => _channel.invokeMethod<void>('setLanguage', code);
 
   @override
   Future<bool> openSystemOutputs() async => await _channel.invokeMethod<bool>('openSystemOutputs') ?? false;

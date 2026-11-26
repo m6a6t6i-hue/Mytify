@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'model.dart';
+import 'l10n.dart';
 
 class AudioStreams {
   final Stream<bool> playing;
@@ -125,7 +126,7 @@ class NativeAudioPlayer {
     } catch (e) {
       if (!_disposed && !_connectionFailed) {
         _connectionFailed = true;
-        _error.add('Brak połączenia z odtwarzaczem: $e');
+        _error.add(tr('Brak połączenia z odtwarzaczem: {0}', [e]));
       }
     } finally {
       _polling = false;
@@ -172,7 +173,7 @@ class NativeAudioPlayer {
   /// Rebuilds the queue in the given order without losing the current position.
   Future<void> rearrange(List<String> ids, String currentId) async {
     final index = ids.indexOf(currentId);
-    if (index < 0) throw ArgumentError('Brak bieżącego utworu w kolejce.');
+    if (index < 0) throw ArgumentError(tr('Brak bieżącego utworu w kolejce.'));
     final position = state.position.inMilliseconds;
     final wasPlaying = state.playing;
     if (repository.queueRestore) {

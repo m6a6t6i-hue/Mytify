@@ -7,6 +7,7 @@ import 'dart:js_interop';
 
 import 'model.dart';
 import 'ingest.dart';
+import 'l10n.dart';
 
 @JS('mytifyBridge.load')
 external JSPromise<JSString> _load();
@@ -192,7 +193,7 @@ class WebLibraryRepository extends LibraryRepository
           .toList();
   @override
   String get storageDescription =>
-      'Mytify zapamięta położenie muzyki na dysku. Nie utworzy dodatkowych kopii i nie zmieni oryginałów. Katalog i polubienia zapisuje na tym komputerze.';
+      tr('Mytify zapamięta położenie muzyki na dysku. Nie utworzy dodatkowych kopii i nie zmieni oryginałów. Katalog i polubienia zapisuje na tym komputerze.');
   @override
   Future<List<Track>> load() async =>
       (jsonDecode((await _load().toDart).toDart) as List)

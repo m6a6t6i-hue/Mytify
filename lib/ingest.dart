@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 
 import 'model.dart';
+import 'l10n.dart';
 
 export 'ingest_view.dart';
 
@@ -155,7 +156,7 @@ class IngestState extends ChangeNotifier {
 
   /// Job started from this view: rip, monitor, record, export.
   String? job;
-  final label = TextEditingController(text: 'Winyl, strona A'),
+  final label = TextEditingController(text: tr('Winyl, strona A')),
       discogs = TextEditingController(),
       searchAlbum = TextEditingController(),
       searchArtist = TextEditingController();
@@ -424,7 +425,7 @@ class IngestState extends ChangeNotifier {
 
   String driveName(Map<String, dynamic> d) {
     final name = d['name'] as String?;
-    return name == null || name.isEmpty ? 'Napęd ${d['id']}' : '$name (${d['id']})';
+    return name == null || name.isEmpty ? tr('Napęd {0}', [d['id']]) : '$name (${d['id']})';
   }
 
   List<Map<String, dynamic>> get tracks => [
@@ -460,7 +461,7 @@ class IngestState extends ChangeNotifier {
       final value = Map<String, dynamic>.from(await api('toc', {'drive': drive}) as Map);
       toc = value;
       final n = (value['tracks'] as List).length;
-      cdForm.setTracks(List.generate(n, (i) => 'Utwór ${i + 1}'));
+      cdForm.setTracks(List.generate(n, (i) => tr('Utwór {0}', [i + 1])));
       picked = List.filled(n, true);
     } catch (e) {
       cdProblem = readableIngestError(e);
@@ -487,12 +488,12 @@ class IngestState extends ChangeNotifier {
         await chooseRelease(list.first);
       } else if (list.length > 1) {
         candidates = list;
-        described = 'Ta płyta ma kilka wydań w MusicBrainz. Wybierz swoje.';
+        described = tr('Ta płyta ma kilka wydań w MusicBrainz. Wybierz swoje.');
       } else {
-        _fromCdText('Nie ma tej płyty w MusicBrainz.');
+        _fromCdText(tr('Nie ma tej płyty w MusicBrainz.'));
       }
     } catch (e) {
-      _fromCdText('MusicBrainz niedostępny: ${readableIngestError(e)}.');
+      _fromCdText(tr('MusicBrainz niedostępny: {0}.', [readableIngestError(e)]));
     } finally {
       describing = false;
       _changed();
@@ -507,13 +508,13 @@ class IngestState extends ChangeNotifier {
       final titles = [for (final x in t['titles'] as List) '$x'];
       final artists = [for (final x in t['artists'] as List) '$x'];
       cdForm.setTracks(
-        [for (var i = 0; i < cdForm.tracks.length; i++) i < titles.length && titles[i].isNotEmpty ? titles[i] : 'Utwór ${i + 1}'],
+        [for (var i = 0; i < cdForm.tracks.length; i++) i < titles.length && titles[i].isNotEmpty ? titles[i] : tr('Utwór {0}', [i + 1])],
         artists,
       );
       cdForm.various = artists.toSet().where((a) => a.isNotEmpty).length > 1;
-      described = '$why Opis z CD-Text zapisanego na płycie.';
+      described = tr('{0} Opis z CD-Text zapisanego na płycie.', [why]);
     } else {
-      described = '$why Wpisz nazwy ręcznie.';
+      described = tr('{0} Wpisz nazwy ręcznie.', [why]);
     }
   }
 
@@ -541,7 +542,7 @@ class IngestState extends ChangeNotifier {
     final info = await library.releaseDetails(r.id);
     final n = matchingDisc(info);
     if (n == null) {
-      described = 'Wydanie „${r.title}” ma inną liczbę utworów niż płyta. Wybierz inne albo wpisz nazwy.';
+      described = tr('Wydanie „{0}” ma inną liczbę utworów niż płyta. Wybierz inne albo wpisz nazwy.', [r.title]);
       _changed();
       return;
     }
@@ -556,8 +557,7 @@ class IngestState extends ChangeNotifier {
     disc = all.length > 1 ? n : null;
     discs = all.length > 1 ? all.length : null;
     candidates = [];
-    described = 'Opis z MusicBrainz: ${[info.release.title, info.release.date, info.release.country, info.release.label].where((x) => x.isNotEmpty).join(' · ')}'
-        '${disc != null ? ' · płyta $disc z $discs' : ''}';
+    described = tr('Opis z MusicBrainz: {0}{1}', [[info.release.title, info.release.date, info.release.country, info.release.label].where((x) => x.isNotEmpty).join(' · '), disc != null ? tr(' · płyta {0} z {1}', [disc, discs]) : '']);
     _changed();
     try {
       cdForm.cover = await library.downloadCover(r.id);
@@ -680,7 +680,8 @@ class IngestState extends ChangeNotifier {
   /// Next side of the same album: label and numbering continue.
   Future<void> recordSideB() async {
     final text = label.text;
-    label.text = text.contains('strona A') ? text.replaceFirst('strona A', 'strona B') : '$text, strona B';
+    final a = tr('strona A'), b = tr('strona B');
+    label.text = text.contains(a) ? text.replaceFirst(a, b) : tr('{0}, strona B', [text]);
     await record();
   }
 
@@ -717,7 +718,7 @@ class IngestState extends ChangeNotifier {
     final n = markers.length + 1;
     final old = [for (final t in vinylForm.tracks) (t.title.text, t.artist.text)];
     vinylForm.setTracks(
-      [for (var i = 0; i < n; i++) i < old.length ? old[i].$1 : 'Utwór ${i + 1}'],
+      [for (var i = 0; i < n; i++) i < old.length ? old[i].$1 : tr('Utwór {0}', [i + 1])],
       [for (var i = 0; i < n; i++) i < old.length ? old[i].$2 : ''],
     );
   }
@@ -774,7 +775,7 @@ class IngestState extends ChangeNotifier {
 
   Future<void> searchTracklist() => _act(() async {
     searchResults = await library.findReleases(searchAlbum.text, searchArtist.text);
-    if (searchResults.isEmpty) error = 'Nic nie znaleziono w MusicBrainz.';
+    if (searchResults.isEmpty) error = tr('Nic nie znaleziono w MusicBrainz.');
   });
 
   Future<void> loadTracklist(ReleaseCandidate r) => _act(() async {
@@ -822,7 +823,7 @@ class IngestState extends ChangeNotifier {
     if (songs.length < 2) {
       setMarkers([]);
     } else if (songs.any((s) => s.durationMs <= 0)) {
-      throw StateError('Lista nie ma czasów wszystkich utworów. Ustaw znaczniki ręcznie.');
+      throw StateError(tr('Lista nie ma czasów wszystkich utworów. Ustaw znaczniki ręcznie.'));
     } else {
       final points = (await api('align', {'id': session, 'durations': [for (final s in songs) s.durationMs]}) as List).cast<num>();
       setMarkers([for (final p in points) p.toInt()]);

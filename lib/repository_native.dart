@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'model.dart';
 import 'ingest.dart';
 import 'repository_android.dart';
+import 'l10n.dart';
 
 LibraryRepository createRepository() =>
     Platform.isAndroid ? AndroidLibraryRepository() : NativeLibraryRepository();
@@ -90,7 +91,7 @@ class NativeLibraryRepository extends LibraryRepository
   );
   @override
   Future<CoverChoice?> chooseCover() async =>
-      throw StateError('Własne okładki są dostępne w Mytify.exe z paczki 0.4.');
+      throw StateError(tr('Własne okładki są dostępne w Mytify.exe z paczki 0.4.'));
   @override
   Future<void> editMetadata(List<MetadataEdit> edits) async {
     await _api(
@@ -131,7 +132,7 @@ class NativeLibraryRepository extends LibraryRepository
           .toList();
   @override
   String get storageDescription =>
-      'Mytify zapamięta lokalizacje muzyki na dysku. Nie kopiuje ani nie zmienia Twoich plików. Katalog i polubienia zapisuje na tym komputerze.';
+      tr('Mytify zapamięta lokalizacje muzyki na dysku. Nie kopiuje ani nie zmienia Twoich plików. Katalog i polubienia zapisuje na tym komputerze.');
   Future<void> _ensure() => _ready ??= _start();
   Future<void> _start() async {
     final parent = p.dirname(Platform.resolvedExecutable);
@@ -152,7 +153,7 @@ class NativeLibraryRepository extends LibraryRepository
         .firstOrNull;
     if (executable == null) {
       throw StateError(
-        'Brakuje mytify_backend.exe. Zbuduj rdzeń Rust lub uruchom Mytify.exe z paczki 0.4.',
+        tr('Brakuje mytify_backend.exe. Zbuduj rdzeń Rust lub uruchom Mytify.exe z paczki 0.4.'),
       );
     }
     _process = await Process.start(executable, [
@@ -170,13 +171,13 @@ class NativeLibraryRepository extends LibraryRepository
     final config = jsonDecode(line) as Map<String, dynamic>;
     final uri = Uri.parse(config['base'] as String);
     if (uri.scheme != 'http' || uri.host != '127.0.0.1') {
-      throw StateError('Nieprawidłowy adres lokalnego katalogu.');
+      throw StateError(tr('Nieprawidłowy adres lokalnego katalogu.'));
     }
     _base = uri;
     _token = config['token'] as String;
     if (_disposed) {
       _process?.kill();
-      throw StateError('Mytify jest zamknięte.');
+      throw StateError(tr('Mytify jest zamknięte.'));
     }
   }
 
@@ -196,7 +197,7 @@ class NativeLibraryRepository extends LibraryRepository
     final response = await request.close();
     final value = jsonDecode(await utf8.decoder.bind(response).join());
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw StateError((value as Map)['error']?.toString() ?? 'Błąd katalogu.');
+      throw StateError((value as Map)['error']?.toString() ?? tr('Błąd katalogu.'));
     }
     return value;
   }
@@ -320,7 +321,7 @@ class NativeLibraryRepository extends LibraryRepository
     required void Function(ImportProgress) onProgress,
   }) => Future.error(
     StateError(
-      'Aby przenieść bibliotekę przeglądarkową 0.1, uruchom MIGRACJA_0.1.cmd.',
+      tr('Aby przenieść bibliotekę przeglądarkową 0.1, uruchom MIGRACJA_0.1.cmd.'),
     ),
   );
   @override

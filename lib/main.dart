@@ -25,6 +25,7 @@ import 'sources_ui.dart';
 import 'transfer.dart';
 import 'ui_prefs.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 export 'design.dart' show accent, background, panel, secondaryText;
 
 void main() {
@@ -320,13 +321,18 @@ class LibraryScreenState extends State<LibraryScreen> {
     );
     subscriptions.add(
       player.stream.error.listen((error) {
-        if (mounted) message('Nie udało się odtworzyć pliku: $error');
+        if (mounted) message(tr('Nie udało się odtworzyć pliku: {0}', [error]));
       }),
     );
     subscriptions.add(player.stream.snapshot.listen(syncNativeAudio));
     unawaited(prefs.load().then((_) {
       final p = paletteById(prefs.get<String>('palette', 'mytify'));
-      if (p != palette) applyPalette(p);
+      final l = prefs.get<String>('lang', 'pl');
+      if (l != lang) {
+        lang = l;
+        unawaited(repository.setLanguage(l).catchError((Object _) {}));
+      }
+      if (p != palette || l != 'pl') applyPalette(p);
       if (mounted) setState(() {});
     }));
     unawaited(player.start());
@@ -437,7 +443,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     try {
       await operation();
     } catch (e) {
-      message('Odtwarzanie: $e');
+      message(tr('Odtwarzanie: {0}', [e]));
     }
   }
 
@@ -468,11 +474,11 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (t.available && seen.add(t.id)) playable.add(t);
     }
     if (playable.isEmpty) {
-      message('Te pliki są teraz niedostępne. Podłącz źródło muzyki.');
+      message(tr('Te pliki są teraz niedostępne. Podłącz źródło muzyki.'));
       return;
     }
     if (start != null && !start.available) {
-      message('Ten plik jest niedostępny. Podłącz źródło lub wskaż folder ponownie.');
+      message(tr('Ten plik jest niedostępny. Podłącz źródło lub wskaż folder ponownie.'));
       return;
     }
     final first = shuffle
@@ -491,7 +497,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (mounted && generation == playGeneration) _openedTrackId = first.id;
     } catch (e) {
       if (mounted && generation == playGeneration) {
-        message('Nie można uruchomić odtwarzania: $e');
+        message(tr('Nie można uruchomić odtwarzania: {0}', [e]));
       }
     }
   }
@@ -507,7 +513,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       return playTracks(tracks);
     }
     if (!track.available) {
-      message('Źródło jest niedostępne. Podłącz je i wykonaj skan.');
+      message(tr('Źródło jest niedostępne. Podłącz je i wykonaj skan.'));
       return;
     }
     if (_openedTrackId != track.id || player.state.currentId == null) {
@@ -570,7 +576,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     final at = ids.indexOf(queue.current!.id) + 1;
     ids.insertAll(at, add.where((id) => id != queue.current!.id));
     await _rearrange(ids);
-    message(list.length == 1 ? 'Zagra jako następny' : 'Zagrają jako następne');
+    message(list.length == 1 ? tr('Zagra jako następny') : tr('Zagrają jako następne'));
   }
 
   /// Tracks dropped onto the queue: inserted before [at] (or at the end), never before
@@ -592,7 +598,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     }
     ids.insertAll(target, add.where((id) => id != current));
     await _rearrange(ids);
-    message(list.length == 1 ? 'Dodano do kolejki' : 'Dodano do kolejki: ${trackCount(add.length)}');
+    message(list.length == 1 ? tr('Dodano do kolejki') : tr('Dodano do kolejki: {0}', [trackCount(add.length)]));
   }
 
   Future<void> enqueue(List<Track> list) async {
@@ -602,7 +608,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     final ids = queue.items.map((t) => t.id).toList();
     ids.addAll(add.where((id) => !ids.contains(id)));
     await _rearrange(ids);
-    message('Dodano do kolejki');
+    message(tr('Dodano do kolejki'));
   }
 
   Future<void> removeFromQueue(String id) async {
@@ -660,7 +666,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          startupError = 'Nie można otworzyć biblioteki: $e';
+          startupError = tr('Nie można otworzyć biblioteki: {0}', [e]);
           loading = false;
         });
       }
@@ -672,7 +678,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(content: Text(text), duration: const Duration(seconds: 4)),
+        SnackBar(content: Text(trMessage(text)), duration: const Duration(seconds: 4)),
       );
   }
 
@@ -687,7 +693,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     try {
       await repository.setLiked(track.id, next);
     } catch (e) {
-      message('Nie udało się zapisać polubienia: $e');
+      message(tr('Nie udało się zapisać polubienia: {0}', [e]));
       await loadLibrary();
     }
   }
@@ -701,10 +707,10 @@ class LibraryScreenState extends State<LibraryScreen> {
     if (list.isEmpty) return;
     final ok = await confirm(
       context,
-      title: list.length == 1 ? 'Usunąć z biblioteki?' : 'Usunąć ${trackCount(list.length)}?',
+      title: list.length == 1 ? tr('Usunąć z biblioteki?') : tr('Usunąć {0}?', [trackCount(list.length)]),
       message:
-          'Wpisy znikną z Mytify. Pliki na dysku pozostaną bez zmian i możesz dodać je ponownie.',
-      action: 'Usuń z biblioteki',
+          tr('Wpisy znikną z Mytify. Pliki na dysku pozostaną bez zmian i możesz dodać je ponownie.'),
+      action: tr('Usuń z biblioteki'),
     );
     if (!ok || !mounted) return;
     try {
@@ -720,7 +726,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       selected.clear();
       await loadLibrary();
     } catch (e) {
-      message('Nie udało się usunąć wpisu: $e');
+      message(tr('Nie udało się usunąć wpisu: {0}', [e]));
     }
   }
 
@@ -746,7 +752,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       final updated = index.byId[list.first.id];
       if (updated != null) replaceRoute(Nav('album', updated.albumKey));
     }
-    message('Zapisano zmiany.');
+    message(tr('Zapisano zmiany.'));
     return true;
   }
 
@@ -778,12 +784,12 @@ class LibraryScreenState extends State<LibraryScreen> {
       playlists = await repo.playlists();
       if (mounted) setState(() {});
     } catch (e) {
-      message('Playlista: $e');
+      message(tr('Playlista: {0}', [e]));
     }
   }
 
   Future<void> createPlaylist([List<Track> initial = const []]) async {
-    final name = await askName(context, title: 'Nowa playlista', action: 'Utwórz');
+    final name = await askName(context, title: tr('Nowa playlista'), action: tr('Utwórz'));
     if (name == null) return;
     final before = playlists.map((p) => p.id).toSet();
     final ids = <String>[];
@@ -793,20 +799,20 @@ class LibraryScreenState extends State<LibraryScreen> {
     await _savePlaylist(null, name, ids);
     final created = playlists.where((p) => !before.contains(p.id)).firstOrNull;
     if (created != null && initial.isEmpty) go(Nav('playlist', created.id));
-    if (created != null && initial.isNotEmpty) message('Utworzono „$name”');
+    if (created != null && initial.isNotEmpty) message(tr('Utworzono „{0}”', [name]));
   }
 
   Future<void> renamePlaylist(MusicPlaylist p) async {
-    final name = await askName(context, title: 'Zmień nazwę', initial: p.name);
+    final name = await askName(context, title: tr('Zmień nazwę'), initial: p.name);
     if (name != null && name != p.name) await _savePlaylist(p.id, name, p.ids);
   }
 
   Future<void> deletePlaylist(MusicPlaylist p) async {
     final ok = await confirm(
       context,
-      title: 'Usunąć playlistę?',
-      message: '„${p.name}” zniknie z Mytify. Utwory zostaną w bibliotece.',
-      action: 'Usuń playlistę',
+      title: tr('Usunąć playlistę?'),
+      message: tr('„{0}” zniknie z Mytify. Utwory zostaną w bibliotece.', [p.name]),
+      action: tr('Usuń playlistę'),
     );
     if (!ok) return;
     try {
@@ -815,7 +821,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (route == Nav('playlist', p.id)) back();
       if (mounted) setState(() {});
     } catch (e) {
-      message('Playlista: $e');
+      message(tr('Playlista: {0}', [e]));
     }
   }
 
@@ -829,11 +835,11 @@ class LibraryScreenState extends State<LibraryScreen> {
       }
     }
     if (added == 0) {
-      message('Te utwory już są w „${p.name}”');
+      message(tr('Te utwory już są w „{0}”', [p.name]));
       return;
     }
     await _savePlaylist(p.id, p.name, ids);
-    message('Dodano do „${p.name}”');
+    message(tr('Dodano do „{0}”', [p.name]));
   }
 
   Future<void> removeFromPlaylist(MusicPlaylist p, List<Track> list) async {
@@ -857,7 +863,7 @@ class LibraryScreenState extends State<LibraryScreen> {
   List<MenuEntry> _playlistTargets(List<Track> list) => [
     if (playlistRepo != null)
       MenuEntry(
-        'Nowa playlista',
+        tr('Nowa playlista'),
         icon: Icons.add_rounded,
         onTap: () => unawaited(createPlaylist(list)),
       ),
@@ -878,62 +884,62 @@ class LibraryScreenState extends State<LibraryScreen> {
     final album = index.albumByKey[t.albumKey];
     return showActions(context, at: at, title: many ? trackCount(list.length) : t.title, [
       MenuEntry(
-        'Odtwórz',
+        tr('Odtwórz'),
         icon: Icons.play_arrow_rounded,
         onTap: () => unawaited(
           many ? playTracks(list) : playTracks(within ?? [t], start: t),
         ),
       ),
-      MenuEntry('Odtwórz jako następny', icon: Icons.playlist_play_rounded, onTap: () => unawaited(playNext(list))),
-      MenuEntry('Dodaj do kolejki', icon: Icons.queue_rounded, onTap: () => unawaited(enqueue(list))),
+      MenuEntry(tr('Odtwórz jako następny'), icon: Icons.playlist_play_rounded, onTap: () => unawaited(playNext(list))),
+      MenuEntry(tr('Dodaj do kolejki'), icon: Icons.queue_rounded, onTap: () => unawaited(enqueue(list))),
       if (playlistRepo != null)
-        MenuEntry('Dodaj do playlisty', icon: Icons.playlist_add_rounded, children: _playlistTargets(list)),
+        MenuEntry(tr('Dodaj do playlisty'), icon: Icons.playlist_add_rounded, children: _playlistTargets(list)),
       if (!many)
         MenuEntry(
-          t.liked ? 'Usuń z polubionych' : 'Polub',
+          t.liked ? tr('Usuń z polubionych') : tr('Polub'),
           icon: t.liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          shortcut: desktopMode && t.id == queue.current?.id ? 'Ctrl+L' : null,
+          shortcut: desktopMode && t.id == queue.current?.id ? tr('Ctrl+L') : null,
           onTap: () => unawaited(toggleLike(t)),
         ),
       ...downloads.entries(list),
       MenuEntry.divider,
       if (!many && album != null && album.tracks.length > 1)
-        MenuEntry('Przejdź do albumu', icon: Icons.album_outlined, onTap: () => go(Nav('album', album.key))),
+        MenuEntry(tr('Przejdź do albumu'), icon: Icons.album_outlined, onTap: () => go(Nav('album', album.key))),
       if (!many)
         MenuEntry(
-          'Przejdź do artysty',
+          tr('Przejdź do artysty'),
           icon: Icons.person_outline_rounded,
           onTap: () => go(Nav('artist', LibraryIndex.artistKeyOf(t.displayArtist))),
         ),
       if (!many)
-        MenuEntry('Informacje o utworze', icon: Icons.info_outline_rounded, onTap: () => showTrackInfo(t)),
-      MenuEntry('Edytuj informacje', icon: Icons.edit_outlined, onTap: importing ? null : () => unawaited(metadataFor(list))),
+        MenuEntry(tr('Informacje o utworze'), icon: Icons.info_outline_rounded, onTap: () => showTrackInfo(t)),
+      MenuEntry(tr('Edytuj informacje'), icon: Icons.edit_outlined, onTap: importing ? null : () => unawaited(metadataFor(list))),
       MenuEntry.divider,
       if (playlist != null)
-        MenuEntry('Usuń z tej playlisty', icon: Icons.remove_circle_outline_rounded, onTap: () => unawaited(removeFromPlaylist(playlist, list))),
-      MenuEntry('Usuń z biblioteki', icon: Icons.delete_outline_rounded, destructive: true, onTap: () => unawaited(removeTracks(list))),
+        MenuEntry(tr('Usuń z tej playlisty'), icon: Icons.remove_circle_outline_rounded, onTap: () => unawaited(removeFromPlaylist(playlist, list))),
+      MenuEntry(tr('Usuń z biblioteki'), icon: Icons.delete_outline_rounded, destructive: true, onTap: () => unawaited(removeTracks(list))),
     ]);
   }
 
   Future<void> albumMenu(AlbumGroup a, {Offset? at}) {
     final pinId = 'album:${a.key}';
     return showActions(context, at: at, title: a.title, [
-      MenuEntry('Odtwórz', icon: Icons.play_arrow_rounded, onTap: () => unawaited(playAlbum(a))),
-      MenuEntry('Odtwórz losowo', icon: Icons.shuffle_rounded, onTap: () => unawaited(playAlbum(a, shuffle: true))),
-      MenuEntry('Odtwórz jako następny', icon: Icons.playlist_play_rounded, onTap: () => unawaited(playNext(a.tracks))),
-      MenuEntry('Dodaj do kolejki', icon: Icons.queue_rounded, onTap: () => unawaited(enqueue(a.tracks))),
+      MenuEntry(tr('Odtwórz'), icon: Icons.play_arrow_rounded, onTap: () => unawaited(playAlbum(a))),
+      MenuEntry(tr('Odtwórz losowo'), icon: Icons.shuffle_rounded, onTap: () => unawaited(playAlbum(a, shuffle: true))),
+      MenuEntry(tr('Odtwórz jako następny'), icon: Icons.playlist_play_rounded, onTap: () => unawaited(playNext(a.tracks))),
+      MenuEntry(tr('Dodaj do kolejki'), icon: Icons.queue_rounded, onTap: () => unawaited(enqueue(a.tracks))),
       if (playlistRepo != null)
-        MenuEntry('Dodaj do playlisty', icon: Icons.playlist_add_rounded, children: _playlistTargets(a.tracks)),
+        MenuEntry(tr('Dodaj do playlisty'), icon: Icons.playlist_add_rounded, children: _playlistTargets(a.tracks)),
       MenuEntry(
-        prefs.pinned(pinId) ? 'Odepnij' : 'Przypnij',
+        prefs.pinned(pinId) ? tr('Odepnij') : tr('Przypnij'),
         icon: Icons.push_pin_outlined,
         onTap: () => togglePin(pinId),
       ),
-      ...downloads.entries(a.tracks, title: 'Pobrać album offline?'),
+      ...downloads.entries(a.tracks, title: tr('Pobrać album offline?')),
       MenuEntry.divider,
-      MenuEntry('Przejdź do artysty', icon: Icons.person_outline_rounded, onTap: () => go(Nav('artist', a.artistKey))),
-      MenuEntry('Znajdź dane i okładkę', icon: Icons.auto_fix_high_outlined, onTap: importing ? null : () => unawaited(metadataFor(a.tracks, online: true))),
-      MenuEntry('Edytuj album', icon: Icons.edit_outlined, onTap: importing ? null : () => unawaited(metadataFor(a.tracks, album: true))),
+      MenuEntry(tr('Przejdź do artysty'), icon: Icons.person_outline_rounded, onTap: () => go(Nav('artist', a.artistKey))),
+      MenuEntry(tr('Znajdź dane i okładkę'), icon: Icons.auto_fix_high_outlined, onTap: importing ? null : () => unawaited(metadataFor(a.tracks, online: true))),
+      MenuEntry(tr('Edytuj album'), icon: Icons.edit_outlined, onTap: importing ? null : () => unawaited(metadataFor(a.tracks, album: true))),
     ]);
   }
 
@@ -941,21 +947,21 @@ class LibraryScreenState extends State<LibraryScreen> {
     final list = index.playlistTracks(p);
     final pinId = 'playlist:${p.id}';
     return showActions(context, at: at, title: p.name, [
-      MenuEntry('Odtwórz', icon: Icons.play_arrow_rounded, onTap: list.isEmpty ? null : () => unawaited(playTracks(list))),
-      MenuEntry('Odtwórz losowo', icon: Icons.shuffle_rounded, onTap: list.isEmpty ? null : () => unawaited(playTracks(list, shuffle: true))),
-      MenuEntry('Odtwórz jako następny', icon: Icons.playlist_play_rounded, onTap: list.isEmpty ? null : () => unawaited(playNext(list))),
-      MenuEntry('Dodaj do kolejki', icon: Icons.queue_rounded, onTap: list.isEmpty ? null : () => unawaited(enqueue(list))),
-      MenuEntry(prefs.pinned(pinId) ? 'Odepnij' : 'Przypnij', icon: Icons.push_pin_outlined, onTap: () => togglePin(pinId)),
-      MenuEntry('Zmień nazwę', icon: Icons.edit_outlined, onTap: () => unawaited(renamePlaylist(p))),
-      ...downloads.entries(list, title: 'Pobrać playlistę offline?'),
+      MenuEntry(tr('Odtwórz'), icon: Icons.play_arrow_rounded, onTap: list.isEmpty ? null : () => unawaited(playTracks(list))),
+      MenuEntry(tr('Odtwórz losowo'), icon: Icons.shuffle_rounded, onTap: list.isEmpty ? null : () => unawaited(playTracks(list, shuffle: true))),
+      MenuEntry(tr('Odtwórz jako następny'), icon: Icons.playlist_play_rounded, onTap: list.isEmpty ? null : () => unawaited(playNext(list))),
+      MenuEntry(tr('Dodaj do kolejki'), icon: Icons.queue_rounded, onTap: list.isEmpty ? null : () => unawaited(enqueue(list))),
+      MenuEntry(prefs.pinned(pinId) ? tr('Odepnij') : tr('Przypnij'), icon: Icons.push_pin_outlined, onTap: () => togglePin(pinId)),
+      MenuEntry(tr('Zmień nazwę'), icon: Icons.edit_outlined, onTap: () => unawaited(renamePlaylist(p))),
+      ...downloads.entries(list, title: tr('Pobrać playlistę offline?')),
       if (list.any((t) => t.remote))
         MenuEntry(
-          downloads.kept.contains(p.id) ? 'Nie utrzymuj offline' : 'Utrzymuj offline',
+          downloads.kept.contains(p.id) ? tr('Nie utrzymuj offline') : tr('Utrzymuj offline'),
           icon: Icons.offline_pin_outlined,
           onTap: () => unawaited(downloads.keep(p, !downloads.kept.contains(p.id))),
         ),
       MenuEntry.divider,
-      MenuEntry('Usuń playlistę', icon: Icons.delete_outline_rounded, destructive: true, onTap: () => unawaited(deletePlaylist(p))),
+      MenuEntry(tr('Usuń playlistę'), icon: Icons.delete_outline_rounded, destructive: true, onTap: () => unawaited(deletePlaylist(p))),
     ]);
   }
 
@@ -1112,7 +1118,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     setState(() {
       importing = true;
       cancelling = false;
-      progress = const ImportProgress(0, 0, 'Przygotowanie');
+      progress = ImportProgress(0, 0, tr('Przygotowanie'));
     });
     try {
       final report = await action((value) {
@@ -1126,7 +1132,7 @@ class LibraryScreenState extends State<LibraryScreen> {
         showImportSummary(report);
       }
     } catch (e) {
-      message('Operacja nie powiodła się: $e');
+      message(tr('Operacja nie powiodła się: {0}', [e]));
     } finally {
       if (mounted) {
         setState(() {
@@ -1139,15 +1145,15 @@ class LibraryScreenState extends State<LibraryScreen> {
 
   void showImportSummary(ImportReport r) {
     final parts = [
-      if (r.added > 0) 'dodano ${trackCount(r.added)}',
-      if (r.updated > 0) 'zaktualizowano ${r.updated}',
-      if (r.missing > 0) 'brakuje ${r.missing}',
+      if (r.added > 0) tr('dodano {0}', [trackCount(r.added)]),
+      if (r.updated > 0) tr('zaktualizowano {0}', [r.updated]),
+      if (r.missing > 0) tr('brakuje {0}', [r.missing]),
     ];
     final text = r.cancelled
-        ? 'Import przerwany'
+        ? tr('Import przerwany')
         : parts.isEmpty
-        ? 'Biblioteka jest aktualna'
-        : 'Gotowe: ${parts.join(', ')}';
+        ? tr('Biblioteka jest aktualna')
+        : tr('Gotowe: {0}', [parts.join(', ')]);
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -1157,7 +1163,7 @@ class LibraryScreenState extends State<LibraryScreen> {
           action: r.errors.isEmpty
               ? null
               : SnackBarAction(
-                  label: 'Szczegóły',
+                  label: tr('Szczegóły'),
                   textColor: accent,
                   onPressed: () => showImportReport(r),
                 ),
@@ -1168,7 +1174,7 @@ class LibraryScreenState extends State<LibraryScreen> {
   Future<void> showImportReport(ImportReport report) => showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text(report.cancelled ? 'Import przerwany' : 'Wynik importu', style: Txt.title),
+      title: Text(report.cancelled ? tr('Import przerwany') : tr('Wynik importu'), style: Txt.title),
       content: SizedBox(
         width: 480,
         child: SingleChildScrollView(
@@ -1177,12 +1183,12 @@ class LibraryScreenState extends State<LibraryScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Dodano: ${report.added}\nZaktualizowano: ${report.updated}\nBez zmian: ${report.unchanged}\nDodatkowe lokalizacje: ${report.duplicates}\nNowe braki: ${report.missing}\nNiedostępne źródła: ${report.offlineSources}\nPominięte pliki: ${report.ignored}',
+                tr('Dodano: {0}\nZaktualizowano: {1}\nBez zmian: {2}\nDodatkowe lokalizacje: {3}\nNowe braki: {4}\nNiedostępne źródła: {5}\nPominięte pliki: {6}', [report.added, report.updated, report.unchanged, report.duplicates, report.missing, report.offlineSources, report.ignored]),
                 style: const TextStyle(height: 1.6),
               ),
               if (report.errors.isNotEmpty) ...[
                 const SizedBox(height: Sp.l),
-                Text('Uwagi: ${report.errors.length}', style: Txt.item),
+                Text(tr('Uwagi: {0}', [report.errors.length]), style: Txt.item),
                 const SizedBox(height: Sp.s),
                 ...report.errors.take(30).map(
                   (e) => Padding(
@@ -1196,7 +1202,7 @@ class LibraryScreenState extends State<LibraryScreen> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Zamknij')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Zamknij'))),
       ],
     ),
   );
@@ -1219,7 +1225,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     try {
       await repository.cancelImport();
     } catch (e) {
-      message('Nie udało się przerwać operacji: $e');
+      message(tr('Nie udało się przerwać operacji: {0}', [e]));
     }
   }
 
@@ -1227,18 +1233,18 @@ class LibraryScreenState extends State<LibraryScreen> {
     if (importing) return;
     final ok = await confirm(
       context,
-      title: 'Odłączyć źródło?',
+      title: tr('Odłączyć źródło?'),
       message: source.network
-          ? '„${source.name}” zniknie z katalogu, a zapisane hasło zostanie usunięte. Pliki na serwerze zostaną bez zmian.'
-          : '„${source.name}” zniknie z katalogu. Pliki i foldery na dysku zostaną bez zmian.',
-      action: 'Odłącz',
+          ? tr('„{0}” zniknie z katalogu, a zapisane hasło zostanie usunięte. Pliki na serwerze zostaną bez zmian.', [source.name])
+          : tr('„{0}” zniknie z katalogu. Pliki i foldery na dysku zostaną bez zmian.', [source.name]),
+      action: tr('Odłącz'),
     );
     if (!ok) return;
     try {
       await repository.forgetSource(source.id);
       await loadLibrary();
     } catch (e) {
-      message('Nie udało się odłączyć źródła: $e');
+      message(tr('Nie udało się odłączyć źródła: {0}', [e]));
     }
   }
 
@@ -1255,15 +1261,15 @@ class LibraryScreenState extends State<LibraryScreen> {
 
   List<MenuEntry> addMusicEntries() => [
     MenuEntry(
-      'Muzyka na urządzeniu',
+      tr('Muzyka na urządzeniu'),
       icon: Icons.create_new_folder_outlined,
-      shortcut: desktopMode ? 'Ctrl+Shift+O' : null,
+      shortcut: desktopMode ? tr('Ctrl+Shift+O') : null,
       onTap: importing ? null : () => unawaited(importMusic(true)),
     ),
     MenuEntry(
-      'Pojedyncze pliki',
+      tr('Pojedyncze pliki'),
       icon: Icons.audio_file_outlined,
-      shortcut: desktopMode ? 'Ctrl+O' : null,
+      shortcut: desktopMode ? tr('Ctrl+O') : null,
       onTap: importing ? null : () => unawaited(importMusic(false)),
     ),
     if (networkKinds(networkProtocols).isNotEmpty) ...[
@@ -1277,13 +1283,13 @@ class LibraryScreenState extends State<LibraryScreen> {
     ],
     if (canDigitize && !isPhone) ...[
       MenuEntry.divider,
-      MenuEntry('Importuj Audio CD', icon: Icons.album_outlined, onTap: () => openIngest(true)),
-      MenuEntry('Nagraj winyl lub kasetę', icon: Icons.radio_outlined, onTap: () => openIngest(false)),
+      MenuEntry(tr('Importuj Audio CD'), icon: Icons.album_outlined, onTap: () => openIngest(true)),
+      MenuEntry(tr('Nagraj winyl lub kasetę'), icon: Icons.radio_outlined, onTap: () => openIngest(false)),
     ],
   ];
 
   void showAddMusic({Offset? at}) =>
-      unawaited(showActions(context, addMusicEntries(), at: at, title: 'Dodaj źródło'));
+      unawaited(showActions(context, addMusicEntries(), at: at, title: tr('Dodaj źródło')));
 
   Future<void> editSource(LibrarySource source) => showNetworkSourceForm(this, source: source);
 
@@ -1318,6 +1324,13 @@ class LibraryScreenState extends State<LibraryScreen> {
   }
 
   /// Full screen visualization reacting to the music (PC and Android).
+  void setLanguage(String code) {
+    prefs.set('lang', code);
+    lang = code;
+    unawaited(repository.setLanguage(code).catchError((Object _) {}));
+    applyPalette(palette);
+  }
+
   void setPalette(Palette p) {
     prefs.set('palette', p.id);
     applyPalette(p);

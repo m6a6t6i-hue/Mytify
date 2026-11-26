@@ -1,3 +1,4 @@
+import 'l10n.dart';
 class MetadataEdit {
   final String id;
   final Map<String, dynamic> patch;
@@ -55,7 +56,7 @@ class ReleaseCandidate {
     date,
     country,
     format,
-    '$trackCount utworów',
+    tr('{0} utworów', [trackCount]),
     if (label.isNotEmpty) label,
     if (disambiguation.isNotEmpty) disambiguation,
   ].where((s) => s.isNotEmpty).join(' · ');

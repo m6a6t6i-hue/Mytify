@@ -9,6 +9,7 @@ import 'design.dart';
 import 'ingest.dart';
 import 'model.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 
 const _red = Color(0xffff5252);
 
@@ -44,10 +45,10 @@ class _IngestViewState extends State<IngestView> {
       key: const PageStorageKey('import'),
       padding: widget.padding,
       children: [
-        const Text('Płyty CD i winyle', style: Txt.display),
+        Text(tr('Płyty CD i winyle'), style: Txt.display),
         const SizedBox(height: Sp.l),
         TextTabs(
-          labels: const ['Audio CD', 'Winyl i kaseta'],
+          labels: [tr('Audio CD'), tr('Winyl i kaseta')],
           index: s.tab,
           onChanged: s.setTab,
           busy: [s.ripping, s.capturing || s.exporting],
@@ -67,7 +68,7 @@ class _IngestViewState extends State<IngestView> {
       children: [
         Icon(Icons.error_outline_rounded, size: 18, color: dangerText),
         const SizedBox(width: Sp.s),
-        Expanded(child: SelectableText(text, style: TextStyle(fontSize: 13.5, color: dangerText))),
+        Expanded(child: SelectableText(trMessage(text), style: TextStyle(fontSize: 13.5, color: dangerText))),
       ],
     ),
   );
@@ -79,7 +80,7 @@ class _IngestViewState extends State<IngestView> {
       children: [
         Icon(Icons.warning_amber_rounded, size: 18, color: warningText),
         const SizedBox(width: Sp.s),
-        Expanded(child: Text(text, style: TextStyle(fontSize: 13.5, color: warningText))),
+        Expanded(child: Text(trMessage(text), style: TextStyle(fontSize: 13.5, color: warningText))),
       ],
     ),
   );
@@ -91,7 +92,7 @@ class _IngestViewState extends State<IngestView> {
       children: [
         Icon(icon, size: 16, color: secondaryText),
         const SizedBox(width: Sp.s),
-        Expanded(child: Text(text, style: Ctl.label)),
+        Expanded(child: Text(trMessage(text), style: Ctl.label)),
       ],
     ),
   );
@@ -210,11 +211,11 @@ class _IngestViewState extends State<IngestView> {
 
     Widget link() => Container(width: 32, height: 1, margin: const EdgeInsets.symmetric(horizontal: Sp.m), color: softBorder);
     return Semantics(
-      label: 'Etap ${step + 1} z 3',
+      label: tr('Etap {0} z 3', [step + 1]),
       child: Wrap(
         crossAxisAlignment: WrapCrossAlignment.center,
         runSpacing: Sp.s,
-        children: [dot(0, 'Napęd'), link(), dot(1, 'Utwory'), link(), dot(2, 'Zapis')],
+        children: [dot(0, tr('Napęd')), link(), dot(1, tr('Utwory')), link(), dot(2, tr('Zapis'))],
       ),
     );
   }
@@ -250,23 +251,23 @@ class _IngestViewState extends State<IngestView> {
       if (s.waitingForDisc)
         _empty(
           icon: Icons.album_outlined,
-          title: 'Włóż następną płytę',
-          text: 'Tryb seryjny: płyta zostanie odczytana i opisana sama. Gdy opis jest jednoznaczny, import ruszy bez pytania.',
-          action: OutlinedButton(style: Ctl.outlined, onPressed: () => setState(() => s.serial = false), child: const Text('Zakończ tryb seryjny')),
+          title: tr('Włóż następną płytę'),
+          text: tr('Tryb seryjny: płyta zostanie odczytana i opisana sama. Gdy opis jest jednoznaczny, import ruszy bez pytania.'),
+          action: OutlinedButton(style: Ctl.outlined, onPressed: () => setState(() => s.serial = false), child: Text(tr('Zakończ tryb seryjny'))),
         )
       else
         switch (st) {
           CdState.searching => _empty(
             icon: Icons.album_outlined,
-            title: 'Szukam napędów',
-            text: 'To potrwa chwilę.',
+            title: tr('Szukam napędów'),
+            text: tr('To potrwa chwilę.'),
             action: const SizedBox(width: 120, child: LinearProgressIndicator()),
           ),
           CdState.noDrive => _empty(
             icon: Icons.album_outlined,
-            title: 'Nie wykryto napędu',
-            text: 'Podłącz napęd USB i odśwież listę.',
-            action: FilledButton(style: Ctl.filled, onPressed: s.searching ? null : () => unawaited(s.refresh()), child: const Text('Odśwież')),
+            title: tr('Nie wykryto napędu'),
+            text: tr('Podłącz napęd USB i odśwież listę.'),
+            action: FilledButton(style: Ctl.filled, onPressed: s.searching ? null : () => unawaited(s.refresh()), child: Text(tr('Odśwież'))),
           ),
           CdState.importing => _ripProgress(),
           CdState.done => _ripDone(),
@@ -276,13 +277,9 @@ class _IngestViewState extends State<IngestView> {
       if (s.error != null) _error(s.error!),
       const SizedBox(height: Sp.xl),
       Collapsible(
-        title: 'Obsługiwane płyty',
+        title: tr('Obsługiwane płyty'),
         child: Text(
-          'Płyty Audio CD (CD-DA), odczyt cyfrowy bez strat. Płyty ze ścieżkami danych '
-          '(CD-Extra, CD-ROM), DVD i Blu-ray nie są obsługiwane.\n'
-          'Każdy fragment jest odczytywany co najmniej dwa razy i porównywany. Wynik jest sprawdzany '
-          'w bazach AccurateRip i CTDB, gdy płyta tam jest. Przerwy między utworami są dołączane '
-          'do poprzedniego utworu.',
+          tr('Płyty Audio CD (CD-DA), odczyt cyfrowy bez strat. Płyty ze ścieżkami danych (CD-Extra, CD-ROM), DVD i Blu-ray nie są obsługiwane.\nKażdy fragment jest odczytywany co najmniej dwa razy i porównywany. Wynik jest sprawdzany w bazach AccurateRip i CTDB, gdy płyta tam jest. Przerwy między utworami są dołączane do poprzedniego utworu.'),
           style: TextStyle(fontSize: 13.5, color: secondaryText, height: 1.45),
         ),
       ),
@@ -302,15 +299,15 @@ class _IngestViewState extends State<IngestView> {
       const SizedBox(width: Sp.s),
       s.searching
           ? const SizedBox(width: 36, height: 36, child: Padding(padding: EdgeInsets.all(9), child: CircularProgressIndicator(strokeWidth: 2)))
-          : IconAction(Icons.refresh_rounded, 'Odśwież listę napędów', idle && !s.reading ? () => unawaited(s.refresh()) : null, color: secondaryText),
-      IconAction(Icons.eject_rounded, 'Wysuń płytę', idle && s.drive != null && !s.reading ? () => unawaited(s.ejectDisc()) : null, color: secondaryText),
+          : IconAction(Icons.refresh_rounded, tr('Odśwież listę napędów'), idle && !s.reading ? () => unawaited(s.refresh()) : null, color: secondaryText),
+      IconAction(Icons.eject_rounded, tr('Wysuń płytę'), idle && s.drive != null && !s.reading ? () => unawaited(s.ejectDisc()) : null, color: secondaryText),
     ],
   );
 
   Widget _driveAndTracks(CdState st, bool idle) {
     final problem = switch (st) {
-      CdState.noDisc => 'Brak płyty w napędzie. Włóż płytę Audio CD.',
-      CdState.unsupported => '${s.cdProblem} Zobacz „Obsługiwane płyty”.',
+      CdState.noDisc => tr('Brak płyty w napędzie. Włóż płytę Audio CD.'),
+      CdState.unsupported => tr('{0} Zobacz „Obsługiwane płyty”.', [s.cdProblem]),
       CdState.readError => s.cdProblem,
       _ => null,
     };
@@ -320,20 +317,20 @@ class _IngestViewState extends State<IngestView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Napęd', style: Ctl.label),
+        Text(tr('Napęd'), style: Ctl.label),
         const SizedBox(height: Sp.xs),
         ConstrainedBox(constraints: const BoxConstraints(maxWidth: 560), child: _driveRow(idle)),
         const SizedBox(height: Sp.m),
         if (st == CdState.reading)
-          const Row(
+          Row(
             children: [
               SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
               SizedBox(width: Sp.s),
-              Text('Odczytuję spis utworów…', style: TextStyle(fontSize: 13.5)),
+              Text(tr('Odczytuję spis utworów…'), style: TextStyle(fontSize: 13.5)),
             ],
           )
         else if (st != CdState.ready)
-          FilledButton(style: Ctl.filled, onPressed: idle && s.drive != null ? () => unawaited(s.readCd()) : null, child: const Text('Odczytaj')),
+          FilledButton(style: Ctl.filled, onPressed: idle && s.drive != null ? () => unawaited(s.readCd()) : null, child: Text(tr('Odczytaj'))),
         if (problem != null) st == CdState.noDisc ? _note(problem, icon: Icons.album_outlined) : _error(problem),
         if (st == CdState.ready) ..._ready(idle, tracks, chosen, total),
       ],
@@ -343,14 +340,14 @@ class _IngestViewState extends State<IngestView> {
   List<Widget> _ready(bool idle, List<Map<String, dynamic>> tracks, int chosen, int total) {
     final verdicts = _verdicts();
     return [
-      const SectionTitle('Utwory'),
+      SectionTitle(tr('Utwory')),
       Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
             onTap: idle ? () => unawaited(s.chooseCoverFile()) : null,
             borderRadius: BorderRadius.circular(6),
-            child: Tooltip(message: 'Zmień okładkę', child: _cover(s.cdForm.cover)),
+            child: Tooltip(message: tr('Zmień okładkę'), child: _cover(s.cdForm.cover)),
           ),
           const SizedBox(width: Sp.l),
           Expanded(
@@ -365,7 +362,7 @@ class _IngestViewState extends State<IngestView> {
                       children: [
                         SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
                         SizedBox(width: Sp.s),
-                        Text('Szukam płyty w MusicBrainz…', style: Ctl.label),
+                        Text(tr('Szukam płyty w MusicBrainz…'), style: Ctl.label),
                       ],
                     ),
                   )
@@ -374,8 +371,8 @@ class _IngestViewState extends State<IngestView> {
                 Wrap(
                   spacing: Sp.s,
                   children: [
-                    TextButton(style: Ctl.text, onPressed: idle && !s.describing ? () => unawaited(s.describe()) : null, child: const Text('Szukaj opisu ponownie')),
-                    TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.readCd()) : null, child: const Text('Odczytaj ponownie')),
+                    TextButton(style: Ctl.text, onPressed: idle && !s.describing ? () => unawaited(s.describe()) : null, child: Text(tr('Szukaj opisu ponownie'))),
+                    TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.readCd()) : null, child: Text(tr('Odczytaj ponownie'))),
                   ],
                 ),
               ],
@@ -392,13 +389,13 @@ class _IngestViewState extends State<IngestView> {
             leading: Icon(Icons.album_outlined, color: secondaryText),
             title: Text('${r.artist} · ${r.title}', maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: Text([r.date, r.country, r.label, r.format, r.disambiguation].where((x) => x.isNotEmpty).join(' · '), style: Ctl.label),
-            trailing: TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.chooseRelease(r)) : null, child: const Text('Wybierz')),
+            trailing: TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.chooseRelease(r)) : null, child: Text(tr('Wybierz'))),
           ),
       ],
       const SizedBox(height: Sp.l),
-      _twoFields(_field(s.cdForm.album, 'Album', enabled: idle), _field(s.cdForm.artist, 'Wykonawca albumu', enabled: idle)),
+      _twoFields(_field(s.cdForm.album, tr('Album'), enabled: idle), _field(s.cdForm.artist, tr('Wykonawca albumu'), enabled: idle)),
       const SizedBox(height: Sp.s),
-      _check('Różni wykonawcy (składanka)', s.cdForm.various, idle ? s.setVarious : null),
+      _check(tr('Różni wykonawcy (składanka)'), s.cdForm.various, idle ? s.setVarious : null),
       Row(
         children: [
           Checkbox(
@@ -406,7 +403,7 @@ class _IngestViewState extends State<IngestView> {
             value: chosen == tracks.length ? true : chosen == 0 ? false : null,
             onChanged: idle ? (_) => s.pickAll(chosen != tracks.length) : null,
           ),
-          Text('Zaznaczone: $chosen z ${tracks.length}', style: Ctl.label),
+          Text(tr('Zaznaczone: {0} z {1}', [chosen, tracks.length]), style: Ctl.label),
         ],
       ),
       for (var i = 0; i < tracks.length && i < s.cdForm.tracks.length; i++)
@@ -420,7 +417,7 @@ class _IngestViewState extends State<IngestView> {
               Expanded(flex: 3, child: TextField(controller: s.cdForm.tracks[i].title, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field())),
               if (s.cdForm.various) ...[
                 const SizedBox(width: Sp.s),
-                Expanded(flex: 2, child: TextField(controller: s.cdForm.tracks[i].artist, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field(hint: 'Wykonawca'))),
+                Expanded(flex: 2, child: TextField(controller: s.cdForm.tracks[i].artist, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field(hint: tr('Wykonawca')))),
               ],
               const SizedBox(width: Sp.m),
               SizedBox(width: 52, child: Text(ingestClock(s.trackMs(tracks[i])), textAlign: TextAlign.right, style: Ctl.label)),
@@ -428,25 +425,25 @@ class _IngestViewState extends State<IngestView> {
             ],
           ),
         ),
-      const SectionTitle('Zapis'),
-      const InfoRow('Format', 'FLAC bez strat, 16 bit / 44,1 kHz, z okładką, opisem i ReplayGain'),
-      if (s.folders['cd'] != null) InfoRow('Folder', '${s.folders['cd']}'),
-      _check('Kopia MP3 192 kb/s na telefon', s.mp3, idle ? (v) => setState(() => s.mp3 = v) : null, sub: 'Osobny folder MP3 obok plików FLAC.'),
-      _check('Wysuń płytę po imporcie', s.eject || s.serial, idle && !s.serial ? (v) => setState(() => s.eject = v) : null),
+      SectionTitle(tr('Zapis')),
+      InfoRow(tr('Format'), tr('FLAC bez strat, 16 bit / 44,1 kHz, z okładką, opisem i ReplayGain')),
+      if (s.folders['cd'] != null) InfoRow(tr('Folder'), '${s.folders['cd']}'),
+      _check(tr('Kopia MP3 192 kb/s na telefon'), s.mp3, idle ? (v) => setState(() => s.mp3 = v) : null, sub: tr('Osobny folder MP3 obok plików FLAC.')),
+      _check(tr('Wysuń płytę po imporcie'), s.eject || s.serial, idle && !s.serial ? (v) => setState(() => s.eject = v) : null),
       _check(
-        'Tryb seryjny',
+        tr('Tryb seryjny'),
         s.serial,
         idle ? (v) => setState(() => s.serial = v) : null,
-        sub: 'Po imporcie płyta się wysuwa. Następna jest odczytywana sama i importowana, gdy opis jest jednoznaczny.',
+        sub: tr('Po imporcie płyta się wysuwa. Następna jest odczytywana sama i importowana, gdy opis jest jednoznaczny.'),
       ),
       Collapsible(
-        title: 'Przesunięcie odczytu',
+        title: tr('Przesunięcie odczytu'),
         card: false,
         trailing: s.manualOffset != null
-            ? '${s.manualOffset! >= 0 ? '+' : ''}${s.manualOffset} (ręcznie)'
+            ? tr('{0}{1} (ręcznie)', [s.manualOffset! >= 0 ? '+' : '', s.manualOffset])
             : s.savedOffset != null
-            ? '${s.savedOffset! >= 0 ? '+' : ''}${s.savedOffset} (zapamiętane)'
-            : 'wykrywane automatycznie',
+            ? tr('{0}{1} (zapamiętane)', [s.savedOffset! >= 0 ? '+' : '', s.savedOffset])
+            : tr('wykrywane automatycznie'),
         child: _OffsetField(state: s, enabled: idle),
       ),
       const SizedBox(height: Sp.m),
@@ -454,9 +451,9 @@ class _IngestViewState extends State<IngestView> {
         style: Ctl.filled,
         onPressed: idle && chosen > 0 ? () => unawaited(s.rip()) : null,
         icon: const Icon(Icons.download_rounded, size: 18),
-        label: Text(chosen == tracks.length ? 'Importuj' : 'Importuj zaznaczone ($chosen)'),
+        label: Text(chosen == tracks.length ? tr('Importuj') : tr('Importuj zaznaczone ({0})', [chosen])),
       ),
-      if (chosen > 0) Padding(padding: const EdgeInsets.only(top: Sp.s), child: Text('Do odczytu: ${ingestClock(total)} muzyki.', style: Ctl.label)),
+      if (chosen > 0) Padding(padding: const EdgeInsets.only(top: Sp.s), child: Text(tr('Do odczytu: {0} muzyki.', [ingestClock(total)]), style: Ctl.label)),
     ];
   }
 
@@ -473,13 +470,12 @@ class _IngestViewState extends State<IngestView> {
     final best = (v['accurateripBest'] as num? ?? 0).toInt();
     final ctdb = (v['ctdb'] as num? ?? 0).toInt();
     final (icon, color, text) = ar > 0 || ctdb > 0
-        ? (Icons.verified_rounded, accent, [if (ar > 0) 'AR $ar', if (ctdb > 0) 'CTDB $ctdb'].join(' · '))
+        ? (Icons.verified_rounded, accent, [if (ar > 0) 'AR $ar', if (ctdb > 0) tr('CTDB {0}', [ctdb])].join(' · '))
         : best > 0
         ? (Icons.error_outline_rounded, _red, 'niezgodny')
-        : (Icons.help_outline_rounded, secondaryText, _hasAr ? 'brak w bazie' : 'bez weryfikacji');
+        : (Icons.help_outline_rounded, secondaryText, _hasAr ? tr('brak w bazie') : tr('bez weryfikacji'));
     return Tooltip(
-      message: 'CRC ${v['crc']} · AccurateRip v1 ${v['v1']} · v2 ${v['v2']}'
-          '${(v['retriedSectors'] as num? ?? 0) > 0 ? ' · powtórzone sektory: ${v['retriedSectors']}' : ''}',
+      message: tr('CRC {0} · AccurateRip v1 {1} · v2 {2}{3}', [v['crc'], v['v1'], v['v2'], (v['retriedSectors'] as num? ?? 0) > 0 ? tr(' · powtórzone sektory: {0}', [v['retriedSectors']]) : '']),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
@@ -500,9 +496,9 @@ class _IngestViewState extends State<IngestView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(total > 0 ? 'Importowanie: ${(done * 100 / total).clamp(0, 100).round()}%' : 'Importowanie', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+        Text(total > 0 ? tr('Importowanie: {0}%', [(done * 100 / total).clamp(0, 100).round()]) : tr('Importowanie'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
         const SizedBox(height: Sp.xs),
-        Text(s.step, style: Ctl.label),
+        Text(trMessage(s.step), style: Ctl.label),
         const SizedBox(height: Sp.m),
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),
@@ -511,19 +507,19 @@ class _IngestViewState extends State<IngestView> {
         const SizedBox(height: Sp.s),
         Text(
           [
-            'Gotowe pliki: $files',
-            if (offset != null) 'przesunięcie ${(offset as num) >= 0 ? '+' : ''}$offset (${s.status['offsetSource']})',
+            tr('Gotowe pliki: {0}', [files]),
+            if (offset != null) tr('przesunięcie {0}{1} ({2})', [(offset as num) >= 0 ? '+' : '', offset, trMessage('${s.status['offsetSource']}')]),
           ].join(' · '),
           style: Ctl.label,
         ),
         for (final v in verdicts.values)
           Padding(
             padding: const EdgeInsets.only(top: Sp.xs),
-            child: SizedBox(width: 360, child: Row(children: [Text('Ścieżka ${v['track']}', style: Ctl.label), const Spacer(), _verdict(v)])),
+            child: SizedBox(width: 360, child: Row(children: [Text(tr('Ścieżka {0}', [v['track']]), style: Ctl.label), const Spacer(), _verdict(v)])),
           ),
         for (final w in s.status['warnings'] as List? ?? const []) _warning('$w'),
         const SizedBox(height: Sp.l),
-        OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: const Text('Zatrzymaj i zachowaj gotowe pliki')),
+        OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: Text(tr('Zatrzymaj i zachowaj gotowe pliki'))),
       ],
     );
   }
@@ -540,19 +536,19 @@ class _IngestViewState extends State<IngestView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          files.isEmpty ? 'Import zatrzymany, nic nie zapisano' : '${cancelled ? 'Import zatrzymany. ' : ''}Dodano do biblioteki: ${trackCount(files.length)}',
+          files.isEmpty ? tr('Import zatrzymany, nic nie zapisano') : tr('{0}Dodano do biblioteki: {1}', [cancelled ? tr('Import zatrzymany. ') : '', trackCount(files.length)]),
           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
         ),
         if (verdicts.isNotEmpty) ...[
           const SizedBox(height: Sp.s),
           if (ok == verdicts.length)
-            _note('Wszystkie ścieżki zgodne z bazami AccurateRip lub CTDB.', icon: Icons.verified_rounded)
+            _note(tr('Wszystkie ścieżki zgodne z bazami AccurateRip lub CTDB.'), icon: Icons.verified_rounded)
           else if (bad > 0)
-            _warning('Niezgodne z bazą: $bad. Przetrzyj płytę i zaimportuj te ścieżki ponownie.')
+            _warning(tr('Niezgodne z bazą: {0}. Przetrzyj płytę i zaimportuj te ścieżki ponownie.', [bad]))
           else
-            _note('Zweryfikowane w bazach: $ok z ${verdicts.length}. Reszty płyty nie ma w bazach, więc nie da się jej sprawdzić.'),
-          if (disc?['ctdbConfidence'] != null && (disc!['ctdbConfidence'] as num) > 0) _note('Cała płyta zgodna z CTDB (pewność ${disc['ctdbConfidence']}).', icon: Icons.verified_rounded),
-          if (s.status['offset'] != null) _note('Przesunięcie odczytu: ${(s.status['offset'] as num) >= 0 ? '+' : ''}${s.status['offset']} próbek (${s.status['offsetSource']}).'),
+            _note(tr('Zweryfikowane w bazach: {0} z {1}. Reszty płyty nie ma w bazach, więc nie da się jej sprawdzić.', [ok, verdicts.length])),
+          if (disc?['ctdbConfidence'] != null && (disc!['ctdbConfidence'] as num) > 0) _note(tr('Cała płyta zgodna z CTDB (pewność {0}).', [disc['ctdbConfidence']]), icon: Icons.verified_rounded),
+          if (s.status['offset'] != null) _note(tr('Przesunięcie odczytu: {0}{1} próbek ({2}).', [(s.status['offset'] as num) >= 0 ? '+' : '', s.status['offset'], trMessage('${s.status['offsetSource']}')])),
         ],
         for (final w in s.status['warnings'] as List? ?? const []) _warning('$w'),
         const SizedBox(height: Sp.m),
@@ -562,13 +558,13 @@ class _IngestViewState extends State<IngestView> {
           spacing: Sp.s,
           runSpacing: Sp.s,
           children: [
-            FilledButton(style: Ctl.filled, onPressed: () => s.nextDisc(), child: const Text('Importuj kolejną płytę')),
+            FilledButton(style: Ctl.filled, onPressed: () => s.nextDisc(), child: Text(tr('Importuj kolejną płytę'))),
             if (folder.isNotEmpty)
               OutlinedButton.icon(
                 style: Ctl.outlined,
                 onPressed: () => unawaited(s.openFolder(folder)),
                 icon: const Icon(Icons.folder_open_outlined, size: 18),
-                label: const Text('Otwórz folder z raportem'),
+                label: Text(tr('Otwórz folder z raportem')),
               ),
           ],
         ),
@@ -579,15 +575,15 @@ class _IngestViewState extends State<IngestView> {
   Widget _ripFailed() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Text('Import przerwany', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-      _error('${s.status['error'] ?? 'Nieznany błąd'}'),
+      Text(tr('Import przerwany'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+      _error('${s.status['error'] ?? tr('Nieznany błąd')}'),
       if ((s.status['files'] as List? ?? const []).isNotEmpty)
         Padding(
           padding: const EdgeInsets.only(top: Sp.s),
-          child: Text('Zachowano gotowe pliki: ${(s.status['files'] as List).length}', style: Ctl.label),
+          child: Text(tr('Zachowano gotowe pliki: {0}', [(s.status['files'] as List).length]), style: Ctl.label),
         ),
       const SizedBox(height: Sp.l),
-      FilledButton(style: Ctl.filled, onPressed: () => s.nextDisc(), child: const Text('Spróbuj ponownie')),
+      FilledButton(style: Ctl.filled, onPressed: () => s.nextDisc(), child: Text(tr('Spróbuj ponownie'))),
     ],
   );
 
@@ -630,8 +626,8 @@ class _IngestViewState extends State<IngestView> {
       children: [
         Row(
           children: [
-            const Expanded(child: Text('Wejście', style: Ctl.section)),
-            IconAction(Icons.help_outline_rounded, help ? 'Ukryj pomoc' : 'Jak podłączyć gramofon lub magnetofon', () => setState(() => help = !help), color: secondaryText),
+            Expanded(child: Text(tr('Wejście'), style: Ctl.section)),
+            IconAction(Icons.help_outline_rounded, help ? tr('Ukryj pomoc') : tr('Jak podłączyć gramofon lub magnetofon'), () => setState(() => help = !help), color: secondaryText),
           ],
         ),
         if (help)
@@ -639,26 +635,24 @@ class _IngestViewState extends State<IngestView> {
             margin: const EdgeInsets.only(top: Sp.s),
             padding: const EdgeInsets.all(Sp.m),
             decoration: BoxDecoration(color: elevated, borderRadius: BorderRadius.circular(Rad.control)),
-            child: const Text(
-              'Gramofon: przez przedwzmacniacz PHONO do wejścia liniowego karty dźwiękowej albo gramofon z wyjściem USB. '
-              'Magnetofon: z wyjścia LINE OUT do wejścia liniowego.\n'
-              'Ustaw poziom na najgłośniejszym fragmencie płyty: szczyty od -12 do -6 dBFS, bez przesterowań.',
+            child: Text(
+              tr('Gramofon: przez przedwzmacniacz PHONO do wejścia liniowego karty dźwiękowej albo gramofon z wyjściem USB. Magnetofon: z wyjścia LINE OUT do wejścia liniowego.\nUstaw poziom na najgłośniejszym fragmencie płyty: szczyty od -12 do -6 dBFS, bez przesterowań.'),
               style: TextStyle(fontSize: 13, height: 1.45),
             ),
           ),
         const SizedBox(height: Sp.m),
-        Text('Urządzenie wejściowe', style: Ctl.label),
+        Text(tr('Urządzenie wejściowe'), style: Ctl.label),
         const SizedBox(height: Sp.xs),
         if (s.inputs.isEmpty && !s.searching)
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Nie wykryto wejścia audio. Podłącz interfejs USB lub włącz wejście w ustawieniach dźwięku Windows.',
+                  tr('Nie wykryto wejścia audio. Podłącz interfejs USB lub włącz wejście w ustawieniach dźwięku Windows.'),
                   style: TextStyle(fontSize: 13.5),
                 ),
               ),
-              IconAction(Icons.refresh_rounded, 'Odśwież listę wejść', () => unawaited(s.refresh()), color: secondaryText),
+              IconAction(Icons.refresh_rounded, tr('Odśwież listę wejść'), () => unawaited(s.refresh()), color: secondaryText),
             ],
           )
         else
@@ -675,52 +669,52 @@ class _IngestViewState extends State<IngestView> {
               const SizedBox(width: Sp.s),
               s.searching
                   ? const SizedBox(width: 36, height: 36, child: Padding(padding: EdgeInsets.all(9), child: CircularProgressIndicator(strokeWidth: 2)))
-                  : IconAction(Icons.refresh_rounded, 'Odśwież listę wejść', idle ? () => unawaited(s.refresh()) : null, color: secondaryText),
+                  : IconAction(Icons.refresh_rounded, tr('Odśwież listę wejść'), idle ? () => unawaited(s.refresh()) : null, color: secondaryText),
             ],
           ),
         const SizedBox(height: Sp.s),
         Collapsible(
-          title: 'Zaawansowane',
+          title: tr('Zaawansowane'),
           card: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Częstotliwość nagrania', style: Ctl.label),
+              Text(tr('Częstotliwość nagrania'), style: Ctl.label),
               const SizedBox(height: Sp.xs),
               if (rates.length > 1)
                 _dropdown<int>(
                   semantics: 'rate',
                   value: s.rate,
-                  items: [for (final r in rates) (r, '${(r / 1000).toString().replaceAll('.', ',')} kHz')],
+                  items: [for (final r in rates) (r, tr('{0} kHz', [(r / 1000).toString().replaceAll('.', ',')]))],
                   onChanged: idle ? (v) => s.selectRate(v ?? s.rate) : null,
                 )
               else
-                Text(rates.isEmpty ? 'Po wybraniu wejścia' : '${(rates.first / 1000).toString().replaceAll('.', ',')} kHz', style: Ctl.fieldText),
+                Text(rates.isEmpty ? tr('Po wybraniu wejścia') : tr('{0} kHz', [(rates.first / 1000).toString().replaceAll('.', ',')]), style: Ctl.fieldText),
               const SizedBox(height: Sp.m),
-              Text('Format nagrania', style: Ctl.label),
+              Text(tr('Format nagrania'), style: Ctl.label),
               const SizedBox(height: Sp.xs),
-              const Text('WAV 24 bit, bez obróbki (obróbka tylko przy eksporcie kopii)', style: Ctl.fieldText),
+              Text(tr('WAV 24 bit, bez obróbki (obróbka tylko przy eksporcie kopii)'), style: Ctl.fieldText),
               const SizedBox(height: Sp.m),
-              Text('Folder nagrań', style: Ctl.label),
+              Text(tr('Folder nagrań'), style: Ctl.label),
               const SizedBox(height: Sp.xs),
               Row(
                 children: [
-                  Expanded(child: Text('${s.folders['recordings'] ?? 'Folder danych aplikacji'}', style: Ctl.fieldText, maxLines: 2, overflow: TextOverflow.ellipsis)),
-                  IconAction(Icons.folder_open_outlined, 'Otwórz folder nagrań', s.busy ? null : () => unawaited(s.openFolder()), color: secondaryText),
+                  Expanded(child: Text('${s.folders['recordings'] ?? tr('Folder danych aplikacji')}', style: Ctl.fieldText, maxLines: 2, overflow: TextOverflow.ellipsis)),
+                  IconAction(Icons.folder_open_outlined, tr('Otwórz folder nagrań'), s.busy ? null : () => unawaited(s.openFolder()), color: secondaryText),
                 ],
               ),
             ],
           ),
         ),
         Divider(height: Sp.xl, color: softBorder),
-        const Text('Poziom wejścia', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        Text(tr('Poziom wejścia'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         const SizedBox(height: Sp.m),
         _meters(),
         const SizedBox(height: Sp.m),
         if (s.monitoring)
-          OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: const Text('Zakończ podgląd'))
+          OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: Text(tr('Zakończ podgląd')))
         else
-          OutlinedButton(style: Ctl.outlined, onPressed: idle && s.input != null ? () => unawaited(s.monitor()) : null, child: const Text('Sprawdź poziom')),
+          OutlinedButton(style: Ctl.outlined, onPressed: idle && s.input != null ? () => unawaited(s.monitor()) : null, child: Text(tr('Sprawdź poziom'))),
       ],
     );
   }
@@ -742,8 +736,8 @@ class _IngestViewState extends State<IngestView> {
             SizedBox(width: 16, child: Text(name, style: Ctl.label)),
             Expanded(
               child: Semantics(
-                label: 'Poziom kanału $name',
-                value: live ? '${db.toStringAsFixed(1)} dBFS' : 'wyłączony',
+                label: tr('Poziom kanału {0}', [name]),
+                value: live ? tr('{0} dBFS', [db.toStringAsFixed(1)]) : tr('wyłączony'),
                 child: Container(
                   height: 8,
                   decoration: BoxDecoration(color: elevated, borderRadius: BorderRadius.circular(4)),
@@ -758,7 +752,7 @@ class _IngestViewState extends State<IngestView> {
             SizedBox(
               width: 76,
               child: Text(
-                live ? (db <= -89 ? '−∞ dBFS' : '${db.toStringAsFixed(1)} dBFS') : '',
+                live ? (db <= -89 ? tr('−∞ dBFS') : tr('{0} dBFS', [db.toStringAsFixed(1)])) : '',
                 textAlign: TextAlign.right,
                 style: Ctl.label.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
               ),
@@ -777,9 +771,9 @@ class _IngestViewState extends State<IngestView> {
           meter('L', peaks.elementAtOrNull(0) ?? 0),
           meter('R', peaks.elementAtOrNull(1) ?? 0),
         ],
-        if (!live) Text('Podgląd wyłączony', style: Ctl.label),
-        if (live && clips > 0) _error('Przesterowanie: ${collectionCount(clips, 'próbka', 'próbki', 'próbek')}. Zmniejsz poziom na przedwzmacniaczu lub w Windows.'),
-        if (live && dropouts > 0) _warning('Utracone próbki: $dropouts. Zamknij inne programy korzystające z wejścia.'),
+        if (!live) Text(tr('Podgląd wyłączony'), style: Ctl.label),
+        if (live && clips > 0) _error(tr('Przesterowanie: {0}. Zmniejsz poziom na przedwzmacniaczu lub w Windows.', [collectionCount(clips, tr('próbka'), tr('próbki'), tr('próbek'))])),
+        if (live && dropouts > 0) _warning(tr('Utracone próbki: {0}. Zamknij inne programy korzystające z wejścia.', [dropouts])),
       ],
     );
   }
@@ -792,25 +786,25 @@ class _IngestViewState extends State<IngestView> {
     final idle = !s.busy && !s.running;
     final endedBySilence = s.job == 'record' && !s.running && s.status['ended'] == 'silence';
     final state = s.paused
-        ? 'Pauza, nic nie jest zapisywane'
+        ? tr('Pauza, nic nie jest zapisywane')
         : s.recording
-        ? 'Nagrywanie'
+        ? tr('Nagrywanie')
         : s.monitoring
-        ? 'Podgląd poziomu, nic nie jest zapisywane'
+        ? tr('Podgląd poziomu, nic nie jest zapisywane')
         : s.job == 'record' && s.stage == 'error'
-        ? 'Nagranie przerwane'
+        ? tr('Nagranie przerwane')
         : endedBySilence
-        ? 'Strona zakończona: wykryto ciszę'
+        ? tr('Strona zakończona: wykryto ciszę')
         : s.job == 'record' && (s.stage == 'finished' || s.stage == 'cancelled')
-        ? 'Nagranie zapisane'
-        : 'Nagranie nie zostało rozpoczęte';
+        ? tr('Nagranie zapisane')
+        : tr('Nagranie nie zostało rozpoczęte');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Nagranie', style: Ctl.section),
+        Text(tr('Nagranie'), style: Ctl.section),
         const SizedBox(height: Sp.m),
-        _field(s.label, 'Nazwa nagrania', enabled: idle || s.monitoring),
-        _check('Zakończ po ciszy na końcu strony', s.autoStop, idle || s.monitoring ? (v) => setState(() => s.autoStop = v) : null, sub: '8 s ciszy po co najmniej 30 s nagrania.'),
+        _field(s.label, tr('Nazwa nagrania'), enabled: idle || s.monitoring),
+        _check(tr('Zakończ po ciszy na końcu strony'), s.autoStop, idle || s.monitoring ? (v) => setState(() => s.autoStop = v) : null, sub: tr('8 s ciszy po co najmniej 30 s nagrania.')),
         const SizedBox(height: Sp.l),
         Center(
           child: Text(
@@ -843,19 +837,19 @@ class _IngestViewState extends State<IngestView> {
                       style: Ctl.filled,
                       onPressed: s.busy ? null : () => unawaited(s.stop()),
                       icon: const Icon(Icons.stop_rounded, size: 18),
-                      label: const Text('Stop'),
+                      label: Text(tr('Stop')),
                     ),
                     OutlinedButton.icon(
                       style: Ctl.outlined,
                       onPressed: s.busy ? null : () => unawaited(s.pause(!s.paused)),
                       icon: Icon(s.paused ? Icons.fiber_manual_record : Icons.pause_rounded, size: 18),
-                      label: Text(s.paused ? 'Wznów' : 'Pauza'),
+                      label: Text(s.paused ? tr('Wznów') : tr('Pauza')),
                     ),
                     OutlinedButton.icon(
                       style: Ctl.outlined,
                       onPressed: s.busy || s.paused ? null : () => unawaited(s.mark()),
                       icon: const Icon(Icons.flag_outlined, size: 18),
-                      label: const Text('Znacznik utworu'),
+                      label: Text(tr('Znacznik utworu')),
                     ),
                   ],
                 )
@@ -868,16 +862,16 @@ class _IngestViewState extends State<IngestView> {
                       style: Ctl.filled,
                       onPressed: (idle || s.monitoring) && !s.busy && s.input != null ? () => unawaited(s.record()) : null,
                       icon: const Icon(Icons.fiber_manual_record, size: 14, color: Color(0xffff3b30)),
-                      label: const Text('Nagraj'),
+                      label: Text(tr('Nagraj')),
                     ),
                     if (endedBySilence)
-                      OutlinedButton(style: Ctl.outlined, onPressed: idle && s.input != null ? () => unawaited(s.recordSideB()) : null, child: const Text('Nagraj stronę B')),
+                      OutlinedButton(style: Ctl.outlined, onPressed: idle && s.input != null ? () => unawaited(s.recordSideB()) : null, child: Text(tr('Nagraj stronę B'))),
                   ],
                 ),
         ),
         if (s.recording && markers.isNotEmpty) ...[
           const SizedBox(height: Sp.m),
-          Text('Znaczniki: ${markers.map(ingestClock).join(', ')}', style: Ctl.label, textAlign: TextAlign.center),
+          Text(tr('Znaczniki: {0}', [markers.map(ingestClock).join(', ')]), style: Ctl.label, textAlign: TextAlign.center),
         ],
       ],
     );
@@ -890,14 +884,14 @@ class _IngestViewState extends State<IngestView> {
     final exportDone = s.job == 'export' && !s.running && (s.stage == 'finished' || s.stage == 'cancelled');
     return Collapsible(
       key: ValueKey('export:$available'),
-      title: 'Podział i eksport',
-      trailing: available ? null : 'Dostępne po nagraniu',
+      title: tr('Podział i eksport'),
+      trailing: available ? null : tr('Dostępne po nagraniu'),
       enabled: available,
       initiallyOpen: available && s.session != null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Nagranie', style: Ctl.label),
+          Text(tr('Nagranie'), style: Ctl.label),
           const SizedBox(height: Sp.xs),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
@@ -908,7 +902,7 @@ class _IngestViewState extends State<IngestView> {
                 for (final x in s.sessions)
                   (
                     x['id'] as String,
-                    '${x['label'] ?? 'Nagranie'} · ${ingestClock(x['durationMs'] as num? ?? 0)}${x['partial'] == true ? ' · przerwane' : ''}',
+                    '${x['label'] ?? tr('Nagranie')} · ${ingestClock(x['durationMs'] as num? ?? 0)}${x['partial'] == true ? tr(' · przerwane') : ''}',
                   ),
               ],
               onChanged: idle
@@ -919,17 +913,17 @@ class _IngestViewState extends State<IngestView> {
             ),
           ),
           if (selected != null && selected['partial'] == true) ...[
-            _warning('Nagranie zostało przerwane. Odzyskaj je, aby podzielić i dodać do biblioteki.'),
+            _warning(tr('Nagranie zostało przerwane. Odzyskaj je, aby podzielić i dodać do biblioteki.')),
             const SizedBox(height: Sp.m),
-            FilledButton(style: Ctl.filled, onPressed: idle ? () => unawaited(s.recover()) : null, child: const Text('Odzyskaj nagranie')),
+            FilledButton(style: Ctl.filled, onPressed: idle ? () => unawaited(s.recover()) : null, child: Text(tr('Odzyskaj nagranie'))),
           ] else if (selected != null) ...[
             const SizedBox(height: Sp.l),
             _tracklist(idle),
             const SizedBox(height: Sp.l),
             Row(
               children: [
-                const Expanded(child: Text('Początki utworów', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
-                TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.analyze()) : null, child: const Text('Zaproponuj według ciszy')),
+                Expanded(child: Text(tr('Początki utworów'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
+                TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.analyze()) : null, child: Text(tr('Zaproponuj według ciszy'))),
               ],
             ),
             const SizedBox(height: Sp.s),
@@ -944,17 +938,17 @@ class _IngestViewState extends State<IngestView> {
                 InkWell(
                   onTap: idle ? () => unawaited(s.chooseCoverFile()) : null,
                   borderRadius: BorderRadius.circular(6),
-                  child: Tooltip(message: 'Wybierz okładkę', child: _cover(s.vinylForm.cover, size: 64)),
+                  child: Tooltip(message: tr('Wybierz okładkę'), child: _cover(s.vinylForm.cover, size: 64)),
                 ),
                 const SizedBox(width: Sp.l),
-                Expanded(child: _twoFields(_field(s.vinylForm.album, 'Album', enabled: idle), _field(s.vinylForm.artist, 'Wykonawca albumu', enabled: idle))),
+                Expanded(child: _twoFields(_field(s.vinylForm.album, tr('Album'), enabled: idle), _field(s.vinylForm.artist, tr('Wykonawca albumu'), enabled: idle))),
               ],
             ),
             const SizedBox(height: Sp.s),
             Row(
               children: [
-                Expanded(child: _check('Różni wykonawcy (składanka)', s.vinylForm.various, idle ? s.setVarious : null)),
-                Text('Numer pierwszego utworu', style: Ctl.label),
+                Expanded(child: _check(tr('Różni wykonawcy (składanka)'), s.vinylForm.various, idle ? s.setVarious : null)),
+                Text(tr('Numer pierwszego utworu'), style: Ctl.label),
                 const SizedBox(width: Sp.s),
                 SizedBox(
                   width: 64,
@@ -981,7 +975,7 @@ class _IngestViewState extends State<IngestView> {
                     Expanded(flex: 3, child: TextField(controller: s.vinylForm.tracks[i].title, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field())),
                     if (s.vinylForm.various) ...[
                       const SizedBox(width: Sp.s),
-                      Expanded(flex: 2, child: TextField(controller: s.vinylForm.tracks[i].artist, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field(hint: 'Wykonawca'))),
+                      Expanded(flex: 2, child: TextField(controller: s.vinylForm.tracks[i].artist, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field(hint: tr('Wykonawca')))),
                     ],
                     const SizedBox(width: Sp.m),
                     SizedBox(
@@ -997,19 +991,19 @@ class _IngestViewState extends State<IngestView> {
               ),
             const SizedBox(height: Sp.m),
             Collapsible(
-              title: 'Obróbka kopii',
+              title: tr('Obróbka kopii'),
               card: false,
-              trailing: [if (s.declick) 'trzaski', if (s.hum) 'brum', if (s.speed != 0) 'prędkość ${s.speed > 0 ? '+' : ''}${s.speed.toStringAsFixed(1)}%'].join(', '),
+              trailing: [if (s.declick) 'trzaski', if (s.hum) 'brum', if (s.speed != 0) tr('prędkość {0}{1}%', [s.speed > 0 ? '+' : '', s.speed.toStringAsFixed(1)])].join(', '),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Dotyczy tylko plików FLAC i MP3. Oryginalne nagranie WAV zostaje bez zmian.', style: Ctl.label),
-                  _check('Usuń trzaski', s.declick, idle ? (v) => setState(() => s.declick = v) : null, sub: 'Krótkie trzaski i pyknięcia z płyty winylowej.'),
-                  _check('Filtr brumu 50 Hz', s.hum, idle ? (v) => setState(() => s.hum = v) : null, sub: 'Wycina 50, 100 i 150 Hz z przewodów i uziemienia.'),
+                  Text(tr('Dotyczy tylko plików FLAC i MP3. Oryginalne nagranie WAV zostaje bez zmian.'), style: Ctl.label),
+                  _check(tr('Usuń trzaski'), s.declick, idle ? (v) => setState(() => s.declick = v) : null, sub: tr('Krótkie trzaski i pyknięcia z płyty winylowej.')),
+                  _check(tr('Filtr brumu 50 Hz'), s.hum, idle ? (v) => setState(() => s.hum = v) : null, sub: tr('Wycina 50, 100 i 150 Hz z przewodów i uziemienia.')),
                   Row(
                     children: [
                       const SizedBox(width: Sp.m),
-                      const Text('Korekta prędkości kasety', style: TextStyle(fontSize: 13.5)),
+                      Text(tr('Korekta prędkości kasety'), style: TextStyle(fontSize: 13.5)),
                       Expanded(
                         child: Slider(
                           value: s.speed,
@@ -1026,29 +1020,29 @@ class _IngestViewState extends State<IngestView> {
                 ],
               ),
             ),
-            _check('Kopia MP3 192 kb/s na telefon', s.mp3, idle ? (v) => setState(() => s.mp3 = v) : null),
+            _check(tr('Kopia MP3 192 kb/s na telefon'), s.mp3, idle ? (v) => setState(() => s.mp3 = v) : null),
             const SizedBox(height: Sp.s),
-            Text('Każdy utwór trafi do biblioteki jako FLAC z opisem i ReplayGain. Oryginalne nagranie WAV zostaje.', style: Ctl.label),
+            Text(tr('Każdy utwór trafi do biblioteki jako FLAC z opisem i ReplayGain. Oryginalne nagranie WAV zostaje.'), style: Ctl.label),
             const SizedBox(height: Sp.m),
             if (s.exporting) ...[
               LinearProgressIndicator(
                 value: (s.status['total'] as num? ?? 0) > 0 ? ((s.status['done'] as num? ?? 0) / (s.status['total'] as num)).clamp(0, 1).toDouble() : null,
               ),
               const SizedBox(height: Sp.xs),
-              Text(s.step, style: Ctl.label),
+              Text(trMessage(s.step), style: Ctl.label),
               const SizedBox(height: Sp.s),
-              OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: const Text('Zatrzymaj eksport')),
+              OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: Text(tr('Zatrzymaj eksport'))),
             ] else
               FilledButton.icon(
                 style: Ctl.filled,
                 onPressed: idle && s.vinylForm.tracks.isNotEmpty ? () => unawaited(s.export()) : null,
                 icon: const Icon(Icons.library_add_outlined, size: 18),
-                label: const Text('Dodaj do biblioteki'),
+                label: Text(tr('Dodaj do biblioteki')),
               ),
             if (exportDone) ...[
               Padding(
                 padding: const EdgeInsets.only(top: Sp.m),
-                child: Text('Dodano do biblioteki: ${trackCount((s.status['files'] as List? ?? const []).length)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                child: Text(tr('Dodano do biblioteki: {0}', [trackCount((s.status['files'] as List? ?? const []).length)]), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
               ),
               for (final w in s.status['warnings'] as List? ?? const []) _note('$w'),
               if ((s.status['folder'] as String? ?? '').isNotEmpty)
@@ -1058,7 +1052,7 @@ class _IngestViewState extends State<IngestView> {
                     style: Ctl.outlined,
                     onPressed: () => unawaited(s.openFolder(s.status['folder'] as String)),
                     icon: const Icon(Icons.folder_open_outlined, size: 18),
-                    label: const Text('Otwórz folder'),
+                    label: Text(tr('Otwórz folder')),
                   ),
                 ),
             ],
@@ -1072,32 +1066,32 @@ class _IngestViewState extends State<IngestView> {
   Widget _tracklist(bool idle) {
     final info = s.tracklist;
     return Collapsible(
-      title: 'Lista utworów z MusicBrainz lub Discogs',
+      title: tr('Lista utworów z MusicBrainz lub Discogs'),
       card: false,
       initiallyOpen: info == null,
       trailing: info == null ? null : '${info.release.artist} · ${info.release.title}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _twoFields(_field(s.searchAlbum, 'Album', enabled: idle), _field(s.searchArtist, 'Wykonawca', enabled: idle)),
+          _twoFields(_field(s.searchAlbum, tr('Album'), enabled: idle), _field(s.searchArtist, tr('Wykonawca'), enabled: idle)),
           const SizedBox(height: Sp.s),
           Wrap(
             spacing: Sp.s,
             runSpacing: Sp.s,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              OutlinedButton(style: Ctl.outlined, onPressed: idle ? () => unawaited(s.searchTracklist()) : null, child: const Text('Szukaj w MusicBrainz')),
+              OutlinedButton(style: Ctl.outlined, onPressed: idle ? () => unawaited(s.searchTracklist()) : null, child: Text(tr('Szukaj w MusicBrainz'))),
               SizedBox(
                 width: 300,
                 child: TextField(
                   controller: s.discogs,
                   enabled: idle,
                   style: Ctl.fieldText,
-                  decoration: Ctl.field(hint: 'albo adres wydania z Discogs'),
+                  decoration: Ctl.field(hint: tr('albo adres wydania z Discogs')),
                   onSubmitted: (_) => unawaited(s.loadDiscogs()),
                 ),
               ),
-              TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.loadDiscogs()) : null, child: const Text('Wczytaj z Discogs')),
+              TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.loadDiscogs()) : null, child: Text(tr('Wczytaj z Discogs'))),
             ],
           ),
           for (final r in s.searchResults)
@@ -1106,20 +1100,20 @@ class _IngestViewState extends State<IngestView> {
               contentPadding: EdgeInsets.zero,
               title: Text('${r.artist} · ${r.title}', maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text([r.date, r.country, r.format, r.label].where((x) => x.isNotEmpty).join(' · '), style: Ctl.label),
-              trailing: TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.loadTracklist(r)) : null, child: const Text('Wybierz')),
+              trailing: TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.loadTracklist(r)) : null, child: Text(tr('Wybierz'))),
             ),
           if (info != null) ...[
             const SizedBox(height: Sp.m),
-            Text('Zaznacz utwory z tego nagrania (jednej strony):', style: Ctl.label),
+            Text(tr('Zaznacz utwory z tego nagrania (jednej strony):'), style: Ctl.label),
             for (var i = 0; i < info.tracks.length; i++)
               _check(
                 '${info.tracks[i].number.isNotEmpty ? '${info.tracks[i].number}  ' : ''}${info.tracks[i].title}',
                 s.tracklistPicked[i],
                 idle ? (v) => s.pickTracklist(i, v) : null,
-                sub: info.tracks[i].durationMs > 0 ? ingestClock(info.tracks[i].durationMs) : 'bez czasu',
+                sub: info.tracks[i].durationMs > 0 ? ingestClock(info.tracks[i].durationMs) : tr('bez czasu'),
               ),
             const SizedBox(height: Sp.s),
-            FilledButton(style: Ctl.filled, onPressed: idle ? () => unawaited(s.applyTracklist()) : null, child: const Text('Ustaw znaczniki i tytuły według listy')),
+            FilledButton(style: Ctl.filled, onPressed: idle ? () => unawaited(s.applyTracklist()) : null, child: Text(tr('Ustaw znaczniki i tytuły według listy'))),
           ],
         ],
       ),
@@ -1148,7 +1142,7 @@ class _OffsetFieldState extends State<_OffsetField> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        'Zostaw puste: Mytify użyje wartości zapamiętanej dla napędu albo ustali ją z AccurateRip przy pierwszej płycie, która jest w bazie.',
+        tr('Zostaw puste: Mytify użyje wartości zapamiętanej dla napędu albo ustali ją z AccurateRip przy pierwszej płycie, która jest w bazie.'),
         style: Ctl.label,
       ),
       const SizedBox(height: Sp.s),
@@ -1160,7 +1154,7 @@ class _OffsetFieldState extends State<_OffsetField> {
           style: Ctl.fieldText,
           keyboardType: const TextInputType.numberWithOptions(signed: true),
           inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^-?\d{0,4}'))],
-          decoration: Ctl.field(hint: 'np. +6'),
+          decoration: Ctl.field(hint: tr('np. +6')),
           onChanged: (v) {
             widget.state.manualOffset = int.tryParse(v.replaceAll('+', ''));
             widget.state.changed();
@@ -1264,29 +1258,29 @@ class _WaveformEditorState extends State<WaveformEditor> {
           runSpacing: Sp.s,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text('Kursor ${markTime(s.cursorMs)}', style: Ctl.label.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
+            Text(tr('Kursor {0}', [markTime(s.cursorMs)]), style: Ctl.label.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
             OutlinedButton.icon(
               style: Ctl.outlined,
               onPressed: widget.enabled ? () => unawaited(s.preview(s.cursorMs)) : null,
               icon: const Icon(Icons.play_arrow_rounded, size: 18),
-              label: const Text('Odsłuchaj'),
+              label: Text(tr('Odsłuchaj')),
             ),
-            IconAction(Icons.stop_rounded, 'Zatrzymaj odsłuch', widget.enabled ? () => unawaited(s.stopPreview()) : null, color: secondaryText),
+            IconAction(Icons.stop_rounded, tr('Zatrzymaj odsłuch'), widget.enabled ? () => unawaited(s.stopPreview()) : null, color: secondaryText),
             OutlinedButton.icon(
               style: Ctl.outlined,
               onPressed: widget.enabled ? () => s.addMarker(s.cursorMs) : null,
               icon: const Icon(Icons.flag_outlined, size: 18),
-              label: const Text('Znacznik w kursorze'),
+              label: Text(tr('Znacznik w kursorze')),
             ),
             const SizedBox(width: Sp.m),
             Icon(Icons.zoom_in_rounded, size: 18, color: secondaryText),
             SizedBox(
               width: 140,
-              child: Slider(value: zoom, min: 1, max: 24, onChanged: (v) => setState(() => zoom = v), semanticFormatterCallback: (v) => 'Powiększenie ${v.round()}x'),
+              child: Slider(value: zoom, min: 1, max: 24, onChanged: (v) => setState(() => zoom = v), semanticFormatterCallback: (v) => tr('Powiększenie {0}x', [v.round()])),
             ),
           ],
         ),
-        Text('Kliknij, aby ustawić kursor. Dwuklik dodaje znacznik, przeciągnij znacznik, aby go przesunąć.', style: Ctl.label),
+        Text(tr('Kliknij, aby ustawić kursor. Dwuklik dodaje znacznik, przeciągnij znacznik, aby go przesunąć.'), style: Ctl.label),
         if (s.markers.isNotEmpty) ...[
           const SizedBox(height: Sp.s),
           Wrap(
@@ -1303,8 +1297,8 @@ class _WaveformEditorState extends State<WaveformEditor> {
                         }
                       : null,
                   onDeleted: widget.enabled ? () => s.removeMarker(i) : null,
-                  deleteButtonTooltipMessage: 'Usuń znacznik',
-                  tooltip: 'Odsłuchaj początek utworu ${i + 2}',
+                  deleteButtonTooltipMessage: tr('Usuń znacznik'),
+                  tooltip: tr('Odsłuchaj początek utworu {0}', [i + 2]),
                 ),
             ],
           ),

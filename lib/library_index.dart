@@ -1,5 +1,6 @@
 import 'model.dart';
 import 'playlists.dart';
+import 'l10n.dart';
 
 /// One album as the user sees it. Grouping matches Track.albumKey and Android Auto.
 class AlbumGroup {
@@ -34,7 +35,7 @@ String? qualityLabel(List<Track> tracks) {
   final depth = tracks.map((t) => t.bitDepth).reduce((a, b) => a < b ? a : b);
   final rate = tracks.map((t) => t.sampleRate).reduce((a, b) => a < b ? a : b);
   if (depth >= 24 && rate > 48000) return 'Hi-Res';
-  if (depth >= 16 && rate >= 44100) return 'Lossless';
+  if (depth >= 16 && rate >= 44100) return tr('Lossless');
   return null;
 }
 

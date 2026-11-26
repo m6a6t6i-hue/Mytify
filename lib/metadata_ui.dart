@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'design.dart';
 import 'model.dart';
 import 'cover_widget.dart';
+import 'l10n.dart';
 
 Future<bool?> editMusicMetadata(
   BuildContext context,
@@ -133,18 +134,18 @@ class _MetadataEditorState extends State<MetadataEditor> {
     final yes = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Przywrócić dane z plików?'),
+        title: Text(tr('Przywrócić dane z plików?')),
         content: Text(
-          'Własne poprawki i wybrane okładki zostaną cofnięte. Pliki na dysku zostaną bez zmian.',
+          tr('Własne poprawki i wybrane okładki zostaną cofnięte. Pliki na dysku zostaną bez zmian.'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: const Text('Anuluj'),
+            child: Text(tr('Anuluj')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: const Text('Przywróć'),
+            child: Text(tr('Przywróć')),
           ),
         ],
       ),
@@ -188,16 +189,16 @@ class _MetadataEditorState extends State<MetadataEditor> {
       keyboardType: numeric ? TextInputType.number : null,
       validator: (v) {
         if (required && (v ?? '').trim().isEmpty) {
-          return 'Wpisz tytuł';
+          return tr('Wpisz tytuł');
         }
         if (numeric) {
           final n = int.tryParse(v ?? '');
           if (n == null || n < 0 || n > 9999) {
-            return 'Wpisz liczbę od 0 do 9999';
+            return tr('Wpisz liczbę od 0 do 9999');
           }
         }
         if ((v ?? '').length > 500) {
-          return 'Maksymalnie 500 znaków';
+          return tr('Maksymalnie 500 znaków');
         }
         return null;
       },
@@ -209,7 +210,7 @@ class _MetadataEditorState extends State<MetadataEditor> {
     return PopScope(
       canPop: !busy,
       child: AlertDialog(
-        title: Text(widget.album ? 'Edytuj album' : 'Edytuj utwór'),
+        title: Text(widget.album ? tr('Edytuj album') : tr('Edytuj utwór')),
         content: SizedBox(
           width: 560,
           child: SingleChildScrollView(
@@ -220,20 +221,20 @@ class _MetadataEditorState extends State<MetadataEditor> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (!widget.album) ...[
-                    field('Tytuł', title, required: true),
-                    field('Wykonawca', artist),
+                    field(tr('Tytuł'), title, required: true),
+                    field(tr('Wykonawca'), artist),
                   ],
-                  field('Album', album),
-                  field('Wykonawca albumu', albumArtist),
+                  field(tr('Album'), album),
+                  field(tr('Wykonawca albumu'), albumArtist),
                   if (!widget.album)
                     Row(
                       children: [
                         Expanded(
-                          child: field('Numer utworu', number, numeric: true),
+                          child: field(tr('Numer utworu'), number, numeric: true),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: field('Numer płyty', disc, numeric: true),
+                          child: field(tr('Numer płyty'), disc, numeric: true),
                         ),
                       ],
                     ),
@@ -251,7 +252,7 @@ class _MetadataEditorState extends State<MetadataEditor> {
                             OutlinedButton.icon(
                               onPressed: busy ? null : cover,
                               icon: const Icon(Icons.image_outlined),
-                              label: const Text('Wybierz okładkę'),
+                              label: Text(tr('Wybierz okładkę')),
                             ),
                             TextButton(
                               onPressed: busy
@@ -260,7 +261,7 @@ class _MetadataEditorState extends State<MetadataEditor> {
                                       removeCover = true;
                                       chosen = null;
                                     }),
-                              child: const Text('Usuń okładkę'),
+                              child: Text(tr('Usuń okładkę')),
                             ),
                           ],
                         ),
@@ -283,7 +284,7 @@ class _MetadataEditorState extends State<MetadataEditor> {
                   if (widget.tracks.any((t) => t.edited))
                     TextButton(
                       onPressed: busy ? null : reset,
-                      child: const Text('Przywróć dane z plików'),
+                      child: Text(tr('Przywróć dane z plików')),
                     ),
                 ],
               ),
@@ -293,11 +294,11 @@ class _MetadataEditorState extends State<MetadataEditor> {
         actions: [
           TextButton(
             onPressed: busy ? null : () => Navigator.pop(context, false),
-            child: const Text('Anuluj'),
+            child: Text(tr('Anuluj')),
           ),
           FilledButton(
             onPressed: busy ? null : save,
-            child: const Text('Zapisz poprawki'),
+            child: Text(tr('Zapisz poprawki')),
           ),
         ],
       ),
@@ -414,7 +415,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
           cover = r;
           applyCover = r != null;
           coverError = r == null
-              ? 'Dla tego wydania nie znaleziono przedniej okładki.'
+              ? tr('Dla tego wydania nie znaleziono przedniej okładki.')
               : null;
         });
       }
@@ -460,7 +461,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
         patch['cover'] = cover!.hash;
       }
       if (patch.isNotEmpty) {
-        patch.addAll({'source': 'MusicBrainz', 'releaseId': r.release.id});
+        patch.addAll({'source': tr('MusicBrainz'), 'releaseId': r.release.id});
         list.add(MetadataEdit(t.id, patch));
       }
     }
@@ -519,8 +520,8 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                     Expanded(
                       child: Text(
                         info == null
-                            ? 'Znajdź wydanie albumu'
-                            : 'Sprawdź propozycje',
+                            ? tr('Znajdź wydanie albumu')
+                            : tr('Sprawdź propozycje'),
                         style: const TextStyle(
                           fontSize: 23,
                           fontWeight: FontWeight.w700,
@@ -528,7 +529,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Zamknij dopasowanie',
+                      tooltip: tr('Zamknij dopasowanie'),
                       onPressed: busy
                           ? null
                           : () => Navigator.pop(context, false),
@@ -543,15 +544,15 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   children: [
                     if (info == null) ...[
-                      const Text(
-                        'Wpisane nazwy trafią do MusicBrainz. Katalog zmieni się dopiero po zapisaniu.',
+                      Text(
+                        tr('Wpisane nazwy trafią do MusicBrainz. Katalog zmieni się dopiero po zapisaniu.'),
                       ),
                       const SizedBox(height: 18),
                       TextField(
                         controller: album,
                         enabled: !busy,
-                        decoration: const InputDecoration(
-                          labelText: 'Nazwa albumu',
+                        decoration: InputDecoration(
+                          labelText: tr('Nazwa albumu'),
                         ),
                         onSubmitted: busy ? null : (_) => search(),
                       ),
@@ -559,8 +560,8 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                       TextField(
                         controller: artist,
                         enabled: !busy,
-                        decoration: const InputDecoration(
-                          labelText: 'Wykonawca (opcjonalnie)',
+                        decoration: InputDecoration(
+                          labelText: tr('Wykonawca (opcjonalnie)'),
                         ),
                         onSubmitted: busy ? null : (_) => search(),
                       ),
@@ -570,13 +571,13 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                         child: FilledButton.icon(
                           onPressed: busy ? null : search,
                           icon: const Icon(Icons.search),
-                          label: const Text('Szukaj w MusicBrainz'),
+                          label: Text(tr('Szukaj w MusicBrainz')),
                         ),
                       ),
                       const SizedBox(height: 16),
                       if (searched && results.isEmpty && !busy)
-                        const Text(
-                          'Brak wydań. Spróbuj krótszej nazwy lub usuń wykonawcę.',
+                        Text(
+                          tr('Brak wydań. Spróbuj krótszej nazwy lub usuń wykonawcę.'),
                         ),
                       ...results.map(
                         (r) => Card(
@@ -584,7 +585,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                             isThreeLine: true,
                             title: Text(r.title),
                             subtitle: Text(
-                              '${r.description}\nTrafność wyszukiwania: ${r.score}/100',
+                              tr('{0}\nTrafność wyszukiwania: {1}/100', [r.description, r.score]),
                             ),
                             trailing: const Icon(Icons.chevron_right),
                             onTap: busy ? null : () => select(r),
@@ -597,7 +598,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                             ? null
                             : () => setState(() => detail = null),
                         icon: const Icon(Icons.arrow_back),
-                        label: const Text('Inne wydania'),
+                        label: Text(tr('Inne wydania')),
                       ),
                       Text(
                         info.release.title,
@@ -609,31 +610,31 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                       const SizedBox(height: 6),
                       Text(info.release.description),
                       if (info.release.barcode.isNotEmpty)
-                        Text('Kod kreskowy: ${info.release.barcode}'),
+                        Text(tr('Kod kreskowy: {0}', [info.release.barcode])),
                       const SizedBox(height: 6),
                       SelectableText(
-                        'MusicBrainz: ${info.release.id}',
+                        tr('MusicBrainz: {0}', [info.release.id]),
                         style: const TextStyle(fontSize: 11),
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Twoja biblioteka: ${collectionCount(widget.tracks.length, 'utwór', 'utwory', 'utworów')} · wydanie: ${collectionCount(info.tracks.length, 'utwór', 'utwory', 'utworów')}',
+                        tr('Twoja biblioteka: {0} · wydanie: {1}', [collectionCount(widget.tracks.length, tr('utwór'), 'utwory', tr('utworów')), collectionCount(info.tracks.length, tr('utwór'), 'utwory', tr('utworów'))]),
                       ),
                       if (widget.tracks.length != info.tracks.length)
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.only(top: 8),
                           child: Text(
-                            'Liczba utworów się różni. Sprawdź dopasowanie.',
+                            tr('Liczba utworów się różni. Sprawdź dopasowanie.'),
                             style: TextStyle(color: Colors.amber),
                           ),
                         ),
                       check(
-                        'Uzupełnij nazwę i wykonawcę albumu',
+                        tr('Uzupełnij nazwę i wykonawcę albumu'),
                         applyAlbum,
                         (v) => setState(() => applyAlbum = v!),
                       ),
-                      const Text(
-                        'Nazwa i wykonawca albumu powyżej.',
+                      Text(
+                        tr('Nazwa i wykonawca albumu powyżej.'),
                       ),
                       const Divider(),
                       Wrap(
@@ -646,7 +647,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                           OutlinedButton.icon(
                             onPressed: busy ? null : fetchCover,
                             icon: const Icon(Icons.image_search),
-                            label: const Text('Pobierz okładkę z CAA'),
+                            label: Text(tr('Pobierz okładkę z CAA')),
                           ),
                         ],
                       ),
@@ -657,19 +658,19 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                         ),
                       if (cover != null)
                         check(
-                          'Zastosuj pobraną okładkę',
+                          tr('Zastosuj pobraną okładkę'),
                           applyCover,
                           (v) => setState(() => applyCover = v!),
                         ),
                       const Divider(),
                       check(
-                        'Uzupełnij tytuły i wykonawców utworów',
+                        tr('Uzupełnij tytuły i wykonawców utworów'),
                         applyTitles,
                         (v) => setState(() => applyTitles = v!),
                       ),
                       if (applyTitles) ...[
-                        const Text(
-                          'Wybierz odpowiadającą ścieżkę. Bez dopasowania tytuł zostaje.',
+                        Text(
+                          tr('Wybierz odpowiadającą ścieżkę. Bez dopasowania tytuł zostaje.'),
                         ),
                         const SizedBox(height: 12),
                         ...widget.tracks.indexed.map((pair) {
@@ -695,12 +696,12 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                                   initialValue: mapping[i],
                                   isExpanded: true,
                                   decoration: InputDecoration(
-                                    labelText: 'Dopasowanie ${i + 1}',
+                                    labelText: tr('Dopasowanie {0}', [i + 1]),
                                   ),
                                   items: [
-                                    const DropdownMenuItem(
+                                    DropdownMenuItem(
                                       value: -1,
-                                      child: Text('Zachowaj obecne dane'),
+                                      child: Text(tr('Zachowaj obecne dane')),
                                     ),
                                     ...info.tracks.indexed.map(
                                       (s) => DropdownMenuItem(
@@ -723,16 +724,16 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                       ],
                       if (widget.tracks.any((t) => t.edited))
                         check(
-                          'Zastąp także własne poprawki',
+                          tr('Zastąp także własne poprawki'),
                           overwrite,
                           (v) => setState(() => overwrite = v!),
                         ),
                       Text(
-                        'Zmiany: ${edits.length} z ${widget.tracks.length}. Własne poprawki są chronione.',
+                        tr('Zmiany: {0} z {1}. Własne poprawki są chronione.', [edits.length, widget.tracks.length]),
                       ),
                       const SizedBox(height: 12),
-                      const Text(
-                        'Dane: MusicBrainz · Okładki: Cover Art Archive',
+                      Text(
+                        tr('Dane: MusicBrainz · Okładki: Cover Art Archive'),
                         style: TextStyle(fontSize: 11),
                       ),
                     ],
@@ -756,14 +757,14 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                       onPressed: busy
                           ? null
                           : () => Navigator.pop(context, false),
-                      child: const Text('Anuluj'),
+                      child: Text(tr('Anuluj')),
                     ),
                     const Spacer(),
                     if (info != null)
                       Flexible(
                         child: FilledButton(
                           onPressed: busy || edits.isEmpty ? null : apply,
-                          child: const Text('Zapisz wybrane propozycje'),
+                          child: Text(tr('Zapisz wybrane propozycje')),
                         ),
                       ),
                   ],

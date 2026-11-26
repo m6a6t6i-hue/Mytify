@@ -81,7 +81,7 @@ class Widget : AppWidgetProvider() {
                 setTextViewText(R.id.widget_title, state?.title?.ifEmpty { null } ?: "Mytify")
                 setTextViewText(
                     R.id.widget_artist,
-                    if (state == null) "Nic nie gra. Dotknij, aby otworzyć." else state.artist,
+                    if (state == null) Lang.t("Nic nie gra. Dotknij, aby otworzyć.") else state.artist,
                 )
                 if (art != null) setImageViewBitmap(R.id.widget_cover, art)
                 else setImageViewResource(R.id.widget_cover, R.drawable.widget_cover_empty)
@@ -89,7 +89,7 @@ class Widget : AppWidgetProvider() {
                     R.id.widget_toggle,
                     if (state?.playing == true) R.drawable.widget_pause else R.drawable.widget_play,
                 )
-                setContentDescription(R.id.widget_toggle, if (state?.playing == true) "Pauza" else "Odtwarzaj")
+                setContentDescription(R.id.widget_toggle, if (state?.playing == true) Lang.t("Pauza") else Lang.t("Odtwarzaj"))
                 setOnClickPendingIntent(R.id.widget_previous, action(c, PREVIOUS, 1))
                 setOnClickPendingIntent(R.id.widget_toggle, action(c, TOGGLE, 2))
                 setOnClickPendingIntent(R.id.widget_next, action(c, NEXT, 3))

@@ -9,6 +9,7 @@ import 'library_index.dart';
 import 'main.dart';
 import 'model.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 
 /// Rebuilds on every player snapshot (position, state, device).
 class PlayerListener extends StatelessWidget {
@@ -74,7 +75,7 @@ class TransportControls extends StatelessWidget {
         if (showModes) ...[
           IconAction(
             Icons.shuffle_rounded,
-            app.queue.shuffled ? 'Wyłącz losowanie' : 'Losowa kolejność',
+            app.queue.shuffled ? tr('Wyłącz losowanie') : tr('Losowa kolejność'),
             has ? () => unawaited(app.toggleShuffle()) : null,
             active: app.queue.shuffled,
             size: icon - 2,
@@ -85,7 +86,7 @@ class TransportControls extends StatelessWidget {
         ],
         IconAction(
           Icons.skip_previous_rounded,
-          'Poprzedni utwór',
+          tr('Poprzedni utwór'),
           has ? () => unawaited(app.previousTrack()) : null,
           size: icon + 4,
           box: box,
@@ -101,7 +102,7 @@ class TransportControls extends StatelessWidget {
         SizedBox(width: gap),
         IconAction(
           Icons.skip_next_rounded,
-          'Następny utwór',
+          tr('Następny utwór'),
           has ? () => unawaited(app.nextTrack()) : null,
           size: icon + 4,
           box: box,
@@ -110,7 +111,7 @@ class TransportControls extends StatelessWidget {
           SizedBox(width: gap),
           IconAction(
             Icons.repeat_rounded,
-            app.queue.repeat ? 'Wyłącz powtarzanie' : 'Powtarzaj kolejkę',
+            app.queue.repeat ? tr('Wyłącz powtarzanie') : tr('Powtarzaj kolejkę'),
             () => unawaited(app.toggleRepeat()),
             active: app.queue.repeat,
             size: icon - 2,
@@ -135,7 +136,7 @@ class DeviceButton extends StatelessWidget {
     return Builder(
       builder: (context) => IconAction(
         remote ? Icons.speaker_group_rounded : Icons.speaker_group_outlined,
-        remote && name != null ? 'Odtwarzanie: $name' : 'Połącz z urządzeniem',
+        remote && name != null ? tr('Odtwarzanie: {0}', [name]) : tr('Połącz z urządzeniem'),
         () {
           final box = context.findRenderObject() as RenderBox?;
           app.showDevices(at: box?.localToGlobal(box.size.topCenter(Offset.zero)));
@@ -184,7 +185,7 @@ class PlayerBar extends StatelessWidget {
                   : Row(
                       children: [
                         Tooltip(
-                          message: 'Teraz odtwarzane',
+                          message: tr('Teraz odtwarzane'),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(Rad.coverSmall),
                             onTap: () => onPanel('now'),
@@ -258,7 +259,7 @@ class PlayerBar extends StatelessWidget {
                         : app.volume < 50
                         ? Icons.volume_down_rounded
                         : Icons.volume_up_rounded,
-                    app.volume <= 0 ? 'Przywróć dźwięk' : 'Wycisz',
+                    app.volume <= 0 ? tr('Przywróć dźwięk') : tr('Wycisz'),
                     app.volumeAvailable ? () => unawaited(app.toggleMute()) : null,
                     color: secondaryText,
                   ),
@@ -276,7 +277,7 @@ class PlayerBar extends StatelessWidget {
                     ),
                   IconAction(
                     Icons.queue_music_rounded,
-                    'Kolejka',
+                    tr('Kolejka'),
                     () => onPanel('queue'),
                     active: panelOpen && panelTab == 'queue',
                     color: panelOpen && panelTab == 'queue' ? accent : secondaryText,
@@ -284,7 +285,7 @@ class PlayerBar extends StatelessWidget {
                   if (!compact)
                     IconAction(
                       Icons.view_sidebar_outlined,
-                      panelOpen ? 'Zamknij panel' : 'Otwórz panel',
+                      panelOpen ? tr('Zamknij panel') : tr('Otwórz panel'),
                       () => onPanel(''),
                       active: panelOpen,
                       color: panelOpen ? accent : secondaryText,
@@ -292,21 +293,21 @@ class PlayerBar extends StatelessWidget {
                   if (!compact)
                     IconAction(
                       Icons.blur_on_rounded,
-                      'Wizualizacja (Ctrl+Shift+V)',
+                      tr('Wizualizacja (Ctrl+Shift+V)'),
                       app.openVisualizer,
                       color: secondaryText,
                     ),
                   if (app.canFloat)
                     IconAction(
                       Icons.picture_in_picture_alt_outlined,
-                      'Mini odtwarzacz (Ctrl+M)',
+                      tr('Mini odtwarzacz (Ctrl+M)'),
                       app.toggleFloating,
                       color: secondaryText,
                       size: 18,
                     ),
                   IconAction(
                     Icons.open_in_full_rounded,
-                    'Pełny ekran (F11)',
+                    tr('Pełny ekran (F11)'),
                     t == null ? null : app.openNowPlaying,
                     color: secondaryText,
                     size: 18,
@@ -353,10 +354,10 @@ class SidePanel extends StatelessWidget {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          for (final (key, label) in const [
-                            ('now', 'Odtwarzane'),
-                            ('queue', 'Kolejka'),
-                            ('info', 'Informacje'),
+                          for (final (key, label) in [
+                            ('now', tr('Odtwarzane')),
+                            ('queue', tr('Kolejka')),
+                            ('info', tr('Informacje')),
                           ])
                             Padding(
                               padding: const EdgeInsets.only(right: 2),
@@ -375,7 +376,7 @@ class SidePanel extends StatelessWidget {
                       ),
                     ),
                   ),
-                  IconAction(Icons.close_rounded, 'Zamknij panel', onClose, size: 18, color: secondaryText),
+                  IconAction(Icons.close_rounded, tr('Zamknij panel'), onClose, size: 18, color: secondaryText),
                 ],
               ),
             ),
@@ -392,7 +393,7 @@ class SidePanel extends StatelessWidget {
                 child: switch (tab) {
                   'queue' => QueueList(app: app),
                   'info' => t == null
-                      ? const EmptyState(icon: Icons.info_outline_rounded, text: 'Nic nie jest odtwarzane')
+                      ? EmptyState(icon: Icons.info_outline_rounded, text: tr('Nic nie jest odtwarzane'))
                       : PlayerListener(
                           app: app,
                           builder: (context, s) => SingleChildScrollView(
@@ -418,7 +419,7 @@ class NowPlayingPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = app.current;
     if (t == null) {
-      return const EmptyState(icon: Icons.music_note_rounded, text: 'Nic nie jest odtwarzane');
+      return EmptyState(icon: Icons.music_note_rounded, text: tr('Nic nie jest odtwarzane'));
     }
     final album = app.index.albumByKey[t.albumKey];
     return LayoutBuilder(
@@ -501,22 +502,22 @@ class TrackFacts extends StatelessWidget {
     // Lossy files: bit rate is estimated from size and length (the cover counts too).
     final quality = [
       formatLabel(t),
-      if (lossless(t.format) && t.bitDepth > 0) '${t.bitDepth} bit',
-      if (!lossless(t.format) && bitrateLabel(t) != null) 'ok. ${bitrateLabel(t)}',
+      if (lossless(t.format) && t.bitDepth > 0) tr('{0} bit', [t.bitDepth]),
+      if (!lossless(t.format) && bitrateLabel(t) != null) tr('ok. {0}', [bitrateLabel(t)]),
       if (t.sampleRate > 0) sampleRateLabel(t.sampleRate),
     ].join(' · ');
     final rows = <(String, String)>[
-      ('Wykonawca', t.displayArtist),
-      ('Album', t.displayAlbum),
-      if (t.trackNumber > 0) ('Utwór', t.discNumber > 1 ? 'płyta ${t.discNumber}, nr ${t.trackNumber}' : 'nr ${t.trackNumber}'),
-      ('Jakość', quality),
-      if (t.durationMs > 0) ('Długość', clock(t.durationMs)),
-      ('Rozmiar', '${(t.size / 1024 / 1024).toStringAsFixed(1).replaceAll('.', ',')} MB'),
-      ('Plik', t.remote ? (t.offline ? '${t.fileName}\nz serwera, pobrany na urządzenie' : '${t.fileName}\nna serwerze w sieci') : t.fileName),
-      if (added != null) ('Dodano', '${added.day}.${added.month.toString().padLeft(2, '0')}.${added.year}'),
+      (tr('Wykonawca'), t.displayArtist),
+      (tr('Album'), t.displayAlbum),
+      if (t.trackNumber > 0) (tr('Utwór'), t.discNumber > 1 ? tr('płyta {0}, nr {1}', [t.discNumber, t.trackNumber]) : 'nr ${t.trackNumber}'),
+      (tr('Jakość'), quality),
+      if (t.durationMs > 0) (tr('Długość'), clock(t.durationMs)),
+      (tr('Rozmiar'), '${(t.size / 1024 / 1024).toStringAsFixed(1).replaceAll('.', ',')} MB'),
+      (tr('Plik'), t.remote ? (t.offline ? tr('{0}\nz serwera, pobrany na urządzenie', [t.fileName]) : tr('{0}\nna serwerze w sieci', [t.fileName])) : t.fileName),
+      if (added != null) (tr('Dodano'), '${added.day}.${added.month.toString().padLeft(2, '0')}.${added.year}'),
       // Only when the PC engine really converts the signal for the output device.
       if (live && outRate > 0 && t.sampleRate > 0 && outRate != t.sampleRate)
-        ('Odtwarzanie', 'konwersja ${sampleRateLabel(t.sampleRate)} → ${sampleRateLabel(outRate)}'),
+        (tr('Odtwarzanie'), tr('konwersja {0} → {1}', [sampleRateLabel(t.sampleRate), sampleRateLabel(outRate)])),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -549,7 +550,7 @@ class TrackInfoDialog extends StatelessWidget {
       child: SingleChildScrollView(child: TrackFacts(track: track, snapshot: snapshot)),
     ),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Zamknij')),
+      TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Zamknij'))),
     ],
   );
 }
@@ -563,7 +564,7 @@ class QueueList extends StatelessWidget {
     final items = app.queue.items;
     final at = app.queue.index;
     if (items.isEmpty) {
-      return const EmptyState(icon: Icons.queue_music_rounded, text: 'Kolejka jest pusta');
+      return EmptyState(icon: Icons.queue_music_rounded, text: tr('Kolejka jest pusta'));
     }
     final upcoming = items.length - at - 1;
     return Column(
@@ -575,7 +576,7 @@ class QueueList extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  upcoming > 0 ? 'Następne: ${trackCount(upcoming)}' : 'To ostatni utwór',
+                  upcoming > 0 ? tr('Następne: {0}', [trackCount(upcoming)]) : tr('To ostatni utwór'),
                   style: Txt.meta,
                 ),
               ),
@@ -583,7 +584,7 @@ class QueueList extends StatelessWidget {
                 TextButton(
                   onPressed: () => unawaited(app.clearUpcoming()),
                   style: TextButton.styleFrom(foregroundColor: secondaryText),
-                  child: const Text('Wyczyść'),
+                  child: Text(tr('Wyczyść')),
                 ),
             ],
           ),
@@ -671,7 +672,7 @@ class QueueList extends StatelessWidget {
                         else
                           IconAction(
                             Icons.close_rounded,
-                            'Usuń z kolejki',
+                            tr('Usuń z kolejki'),
                             () => unawaited(app.removeFromQueue(t.id)),
                             size: 16,
                             box: 32,
@@ -707,9 +708,9 @@ void showQueueSheet(LibraryScreenState app) => showModalBottomSheet<void>(
         builder: (context, _) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(Sp.l, 0, Sp.l, Sp.s),
-              child: Text('Kolejka', style: Txt.title),
+              child: Text(tr('Kolejka'), style: Txt.title),
             ),
             Expanded(child: QueueList(app: app)),
             SizedBox(height: MediaQuery.viewPaddingOf(context).bottom),
@@ -784,7 +785,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   cover: t?.cover,
                   child: SafeArea(
                     child: t == null
-                        ? const EmptyState(icon: Icons.music_note_rounded, text: 'Nic nie jest odtwarzane')
+                        ? EmptyState(icon: Icons.music_note_rounded, text: tr('Nic nie jest odtwarzane'))
                         : GestureDetector(
                             onVerticalDragEnd: desktop
                                 ? null
@@ -807,7 +808,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _top(BuildContext context, LibraryScreenState app, Track t) => Row(
     children: [
-      IconAction(Icons.keyboard_arrow_down_rounded, 'Zamknij', () => Navigator.maybePop(context), size: 28, box: 48),
+      IconAction(Icons.keyboard_arrow_down_rounded, tr('Zamknij'), () => Navigator.maybePop(context), size: 28, box: 48),
       Expanded(
         child: Text(
           t.album.isEmpty ? '' : t.album,
@@ -817,10 +818,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           style: Txt.meta.copyWith(color: primaryText.withValues(alpha: .8)),
         ),
       ),
-      IconAction(Icons.blur_on_rounded, 'Wizualizacja', app.openVisualizer, size: 24, box: 48),
+      IconAction(Icons.blur_on_rounded, tr('Wizualizacja'), app.openVisualizer, size: 24, box: 48),
       IconAction(
         Icons.more_horiz_rounded,
-        'Więcej',
+        tr('Więcej'),
         () => unawaited(app.trackMenu(t, at: const Offset(9999, 60))),
         size: 24,
         box: 48,
@@ -875,7 +876,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             children: [
                               DeviceButton(app: app, size: 22),
                               const Spacer(),
-                              IconAction(Icons.queue_music_rounded, 'Kolejka', () => showQueueSheet(app), color: secondaryText),
+                              IconAction(Icons.queue_music_rounded, tr('Kolejka'), () => showQueueSheet(app), color: secondaryText),
                             ],
                           ),
                         ],
@@ -911,8 +912,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             children: [
               DeviceButton(app: app, size: 22),
               const Spacer(),
-              IconAction(Icons.info_outline_rounded, 'Informacje o utworze', () => app.showTrackInfo(t), color: secondaryText),
-              IconAction(Icons.queue_music_rounded, 'Kolejka', () => showQueueSheet(app), color: secondaryText),
+              IconAction(Icons.info_outline_rounded, tr('Informacje o utworze'), () => app.showTrackInfo(t), color: secondaryText),
+              IconAction(Icons.queue_music_rounded, tr('Kolejka'), () => showQueueSheet(app), color: secondaryText),
             ],
           ),
           const SizedBox(height: Sp.s),
@@ -1019,7 +1020,7 @@ class MiniPlayer extends StatelessWidget {
                           ),
                           DeviceButton(app: app, size: 22),
                           IconButton(
-                            tooltip: app.playing ? 'Wstrzymaj' : 'Odtwórz',
+                            tooltip: app.playing ? tr('Wstrzymaj') : tr('Odtwórz'),
                             onPressed: () {
                               HapticFeedback.selectionClick();
                               unawaited(app.togglePlay());

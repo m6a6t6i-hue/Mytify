@@ -10,6 +10,7 @@ import 'audio_player.dart';
 import 'design.dart';
 import 'library_index.dart';
 import 'model.dart';
+import 'l10n.dart';
 
 bool isDesktopLayout(BuildContext context) =>
     MediaQuery.sizeOf(context).width >= 840;
@@ -120,7 +121,7 @@ class LikeButton extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) => IconButton(
-    tooltip: liked ? 'Usuń z polubionych' : 'Polub',
+    tooltip: liked ? tr('Usuń z polubionych') : tr('Polub'),
     onPressed: onPressed,
     padding: EdgeInsets.zero,
     constraints: BoxConstraints.tightFor(width: box, height: box),
@@ -167,7 +168,7 @@ class SectionHeader extends StatelessWidget {
           TextButton(
             onPressed: onMore,
             style: TextButton.styleFrom(foregroundColor: secondaryText),
-            child: const Text('Zobacz wszystkie'),
+            child: Text(tr('Zobacz wszystkie')),
           ),
       ],
     ),
@@ -330,7 +331,7 @@ class CollectionCard extends StatelessWidget {
                               shape: const CircleBorder(),
                               elevation: 4,
                               child: IconButton(
-                                tooltip: 'Odtwórz',
+                                tooltip: tr('Odtwórz'),
                                 onPressed: onPlay,
                                 color: onAccent,
                                 icon: const Icon(Icons.play_arrow_rounded),
@@ -637,7 +638,7 @@ class _SeekBarState extends State<SeekBar>
             onHorizontalDragEnd: (_) => _commit(total),
             child: Semantics(
               slider: true,
-              label: 'Postęp utworu',
+              label: tr('Postęp utworu'),
               value: clock(widget.position.inMilliseconds),
               child: track,
             ),
@@ -938,12 +939,12 @@ String clock(int ms) {
 
 String longDuration(int ms) {
   final minutes = (ms / 60000).round();
-  if (minutes < 60) return '$minutes min';
-  return '${minutes ~/ 60} godz. ${minutes % 60} min';
+  if (minutes < 60) return tr('{0} min', [minutes]);
+  return tr('{0} godz. {1} min', [minutes ~/ 60, minutes % 60]);
 }
 
-String trackCount(int n) => collectionCount(n, 'utwór', 'utwory', 'utworów');
-String albumCount(int n) => collectionCount(n, 'album', 'albumy', 'albumów');
+String trackCount(int n) => collectionCount(n, tr('utwór'), 'utwory', tr('utworów'));
+String albumCount(int n) => collectionCount(n, 'album', 'albumy', tr('albumów'));
 
 class MenuEntry {
   final String label;
@@ -1095,7 +1096,7 @@ Future<String?> askName(
   BuildContext context, {
   required String title,
   String initial = '',
-  String action = 'Zapisz',
+  String action = tr('Zapisz'),
 }) {
   final controller = TextEditingController(text: initial);
   return showDialog<String>(
@@ -1108,14 +1109,14 @@ Future<String?> askName(
           controller: controller,
           autofocus: true,
           maxLength: 80,
-          decoration: const InputDecoration(hintText: 'Nazwa'),
+          decoration: InputDecoration(hintText: tr('Nazwa')),
           onSubmitted: (v) => Navigator.pop(context, v.trim()),
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Anuluj'),
+          child: Text(tr('Anuluj')),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(context, controller.text.trim()),
@@ -1141,7 +1142,7 @@ Future<bool> confirm(
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Anuluj'),
+            child: Text(tr('Anuluj')),
           ),
           FilledButton(
             style: destructive
@@ -1208,17 +1209,17 @@ String formatLabel(Track t) => t.format.toUpperCase();
 String? bitrateLabel(Track t) {
   if (t.durationMs <= 0 || t.size <= 0) return null;
   final kbps = (t.size * 8 / t.durationMs).round();
-  return '$kbps kb/s';
+  return tr('{0} kb/s', [kbps]);
 }
 
 String sampleRateLabel(int hz) => hz <= 0
-    ? 'brak danych'
+    ? tr('brak danych')
     : hz % 1000 == 0
-    ? '${hz ~/ 1000} kHz'
-    : '${(hz / 1000).toStringAsFixed(1).replaceAll('.', ',')} kHz';
+    ? tr('{0} kHz', [hz ~/ 1000])
+    : tr('{0} kHz', [(hz / 1000).toStringAsFixed(1).replaceAll('.', ',')]);
 
 String? bitDepthLabel(Track t) =>
-    lossless(t.format) && t.bitDepth > 0 ? '${t.bitDepth} bit' : null;
+    lossless(t.format) && t.bitDepth > 0 ? tr('{0} bit', [t.bitDepth]) : null;
 
 /// Section heading with a hairline to the right ("Wyjście ———").
 class SectionTitle extends StatelessWidget {
@@ -1404,9 +1405,9 @@ class LevelBars extends StatefulWidget {
   final bool playing;
   final int count;
   final double width, height;
-  final Color? _color;
-  Color get color => _color ?? accent;
-  const LevelBars({super.key, required this.playing, this.count = 4, this.width = 16, this.height = 14, Color? color}) : _color = color;
+  final Color? color;
+  Color get tone => color ?? accent;
+  const LevelBars({super.key, required this.playing, this.count = 4, this.width = 16, this.height = 14, this.color});
   @override
   State<LevelBars> createState() => _LevelBarsState();
 }
@@ -1463,7 +1464,7 @@ class _LevelBarsState extends State<LevelBars> with SingleTickerProviderStateMix
     child: SizedBox(
       width: widget.width,
       height: widget.height,
-      child: CustomPaint(painter: _BarsPainter(eq, widget.count, widget.color)),
+      child: CustomPaint(painter: _BarsPainter(eq, widget.count, widget.tone)),
     ),
   );
 }

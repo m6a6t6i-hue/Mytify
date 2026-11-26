@@ -7,6 +7,7 @@ import 'library_index.dart';
 import 'main.dart';
 import 'model.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 
 /// Title and artist reduced to letters and digits: "Ballada (Remastered 2011)" and
 /// "ballada" stay different on purpose, only case, accents and punctuation are ignored.
@@ -56,12 +57,12 @@ int betterCopy(Track a, Track b) {
 
 /// What an album is missing, from the catalog itself (no guessing).
 List<String> albumIssues(AlbumGroup a) => [
-  if (a.tracks.every((t) => t.album.trim().isEmpty)) 'bez nazwy albumu',
-  if (a.tracks.every((t) => t.artist.trim().isEmpty && t.albumArtist.trim().isEmpty)) 'bez wykonawcy',
-  if (a.tracks.every((t) => t.cover == null)) 'bez okładki',
-  if (a.tracks.length > 1 && a.tracks.any((t) => t.trackNumber == 0)) 'bez numerów utworów',
+  if (a.tracks.every((t) => t.album.trim().isEmpty)) tr('bez nazwy albumu'),
+  if (a.tracks.every((t) => t.artist.trim().isEmpty && t.albumArtist.trim().isEmpty)) tr('bez wykonawcy'),
+  if (a.tracks.every((t) => t.cover == null)) tr('bez okładki'),
+  if (a.tracks.length > 1 && a.tracks.any((t) => t.trackNumber == 0)) tr('bez numerów utworów'),
   if (a.tracks.length > 1 && a.tracks.map((t) => t.trackNumber).where((n) => n > 0).toSet().length < a.tracks.where((t) => t.trackNumber > 0).length)
-    'powtórzone numery',
+    tr('powtórzone numery'),
 ];
 
 class CleanupPage extends StatefulWidget {
@@ -107,9 +108,9 @@ class _CleanupPageState extends State<CleanupPage> {
       key: const PageStorageKey('cleanup'),
       padding: desktop ? const EdgeInsets.fromLTRB(Sp.xl, Sp.xl, Sp.xl, Sp.xxl) : const EdgeInsets.all(Sp.l),
       children: [
-        if (desktop) ...[const Text('Porządki w bibliotece', style: Txt.display), const SizedBox(height: Sp.l)],
+        if (desktop) ...[Text(tr('Porządki w bibliotece'), style: Txt.display), const SizedBox(height: Sp.l)],
         TextTabs(
-          labels: ['Duplikaty (${duplicates.length})', 'Albumy z brakami (${albums.length})'],
+          labels: [tr('Duplikaty ({0})', [duplicates.length]), tr('Albumy z brakami ({0})', [albums.length])],
           index: tab,
           onChanged: (v) => setState(() => tab = v),
         ),
@@ -121,12 +122,12 @@ class _CleanupPageState extends State<CleanupPage> {
 
   List<Widget> _duplicates(List<List<Track>> groups) {
     if (groups.isEmpty) {
-      return [const EmptyState(icon: Icons.check_circle_outline_rounded, text: 'Brak duplikatów: każdy utwór jest w bibliotece raz.')];
+      return [EmptyState(icon: Icons.check_circle_outline_rounded, text: tr('Brak duplikatów: każdy utwór jest w bibliotece raz.'))];
     }
     final extra = groups.fold(0, (n, g) => n + g.length - 1);
     return [
       Text(
-        'Ten sam wykonawca, tytuł i długość (do 3 s różnicy). Pierwsza jest najlepsza kopia.',
+        tr('Ten sam wykonawca, tytuł i długość (do 3 s różnicy). Pierwsza jest najlepsza kopia.'),
         style: Txt.meta,
       ),
       const SizedBox(height: Sp.m),
@@ -136,7 +137,7 @@ class _CleanupPageState extends State<CleanupPage> {
           OutlinedButton(
             style: Ctl.outlined,
             onPressed: () => unawaited(app.removeTracks([for (final g in groups) ...g.skip(1)])),
-            child: Text('Zostaw najlepsze kopie (usuń $extra)'),
+            child: Text(tr('Zostaw najlepsze kopie (usuń {0})', [extra])),
           ),
         ],
       ),
@@ -151,11 +152,11 @@ class _CleanupPageState extends State<CleanupPage> {
             title: Text(g[i].displayAlbum, maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: Text(
               [
-                if (i == 0) 'najlepsza kopia',
+                if (i == 0) tr('najlepsza kopia'),
                 g[i].format.toUpperCase(),
-                if (g[i].bitDepth > 0 && g[i].sampleRate > 0) '${g[i].bitDepth} bit / ${(g[i].sampleRate / 1000).toString().replaceAll('.', ',')} kHz',
+                if (g[i].bitDepth > 0 && g[i].sampleRate > 0) tr('{0} bit / {1} kHz', [g[i].bitDepth, (g[i].sampleRate / 1000).toString().replaceAll('.', ',')]),
                 if (g[i].durationMs > 0) clock(g[i].durationMs),
-                if (!g[i].available) 'niedostępny',
+                if (!g[i].available) tr('niedostępny'),
                 g[i].fileName,
               ].where((x) => x.isNotEmpty).join(' · '),
               style: Txt.meta,
@@ -165,8 +166,8 @@ class _CleanupPageState extends State<CleanupPage> {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconAction(Icons.play_arrow_rounded, 'Odtwórz', () => unawaited(app.playTracks([g[i]])), color: secondaryText),
-                IconAction(Icons.delete_outline_rounded, 'Usuń z biblioteki', () => unawaited(app.removeTracks([g[i]])), color: secondaryText),
+                IconAction(Icons.play_arrow_rounded, tr('Odtwórz'), () => unawaited(app.playTracks([g[i]])), color: secondaryText),
+                IconAction(Icons.delete_outline_rounded, tr('Usuń z biblioteki'), () => unawaited(app.removeTracks([g[i]])), color: secondaryText),
               ],
             ),
           ),
@@ -176,11 +177,11 @@ class _CleanupPageState extends State<CleanupPage> {
 
   List<Widget> _albums(List<AlbumGroup> albums) {
     if (albums.isEmpty) {
-      return [const EmptyState(icon: Icons.check_circle_outline_rounded, text: 'Wszystkie albumy mają nazwę, wykonawcę, okładkę i numery utworów.')];
+      return [EmptyState(icon: Icons.check_circle_outline_rounded, text: tr('Wszystkie albumy mają nazwę, wykonawcę, okładkę i numery utworów.'))];
     }
     return [
       Text(
-        'Opis i okładka z MusicBrainz. Każdy album zatwierdzasz sam.',
+        tr('Opis i okładka z MusicBrainz. Każdy album zatwierdzasz sam.'),
         style: Txt.meta,
       ),
       const SizedBox(height: Sp.m),
@@ -188,7 +189,7 @@ class _CleanupPageState extends State<CleanupPage> {
         style: Ctl.filled,
         onPressed: fixing || app.importing ? null : () => unawaited(_fixAll(albums)),
         icon: const Icon(Icons.auto_fix_high_outlined, size: 18),
-        label: Text(fixing ? 'Poprawianie…' : 'Popraw po kolei (${albums.length})'),
+        label: Text(fixing ? tr('Poprawianie…') : tr('Popraw po kolei ({0})', [albums.length])),
       ),
       const SizedBox(height: Sp.m),
       for (final a in albums)
@@ -204,9 +205,9 @@ class _CleanupPageState extends State<CleanupPage> {
               TextButton(
                 style: Ctl.text,
                 onPressed: fixing || app.importing ? null : () => unawaited(app.metadataFor(a.tracks, online: true)),
-                child: const Text('Znajdź w MusicBrainz'),
+                child: Text(tr('Znajdź w MusicBrainz')),
               ),
-              IconAction(Icons.visibility_off_outlined, 'Pomiń do końca sesji', () => setState(() => skipped.add(a.key)), color: secondaryText),
+              IconAction(Icons.visibility_off_outlined, tr('Pomiń do końca sesji'), () => setState(() => skipped.add(a.key)), color: secondaryText),
             ],
           ),
         ),

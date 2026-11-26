@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'l10n.dart';
 
 /// One colour scheme of the whole app. Green marks state, not decoration.
 class Palette {
@@ -207,6 +208,8 @@ abstract final class Txt {
 }
 
 String collectionCount(int count, String one, String few, String many) {
+  // English: one or many, from the dictionary entries of the Polish forms.
+  if (lang == 'en') return '$count ${tr(count == 1 ? one : many)}';
   final ending = count == 1
       ? one
       : count % 10 >= 2 &&
@@ -328,7 +331,7 @@ class PlayingBars extends StatelessWidget {
   const PlayingBars({super.key, required this.playing, this.size = 22});
   @override
   Widget build(BuildContext context) => Semantics(
-    label: playing ? 'Odtwarzanie w toku' : 'Odtwarzanie wstrzymane',
+    label: playing ? tr('Odtwarzanie w toku') : tr('Odtwarzanie wstrzymane'),
     child: RepaintBoundary(
       child: PlaybackMotion(
         active: playing,
@@ -547,7 +550,7 @@ class _PlayButtonState extends State<PlayButton>
     container: true,
     button: true,
     enabled: widget.onPressed != null,
-    label: widget.playing ? 'Wstrzymaj' : 'Odtwórz',
+    label: widget.playing ? tr('Wstrzymaj') : tr('Odtwórz'),
     onTap: widget.onPressed,
     excludeSemantics: true,
     child: Pressable(
@@ -561,7 +564,7 @@ class _PlayButtonState extends State<PlayButton>
           color: widget.onPressed == null ? elevated : accent,
         ),
         child: IconButton(
-          tooltip: widget.playing ? 'Wstrzymaj' : 'Odtwórz',
+          tooltip: widget.playing ? tr('Wstrzymaj') : tr('Odtwórz'),
           onPressed: widget.onPressed,
           color: onAccent,
           iconSize: widget.size * .5,

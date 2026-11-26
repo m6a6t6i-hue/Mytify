@@ -17,6 +17,7 @@ import 'player_ui.dart';
 import 'playlists.dart';
 import 'track_table.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 
 Widget pageFor(LibraryScreenState app, Nav nav) {
   if (app.loading) return const Center(child: CircularProgressIndicator());
@@ -24,7 +25,7 @@ Widget pageFor(LibraryScreenState app, Nav nav) {
     return EmptyState(
       icon: Icons.error_outline_rounded,
       text: app.startupError!,
-      action: 'Spróbuj ponownie',
+      action: tr('Spróbuj ponownie'),
       onAction: () => unawaited(app.loadLibrary()),
     );
   }
@@ -51,20 +52,20 @@ Widget pageFor(LibraryScreenState app, Nav nav) {
 }
 
 String pageTitle(LibraryScreenState app, Nav nav) => switch (nav.page) {
-  'search' => 'Szukaj',
-  'library' => 'Biblioteka',
-  'album' => app.index.albumByKey[nav.arg]?.title ?? 'Album',
-  'artist' => app.index.artistByKey[nav.arg]?.name ?? 'Artysta',
-  'playlist' => app.playlistById(nav.arg)?.name ?? 'Playlista',
-  'liked' => 'Polubione',
-  'recent' => 'Ostatnio dodane',
-  'settings' => settingsTitle(nav.arg) ?? 'Ustawienia',
-  'downloads' => 'Pobrane',
-  'cleanup' => 'Porządki',
-  'sources' => 'Źródła muzyki',
-  'import' => 'Płyty CD i winyle',
-  'transfer' => app.isPhone ? 'Przesyłanie muzyki' : 'Połącz telefon',
-  _ => 'Start',
+  'search' => tr('Szukaj'),
+  'library' => tr('Biblioteka'),
+  'album' => app.index.albumByKey[nav.arg]?.title ?? tr('Album'),
+  'artist' => app.index.artistByKey[nav.arg]?.name ?? tr('Artysta'),
+  'playlist' => app.playlistById(nav.arg)?.name ?? tr('Playlista'),
+  'liked' => tr('Polubione'),
+  'recent' => tr('Ostatnio dodane'),
+  'settings' => settingsTitle(nav.arg) ?? tr('Ustawienia'),
+  'downloads' => tr('Pobrane'),
+  'cleanup' => tr('Porządki'),
+  'sources' => tr('Źródła muzyki'),
+  'import' => tr('Płyty CD i winyle'),
+  'transfer' => app.isPhone ? tr('Przesyłanie muzyki') : tr('Połącz telefon'),
+  _ => tr('Start'),
 };
 
 EdgeInsets pagePadding(LibraryScreenState app) =>
@@ -81,8 +82,8 @@ class HomePage extends StatelessWidget {
     if (index.tracks.isEmpty) {
       return EmptyState(
         icon: Icons.library_music_outlined,
-        text: 'Biblioteka jest pusta',
-        action: 'Dodaj muzykę',
+        text: tr('Biblioteka jest pusta'),
+        action: tr('Dodaj muzykę'),
         onAction: () => app.showAddMusic(),
       );
     }
@@ -104,26 +105,26 @@ class HomePage extends StatelessWidget {
       if (!desktop && app.current != null) HomePlayer(app: app),
       _Shortcuts(app: app),
       if (recentAlbums.isNotEmpty) ...[
-        SectionHeader('Ostatnio słuchane', padding: _hp(desktop)),
+        SectionHeader(tr('Ostatnio słuchane'), padding: _hp(desktop)),
         _albumShelf(app, recentAlbums, card),
       ],
       SectionHeader(
-        'Ostatnio dodane',
+        tr('Ostatnio dodane'),
         padding: _hp(desktop),
         onMore: () => app.go(const Nav('recent')),
       ),
       _albumShelf(app, added, card),
       if (top.isNotEmpty) ...[
-        SectionHeader('Najczęściej słuchane', padding: _hp(desktop)),
+        SectionHeader(tr('Najczęściej słuchane'), padding: _hp(desktop)),
         _TopTracks(app: app, tracks: top),
       ],
       if (pinnedAlbums.isNotEmpty) ...[
-        SectionHeader('Przypięte', padding: _hp(desktop)),
+        SectionHeader(tr('Przypięte'), padding: _hp(desktop)),
         _albumShelf(app, pinnedAlbums, card),
       ],
       if (app.playlists.isNotEmpty) ...[
         SectionHeader(
-          'Playlisty',
+          tr('Playlisty'),
           padding: _hp(desktop),
           onMore: () => app.go(const Nav('library', 'playlists')),
         ),
@@ -139,7 +140,7 @@ class HomePage extends StatelessWidget {
       ],
       if (artists.isNotEmpty) ...[
         SectionHeader(
-          'Ulubieni artyści',
+          tr('Ulubieni artyści'),
           padding: _hp(desktop),
           onMore: () => app.go(const Nav('library', 'artists')),
         ),
@@ -257,7 +258,7 @@ class _ContinueHero extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(app.playing ? 'Teraz odtwarzane' : 'Kontynuuj słuchanie', style: Txt.meta.copyWith(color: primaryText.withValues(alpha: .7))),
+                      Text(app.playing ? tr('Teraz odtwarzane') : tr('Kontynuuj słuchanie'), style: Txt.meta.copyWith(color: primaryText.withValues(alpha: .7))),
                       const SizedBox(height: Sp.s),
                       Text(album?.title ?? t.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Txt.display),
                       const SizedBox(height: Sp.xs),
@@ -270,7 +271,7 @@ class _ContinueHero extends StatelessWidget {
                           if (album != null && album.tracks.length > 1)
                             TextButton(
                               onPressed: () => app.go(Nav('album', album.key)),
-                              child: const Text('Otwórz album'),
+                              child: Text(tr('Otwórz album')),
                             ),
                         ],
                       ),
@@ -328,7 +329,7 @@ class _Shortcuts extends StatelessWidget {
         children: [
           chip(
             const LikedArt(size: 56),
-            'Polubione',
+            tr('Polubione'),
             trackCount(liked.length),
             () => app.go(const Nav('liked')),
           ),
@@ -340,8 +341,8 @@ class _Shortcuts extends StatelessWidget {
               color: elevated,
               child: Icon(Icons.shuffle_rounded, color: accent),
             ),
-            'Losowo',
-            'Cała biblioteka',
+            tr('Losowo'),
+            tr('Cała biblioteka'),
             () => unawaited(app.playTracks(app.tracks, shuffle: true)),
           ),
         ],
@@ -433,7 +434,7 @@ class TrackRow extends StatelessWidget {
     );
     final more = IconAction(
       Icons.more_horiz_rounded,
-      'Więcej',
+      tr('Więcej'),
       () => unawaited(app.trackMenu(t, playlist: playlist, within: list)),
       size: 20,
       box: desktop ? 32 : 44,
@@ -459,7 +460,7 @@ class TrackRow extends StatelessWidget {
                     Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: titleStyle),
                     if (!compact && !artistColumn)
                       Text(
-                        dim ? '${t.displayArtist} · niedostępny' : t.displayArtist,
+                        dim ? tr('{0} · niedostępny', [t.displayArtist]) : t.displayArtist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Txt.meta.copyWith(fontSize: 12.5),
@@ -493,7 +494,7 @@ class TrackRow extends StatelessWidget {
               Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: titleStyle),
               if (showArtist && (!desktop || showCover || !showAlbum))
                 Text(
-                  dim ? '${t.displayArtist} · niedostępny' : t.displayArtist,
+                  dim ? tr('{0} · niedostępny', [t.displayArtist]) : t.displayArtist,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Txt.meta.copyWith(fontSize: desktop ? 12.5 : 13.5),
@@ -622,10 +623,10 @@ class TrackListHeader extends StatelessWidget {
         children: [
           SizedBox(width: 36, child: Text(numbered ? '#' : '', textAlign: TextAlign.center, style: Txt.meta)),
           const SizedBox(width: Sp.s),
-          head('Tytuł', 'title', flex: 5),
-          if (showAlbum) head('Album', 'album', flex: 4),
+          head(tr('Tytuł'), 'title', flex: 5),
+          if (showAlbum) head(tr('Album'), 'album', flex: 4),
           const SizedBox(width: 32),
-          head('Czas', 'duration', width: 52, align: TextAlign.right),
+          head(tr('Czas'), 'duration', width: 52, align: TextAlign.right),
           const SizedBox(width: 36),
         ],
       ),
@@ -655,20 +656,20 @@ class _LibraryPageState extends State<LibraryPage> {
 
   LibraryScreenState get app => widget.app;
 
-  static const tabs = [
-    ('all', 'Wszystkie'),
-    ('albums', 'Albumy'),
-    ('artists', 'Artyści'),
-    ('tracks', 'Utwory'),
-    ('playlists', 'Playlisty'),
-    ('downloaded', 'Pobrane'),
+  static final tabs = [
+    ('all', tr('Wszystkie')),
+    ('albums', tr('Albumy')),
+    ('artists', tr('Artyści')),
+    ('tracks', tr('Utwory')),
+    ('playlists', tr('Playlisty')),
+    ('downloaded', tr('Pobrane')),
   ];
 
-  static const sorts = {
-    'albums': [('added', 'Ostatnio dodane'), ('title', 'Tytuł'), ('artist', 'Artysta'), ('played', 'Ostatnio słuchane'), ('plays', 'Najczęściej słuchane')],
-    'tracks': [('added', 'Ostatnio dodane'), ('title', 'Tytuł'), ('artist', 'Artysta'), ('album', 'Album'), ('duration', 'Długość'), ('played', 'Ostatnio słuchane'), ('plays', 'Najczęściej słuchane')],
-    'artists': [('name', 'Nazwa'), ('albums', 'Liczba albumów')],
-    'playlists': [('name', 'Nazwa'), ('size', 'Liczba utworów')],
+  static final sorts = {
+    'albums': [('added', tr('Ostatnio dodane')), ('title', tr('Tytuł')), ('artist', tr('Artysta')), ('played', tr('Ostatnio słuchane')), ('plays', tr('Najczęściej słuchane'))],
+    'tracks': [('added', tr('Ostatnio dodane')), ('title', tr('Tytuł')), ('artist', tr('Artysta')), ('album', tr('Album')), ('duration', tr('Długość')), ('played', tr('Ostatnio słuchane')), ('plays', tr('Najczęściej słuchane'))],
+    'artists': [('name', tr('Nazwa')), ('albums', tr('Liczba albumów'))],
+    'playlists': [('name', tr('Nazwa')), ('size', tr('Liczba utworów'))],
   };
 
   String get filter => !app.desktopMode || widget.filter != 'all' ? widget.filter : 'albums';
@@ -839,7 +840,7 @@ class _LibraryPageState extends State<LibraryPage> {
               child: TextButton.icon(
                 onPressed: () => app.go(const Nav('downloads')),
                 icon: const Icon(Icons.download_for_offline_outlined, size: 18),
-                label: const Text('Kolejka i miejsce'),
+                label: Text(tr('Kolejka i miejsce')),
               ),
             ),
           ),
@@ -855,7 +856,7 @@ class _LibraryPageState extends State<LibraryPage> {
           slivers.add(SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(Sp.xl),
-              child: Text('Brak pobranych utworów. Wybierz „Pobierz offline” w menu utworu, albumu lub playlisty.', style: Txt.sub, textAlign: TextAlign.center),
+              child: Text(tr('Brak pobranych utworów. Wybierz „Pobierz offline” w menu utworu, albumu lub playlisty.'), style: Txt.sub, textAlign: TextAlign.center),
             ),
           ));
         }
@@ -891,7 +892,7 @@ class _LibraryPageState extends State<LibraryPage> {
             Padding(
               padding: const EdgeInsets.only(bottom: Sp.m),
               child: Text(
-                switch (f) { 'artists' => 'Artyści', 'tracks' => 'Utwory', 'playlists' => 'Playlisty', 'downloaded' => 'Pobrane', _ => 'Albumy' },
+                switch (f) { 'artists' => tr('Artyści'), 'tracks' => tr('Utwory'), 'playlists' => tr('Playlisty'), 'downloaded' => tr('Pobrane'), _ => tr('Albumy') },
                 style: Txt.display,
               ),
             ),
@@ -920,7 +921,7 @@ class _LibraryPageState extends State<LibraryPage> {
                 children: [
                   if (options != null)
                     PopupMenuButton<String>(
-                      tooltip: 'Sortowanie',
+                      tooltip: tr('Sortowanie'),
                       initialValue: sortFor(f),
                       onSelected: (k) => _setSort(f, k),
                       itemBuilder: (_) => [for (final (k, l) in options) PopupMenuItem(value: k, height: 36, child: Text(l))],
@@ -946,23 +947,23 @@ class _LibraryPageState extends State<LibraryPage> {
                         onChanged: (_) => setState(() {}),
                         style: const TextStyle(fontSize: 13.5),
                         decoration: InputDecoration(
-                          hintText: 'Filtruj',
+                          hintText: tr('Filtruj'),
                           prefixIcon: const Icon(Icons.filter_list_rounded, size: 18),
                           prefixIconConstraints: const BoxConstraints(minWidth: 34),
                           suffixIcon: filterText.text.isEmpty
                               ? null
-                              : IconAction(Icons.close_rounded, 'Wyczyść', () => setState(filterText.clear), size: 16, box: 32),
+                              : IconAction(Icons.close_rounded, tr('Wyczyść'), () => setState(filterText.clear), size: 16, box: 32),
                           contentPadding: const EdgeInsets.symmetric(vertical: 8),
                         ),
                       ),
                     )
                   else
-                    IconAction(Icons.search_rounded, 'Filtruj', () => setState(() => filtering = true), color: secondaryText, box: 44),
+                    IconAction(Icons.search_rounded, tr('Filtruj'), () => setState(() => filtering = true), color: secondaryText, box: 44),
                   if (f != 'tracks') ...[
                     const SizedBox(width: Sp.xs),
                     IconAction(
                       viewFor(f) == 'grid' ? Icons.view_list_rounded : Icons.grid_view_rounded,
-                      viewFor(f) == 'grid' ? 'Widok listy' : 'Widok siatki',
+                      viewFor(f) == 'grid' ? tr('Widok listy') : tr('Widok siatki'),
                       () => app.refresh(() => app.prefs.set('view.$f', viewFor(f) == 'grid' ? 'list' : 'grid')),
                       color: secondaryText,
                       box: desktop ? 36 : 44,
@@ -972,7 +973,7 @@ class _LibraryPageState extends State<LibraryPage> {
                     SizedBox(
                       width: 110,
                       child: Tooltip(
-                        message: 'Rozmiar okładek',
+                        message: tr('Rozmiar okładek'),
                         child: Slider(
                           value: app.prefs.number('coverSize', 184).clamp(140, 240).toDouble(),
                           min: 140,
@@ -992,7 +993,7 @@ class _LibraryPageState extends State<LibraryPage> {
   Widget _none() => SliverToBoxAdapter(
     child: Padding(
       padding: EdgeInsets.all(Sp.xxl),
-      child: Center(child: Text('Brak wyników', style: Txt.sub)),
+      child: Center(child: Text(tr('Brak wyników'), style: Txt.sub)),
     ),
   );
 
@@ -1086,7 +1087,7 @@ class _LibraryPageState extends State<LibraryPage> {
   Widget _likedCard(double size) => CollectionCard(
     cover: null,
     placeholder: LikedArt(size: size - Sp.l),
-    title: 'Polubione',
+    title: tr('Polubione'),
     subtitle: trackCount(app.index.liked().length),
     size: size,
     onOpen: () => app.go(const Nav('liked')),
@@ -1095,7 +1096,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Widget _likedTile() => _listTile(
     const LikedArt(size: 52),
-    'Polubione',
+    tr('Polubione'),
     trackCount(app.index.liked().length),
     () => app.go(const Nav('liked')),
     trailing: Padding(
@@ -1136,7 +1137,7 @@ class _LibraryPageState extends State<LibraryPage> {
             trailing: Padding(padding: EdgeInsets.only(left: Sp.s), child: Icon(Icons.push_pin_rounded, size: 16, color: secondaryText)),
           ),
         ),
-      SliverToBoxAdapter(child: SectionHeader('Albumy', padding: const EdgeInsets.fromLTRB(Sp.l, Sp.l, Sp.s, Sp.xs), onMore: () => app.replaceRoute(const Nav('library', 'albums')))),
+      SliverToBoxAdapter(child: SectionHeader(tr('Albumy'), padding: const EdgeInsets.fromLTRB(Sp.l, Sp.l, Sp.s, Sp.xs), onMore: () => app.replaceRoute(const Nav('library', 'albums')))),
       _albumList(albums.take(30).toList()),
     ];
   }
@@ -1189,14 +1190,14 @@ class AlbumPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = app.index.albumByKey[albumKey];
-    if (a == null) return const EmptyState(icon: Icons.album_outlined, text: 'Tego albumu nie ma już w bibliotece');
+    if (a == null) return EmptyState(icon: Icons.album_outlined, text: tr('Tego albumu nie ma już w bibliotece'));
     final desktop = app.desktopMode;
     app.visibleList = a.tracks;
     app.visiblePlaylist = null;
     final discs = a.tracks.map((t) => t.discNumber).toSet();
     final multiDisc = discs.length > 1;
     final meta = [
-      if (!desktop) 'Album',
+      if (!desktop) tr('Album'),
       trackCount(a.tracks.length),
       if (a.durationMs > 0) longDuration(a.durationMs),
       ?a.quality,
@@ -1212,19 +1213,19 @@ class AlbumPage extends StatelessWidget {
               : null,
         ),
         const SizedBox(width: Sp.s),
-        IconAction(Icons.shuffle_rounded, 'Odtwórz losowo', a.available ? () => unawaited(app.playAlbum(a, shuffle: true)) : null, box: desktop ? 40 : 48, color: secondaryText),
+        IconAction(Icons.shuffle_rounded, tr('Odtwórz losowo'), a.available ? () => unawaited(app.playAlbum(a, shuffle: true)) : null, box: desktop ? 40 : 48, color: secondaryText),
         IconAction(
           app.prefs.pinned(pinId) ? Icons.push_pin_rounded : Icons.push_pin_outlined,
-          app.prefs.pinned(pinId) ? 'Odepnij' : 'Przypnij',
+          app.prefs.pinned(pinId) ? tr('Odepnij') : tr('Przypnij'),
           () => app.togglePin(pinId),
           box: desktop ? 40 : 48,
           color: app.prefs.pinned(pinId) ? accent : secondaryText,
         ),
-        IconAction(Icons.queue_rounded, 'Dodaj do kolejki', () => unawaited(app.enqueue(a.tracks)), box: desktop ? 40 : 48, color: secondaryText),
+        IconAction(Icons.queue_rounded, tr('Dodaj do kolejki'), () => unawaited(app.enqueue(a.tracks)), box: desktop ? 40 : 48, color: secondaryText),
         Builder(
           builder: (context) => IconAction(
             Icons.more_horiz_rounded,
-            'Więcej',
+            tr('Więcej'),
             () {
               final box = context.findRenderObject() as RenderBox?;
               final at = box?.localToGlobal(box.size.bottomLeft(Offset.zero));
@@ -1248,7 +1249,7 @@ class AlbumPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Album', style: Txt.meta),
+                      Text(tr('Album'), style: Txt.meta),
                       const SizedBox(height: Sp.xs),
                       Text(a.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Txt.display.copyWith(fontSize: 30)),
                       const SizedBox(height: Sp.s),
@@ -1295,7 +1296,7 @@ class AlbumPage extends StatelessWidget {
         lastDisc = t.discNumber;
         rows.add(Padding(
           padding: EdgeInsets.fromLTRB(desktop ? Sp.l : Sp.l, Sp.l, 0, Sp.xs),
-          child: Text('Płyta ${t.discNumber}', style: Txt.meta.copyWith(fontWeight: FontWeight.w600)),
+          child: Text(tr('Płyta {0}', [t.discNumber]), style: Txt.meta.copyWith(fontWeight: FontWeight.w600)),
         ));
       }
       rows.add(TrackRow(
@@ -1333,7 +1334,7 @@ class ArtistPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = app.index.artistByKey[artistKey];
-    if (a == null) return const EmptyState(icon: Icons.person_outline_rounded, text: 'Brak tego artysty w bibliotece');
+    if (a == null) return EmptyState(icon: Icons.person_outline_rounded, text: tr('Brak tego artysty w bibliotece'));
     final desktop = app.desktopMode;
     final h = app.prefs.history;
     final top = List.of(a.tracks)..sort((x, y) => h.count(y.id).compareTo(h.count(x.id)));
@@ -1365,7 +1366,7 @@ class ArtistPage extends StatelessWidget {
                         children: [
                           PlayButton(playing: false, size: 48, onPressed: () => unawaited(app.playTracks(a.albums.expand((x) => x.tracks).followedBy(a.tracks).toList()))),
                           const SizedBox(width: Sp.s),
-                          IconAction(Icons.shuffle_rounded, 'Odtwórz losowo', () => unawaited(app.playTracks(a.tracks, shuffle: true)), box: 44, color: secondaryText),
+                          IconAction(Icons.shuffle_rounded, tr('Odtwórz losowo'), () => unawaited(app.playTracks(a.tracks, shuffle: true)), box: 44, color: secondaryText),
                         ],
                       ),
                     ],
@@ -1376,14 +1377,14 @@ class ArtistPage extends StatelessWidget {
           ),
         ),
         if (popular.isNotEmpty) ...[
-          SectionHeader('Utwory', padding: HomePage._hp(desktop)),
+          SectionHeader(tr('Utwory'), padding: HomePage._hp(desktop)),
           Padding(
             padding: desktop ? pagePadding(app) : EdgeInsets.zero,
             child: Column(children: [for (final t in popular) TrackRow(app: app, track: t, list: popular, showCover: true, showArtist: false)]),
           ),
         ],
         if (a.albums.isNotEmpty) ...[
-          SectionHeader('Albumy', padding: HomePage._hp(desktop)),
+          SectionHeader(tr('Albumy'), padding: HomePage._hp(desktop)),
           _albumShelf(app, a.albums, card),
         ],
         const SizedBox(height: Sp.xxl),
@@ -1403,7 +1404,7 @@ class CollectionPage extends StatelessWidget {
     final desktop = app.desktopMode;
     final playlist = nav.page == 'playlist' ? app.playlistById(nav.arg) : null;
     if (nav.page == 'playlist' && playlist == null) {
-      return const EmptyState(icon: Icons.queue_music_rounded, text: 'Tej playlisty już nie ma');
+      return EmptyState(icon: Icons.queue_music_rounded, text: tr('Tej playlisty już nie ma'));
     }
     final List<Track> list = switch (nav.page) {
       'liked' => app.index.liked(),
@@ -1422,7 +1423,7 @@ class CollectionPage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (desktop) Text(nav.page == 'playlist' ? 'Playlista' : 'Kolekcja', style: Txt.meta),
+        if (desktop) Text(nav.page == 'playlist' ? tr('Playlista') : tr('Kolekcja'), style: Txt.meta),
         const SizedBox(height: Sp.xs),
         GestureDetector(
           onDoubleTap: playlist == null ? null : () => unawaited(app.renamePlaylist(playlist)),
@@ -1435,10 +1436,10 @@ class CollectionPage extends StatelessWidget {
           children: [
             PlayButton(playing: false, size: desktop ? 48 : 52, onPressed: list.isEmpty ? null : () => unawaited(app.playTracks(list))),
             const SizedBox(width: Sp.s),
-            IconAction(Icons.shuffle_rounded, 'Odtwórz losowo', list.isEmpty ? null : () => unawaited(app.playTracks(list, shuffle: true)), box: 44, color: secondaryText),
+            IconAction(Icons.shuffle_rounded, tr('Odtwórz losowo'), list.isEmpty ? null : () => unawaited(app.playTracks(list, shuffle: true)), box: 44, color: secondaryText),
             if (playlist != null)
               Builder(
-                builder: (context) => IconAction(Icons.more_horiz_rounded, 'Więcej', () {
+                builder: (context) => IconAction(Icons.more_horiz_rounded, tr('Więcej'), () {
                   final box = context.findRenderObject() as RenderBox?;
                   unawaited(app.playlistMenu(playlist, at: box?.localToGlobal(box.size.bottomLeft(Offset.zero))));
                 }, box: 44, color: secondaryText),
@@ -1465,9 +1466,9 @@ class CollectionPage extends StatelessWidget {
               padding: const EdgeInsets.all(Sp.xxl),
               child: Text(
                 switch (nav.page) {
-                  'liked' => 'Polub utwory sercem, a pojawią się tutaj.',
-                  'playlist' => desktop ? 'Przeciągnij utwory na tę playlistę w panelu bocznym albo użyj menu utworu.' : 'Dodaj utwory z menu utworu.',
-                  _ => 'Brak utworów',
+                  'liked' => tr('Polub utwory sercem, a pojawią się tutaj.'),
+                  'playlist' => desktop ? tr('Przeciągnij utwory na tę playlistę w panelu bocznym albo użyj menu utworu.') : tr('Dodaj utwory z menu utworu.'),
+                  _ => tr('Brak utworów'),
                 },
                 textAlign: TextAlign.center,
                 style: Txt.sub,
@@ -1555,9 +1556,9 @@ class _SearchPageState extends State<SearchPage> {
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _remember(),
               decoration: InputDecoration(
-                hintText: 'Utwory, albumy, artyści',
+                hintText: tr('Utwory, albumy, artyści'),
                 prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: q.isEmpty ? null : IconAction(Icons.close_rounded, 'Wyczyść', app.searchText.clear, size: 18, box: 44),
+                suffixIcon: q.isEmpty ? null : IconAction(Icons.close_rounded, tr('Wyczyść'), app.searchText.clear, size: 18, box: 44),
                 contentPadding: const EdgeInsets.symmetric(vertical: 14),
               ),
             ),
@@ -1567,9 +1568,9 @@ class _SearchPageState extends State<SearchPage> {
       return ListView(
         children: [
           ?field,
-          if (desktop) const Padding(padding: EdgeInsets.fromLTRB(Sp.xl, Sp.xl, Sp.xl, Sp.s), child: Text('Szukaj', style: Txt.display)),
+          if (desktop) Padding(padding: EdgeInsets.fromLTRB(Sp.xl, Sp.xl, Sp.xl, Sp.s), child: Text(tr('Szukaj'), style: Txt.display)),
           if (recent.isNotEmpty) ...[
-            SectionHeader('Ostatnie wyszukiwania', padding: EdgeInsets.fromLTRB(desktop ? Sp.xl : Sp.l, Sp.l, Sp.s, Sp.xs)),
+            SectionHeader(tr('Ostatnie wyszukiwania'), padding: EdgeInsets.fromLTRB(desktop ? Sp.xl : Sp.l, Sp.l, Sp.s, Sp.xs)),
             for (final r in recent)
               ListTile(
                 contentPadding: EdgeInsets.symmetric(horizontal: desktop ? Sp.xl : Sp.l),
@@ -1583,7 +1584,7 @@ class _SearchPageState extends State<SearchPage> {
           ] else
             Padding(
               padding: const EdgeInsets.all(Sp.xxl),
-              child: Text(desktop ? 'Wpisz, czego szukasz. Ctrl+F przenosi tu kursor.' : 'Wpisz tytuł, album lub artystę.', textAlign: TextAlign.center, style: Txt.sub),
+              child: Text(desktop ? tr('Wpisz, czego szukasz. Ctrl+F przenosi tu kursor.') : tr('Wpisz tytuł, album lub artystę.'), textAlign: TextAlign.center, style: Txt.sub),
             ),
         ],
       );
@@ -1602,7 +1603,7 @@ class _SearchPageState extends State<SearchPage> {
         ?field,
         Padding(
           padding: const EdgeInsets.all(Sp.xxl),
-          child: Text('Nic nie pasuje do „$q”', textAlign: TextAlign.center, style: Txt.sub),
+          child: Text(tr('Nic nie pasuje do „{0}”', [q]), textAlign: TextAlign.center, style: Txt.sub),
         ),
       ]);
     }
@@ -1610,24 +1611,24 @@ class _SearchPageState extends State<SearchPage> {
     Widget? best;
     final exactArtist = artists.where((a) => searchKey(a.name) == searchKey(q)).firstOrNull;
     if (exactArtist != null) {
-      best = _best(exactArtist.art?.cover, exactArtist.name, 'Artysta', () { _remember(); app.go(Nav('artist', exactArtist.key)); }, circle: true);
+      best = _best(exactArtist.art?.cover, exactArtist.name, tr('Artysta'), () { _remember(); app.go(Nav('artist', exactArtist.key)); }, circle: true);
     } else if (albums.isNotEmpty) {
       final a = albums.first;
-      best = _best(a.art.cover, a.title, 'Album · ${a.artist}', () { _remember(); app.go(Nav('album', a.key)); }, onPlay: () => unawaited(app.playAlbum(a)));
+      best = _best(a.art.cover, a.title, tr('Album · {0}', [a.artist]), () { _remember(); app.go(Nav('album', a.key)); }, onPlay: () => unawaited(app.playAlbum(a)));
     } else if (tracks.isNotEmpty) {
       final t = tracks.first;
-      best = _best(t.cover, t.title, 'Utwór · ${t.displayArtist}', () { _remember(); unawaited(app.playTracks(tracks, start: t)); });
+      best = _best(t.cover, t.title, tr('Utwór · {0}', [t.displayArtist]), () { _remember(); unawaited(app.playTracks(tracks, start: t)); });
     }
     return ListView(
       key: const PageStorageKey('search-results'),
       children: [
         ?field,
         if (best != null) ...[
-          SectionHeader('Najlepszy wynik', padding: pad),
+          SectionHeader(tr('Najlepszy wynik'), padding: pad),
           best,
         ],
         if (tracks.isNotEmpty) ...[
-          SectionHeader('Utwory', padding: pad, onMore: tracks.length > shown.length ? () => setState(() => allTracks = true) : null),
+          SectionHeader(tr('Utwory'), padding: pad, onMore: tracks.length > shown.length ? () => setState(() => allTracks = true) : null),
           Padding(
             padding: desktop ? pagePadding(app) : EdgeInsets.zero,
             child: Column(
@@ -1639,11 +1640,11 @@ class _SearchPageState extends State<SearchPage> {
           ),
         ],
         if (albums.isNotEmpty) ...[
-          SectionHeader('Albumy', padding: pad),
+          SectionHeader(tr('Albumy'), padding: pad),
           _albumShelf(app, albums.take(20).toList(), card),
         ],
         if (artists.isNotEmpty) ...[
-          SectionHeader('Artyści', padding: pad),
+          SectionHeader(tr('Artyści'), padding: pad),
           Shelf(
             itemCount: artists.length > 20 ? 20 : artists.length,
             height: card + 14,
@@ -1655,7 +1656,7 @@ class _SearchPageState extends State<SearchPage> {
           ),
         ],
         if (playlists.isNotEmpty) ...[
-          SectionHeader('Playlisty', padding: pad),
+          SectionHeader(tr('Playlisty'), padding: pad),
           Shelf(
             itemCount: playlists.length,
             height: card + 14,
@@ -1707,12 +1708,12 @@ class _SearchPageState extends State<SearchPage> {
 // ============================================================== Settings
 
 String? settingsTitle(String? section) => switch (section) {
-  'sources' => 'Źródła muzyki',
-  'import' => 'Płyty CD i winyle',
-  'audio' => 'Audio',
-  'look' => 'Wygląd',
-  'phone' => 'Telefon i komputer',
-  'about' => 'Informacje',
+  'sources' => tr('Źródła muzyki'),
+  'import' => tr('Płyty CD i winyle'),
+  'audio' => tr('Audio'),
+  'look' => tr('Wygląd i język'),
+  'phone' => tr('Telefon i komputer'),
+  'about' => tr('Informacje'),
   _ => null,
 };
 
@@ -1723,14 +1724,14 @@ class SettingsPage extends StatelessWidget {
 
   /// Desktop keeps sources and the phone link in the sidebar, so they are not repeated here.
   List<(String, IconData, String)> get sections => [
-    if (!app.desktopMode) ('sources', Icons.folder_open_outlined, 'Źródła muzyki'),
-    ('audio', Icons.volume_up_outlined, 'Audio'),
+    if (!app.desktopMode) ('sources', Icons.folder_open_outlined, tr('Źródła muzyki')),
+    ('audio', Icons.volume_up_outlined, tr('Audio')),
     // Adding music is one place (sources). Import here means digitizing CD and vinyl.
-    if (app.canDigitize && !app.isPhone) ('import', Icons.album_outlined, 'Płyty CD i winyle'),
-    ('cleanup', Icons.cleaning_services_outlined, 'Porządki w bibliotece'),
-    ('look', Icons.palette_outlined, 'Wygląd'),
-    if (app.canTransfer && !app.desktopMode) ('phone', Icons.phonelink_rounded, app.isPhone ? 'Przesyłanie muzyki' : 'Połącz telefon'),
-    ('about', Icons.info_outline_rounded, 'Informacje'),
+    if (app.canDigitize && !app.isPhone) ('import', Icons.album_outlined, tr('Płyty CD i winyle')),
+    ('cleanup', Icons.cleaning_services_outlined, tr('Porządki w bibliotece')),
+    ('look', Icons.palette_outlined, tr('Wygląd i język')),
+    if (app.canTransfer && !app.desktopMode) ('phone', Icons.phonelink_rounded, app.isPhone ? tr('Przesyłanie muzyki') : tr('Połącz telefon')),
+    ('about', Icons.info_outline_rounded, tr('Informacje')),
   ];
 
   /// One route per destination: sources and import are their own views.
@@ -1777,7 +1778,7 @@ class SettingsPage extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(Sp.l, Sp.xl, Sp.s, Sp.l),
             children: [
-              const Padding(padding: EdgeInsets.fromLTRB(Sp.s, 0, 0, Sp.l), child: Text('Ustawienia', style: Txt.display)),
+              Padding(padding: EdgeInsets.fromLTRB(Sp.s, 0, 0, Sp.l), child: Text(tr('Ustawienia'), style: Txt.display)),
               for (final (key, icon, label) in sections)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 2),
@@ -1833,20 +1834,28 @@ class SettingsPage extends StatelessWidget {
   );
 
   List<Widget> _import() => [
-    _row('Audio CD', 'Odczyt cyfrowy, opis z MusicBrainz, FLAC', icon: Icons.album_outlined, onTap: () => app.openIngest(true)),
-    _row('Winyl i kaseta', 'Nagranie, podział i opis utworów', icon: Icons.radio_outlined, onTap: () => app.openIngest(false)),
+    _row(tr('Audio CD'), tr('Odczyt cyfrowy, opis z MusicBrainz, FLAC'), icon: Icons.album_outlined, onTap: () => app.openIngest(true)),
+    _row(tr('Winyl i kaseta'), tr('Nagranie, podział i opis utworów'), icon: Icons.radio_outlined, onTap: () => app.openIngest(false)),
   ];
 
   List<Widget> _look() => [
-    const SectionTitle('Kolory'),
+    SectionTitle(tr('Język')),
+    Wrap(
+      spacing: Sp.s,
+      children: [
+        for (final (code, name) in languages)
+          ChoiceChip(label: Text(name), selected: lang == code, onSelected: (_) => app.setLanguage(code)),
+      ],
+    ),
+    SectionTitle(tr('Kolory')),
     Wrap(
       spacing: Sp.m,
       runSpacing: Sp.m,
       children: [for (final p in palettes) _PaletteSwatch(palette: p, selected: p == palette, onTap: () => app.setPalette(p))],
     ),
     if (app.desktopMode) ...[
-      const SectionTitle('Biblioteka'),
-      Text('Rozmiar okładek w siatce', style: Txt.meta),
+      SectionTitle(tr('Biblioteka')),
+      Text(tr('Rozmiar okładek w siatce'), style: Txt.meta),
       Slider(
         value: app.prefs.number('coverSize', 184).clamp(140, 240).toDouble(),
         min: 140,
@@ -1857,37 +1866,37 @@ class SettingsPage extends StatelessWidget {
       ),
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
-        title: const Text('Kompaktowa tabela utworów', style: TextStyle(fontSize: 14.5)),
-        subtitle: Text('Niższe wiersze, bez okładek. Kolumny wybierzesz prawym przyciskiem na nagłówku tabeli.', style: Txt.meta),
+        title: Text(tr('Kompaktowa tabela utworów'), style: TextStyle(fontSize: 14.5)),
+        subtitle: Text(tr('Niższe wiersze, bez okładek. Kolumny wybierzesz prawym przyciskiem na nagłówku tabeli.'), style: Txt.meta),
         value: compactTable(app.prefs),
         onChanged: (v) => app.refresh(() => app.prefs.set('density', v ? 'compact' : 'normal')),
       ),
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
-        title: const Text('Zwinięty panel boczny', style: TextStyle(fontSize: 14.5)),
+        title: Text(tr('Zwinięty panel boczny'), style: TextStyle(fontSize: 14.5)),
         value: app.prefs.get('sidebarCollapsed', false),
         onChanged: (v) => app.refresh(() => app.prefs.set('sidebarCollapsed', v)),
       ),
     ],
-    const SectionTitle('Wizualizacje'),
+    SectionTitle(tr('Wizualizacje')),
     SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      title: const Text('Kolory okładki', style: TextStyle(fontSize: 14.5)),
-      subtitle: Text('Plazma, wstęgi i wir biorą barwy z okładki grającego albumu.', style: Txt.meta),
+      title: Text(tr('Kolory okładki'), style: TextStyle(fontSize: 14.5)),
+      subtitle: Text(tr('Plazma, wstęgi i wir biorą barwy z okładki grającego albumu.'), style: Txt.meta),
       value: app.prefs.get<bool>('viz.cover', true),
       onChanged: (v) => app.refresh(() => app.prefs.set('viz.cover', v)),
     ),
     if (app.canFloat)
       _row(
-        'Wygaszacz z wizualizacją',
-        'Gdy gra muzyka, a komputer nie jest używany. Ruch myszy lub klawisz zamyka.',
+        tr('Wygaszacz z wizualizacją'),
+        tr('Gdy gra muzyka, a komputer nie jest używany. Ruch myszy lub klawisz zamyka.'),
         trailing: DropdownButton<int>(
           value: const [0, 2, 5, 10, 20].contains(app.screensaverMinutes) ? app.screensaverMinutes : 0,
           underline: const SizedBox.shrink(),
           dropdownColor: elevated,
           items: [
             for (final m in const [0, 2, 5, 10, 20])
-              DropdownMenuItem(value: m, child: Text(m == 0 ? 'Wyłączony' : 'Po $m min', style: const TextStyle(fontSize: 13.5))),
+              DropdownMenuItem(value: m, child: Text(m == 0 ? tr('Wyłączony') : tr('Po {0} min', [m]), style: const TextStyle(fontSize: 13.5))),
           ],
           onChanged: (v) => app.refresh(() => app.prefs.set('screensaver', v ?? 0)),
         ),
@@ -1895,45 +1904,45 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', 'Wersja 0.20.1', icon: Icons.info_outline_rounded),
-    _row('Autor', 'Mateusz Kanik', icon: Icons.person_outline_rounded),
+    _row('Mytify', tr('Wersja 0.20.1'), icon: Icons.info_outline_rounded),
+    _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
-      'Strona',
+      tr('Strona'),
       'kanik.dev',
       icon: Icons.language_rounded,
       trailing: Icon(Icons.open_in_new_rounded, size: 18, color: secondaryText),
-      onTap: () => unawaited(openLink('https://kanik.dev').catchError((_) => app.message('Nie można otworzyć strony.'))),
+      onTap: () => unawaited(openLink('https://kanik.dev').catchError((_) => app.message(tr('Nie można otworzyć strony.')))),
     ),
-    _row('Biblioteka', '${trackCount(app.tracks.length)} · ${albumCount(app.index.albums.length)}', icon: Icons.library_music_outlined),
-    if (app.desktopMode) _row('Skróty klawiaturowe', null, icon: Icons.keyboard_outlined, onTap: () => showShortcuts(app.context)),
+    _row(tr('Biblioteka'), '${trackCount(app.tracks.length)} · ${albumCount(app.index.albums.length)}', icon: Icons.library_music_outlined),
+    if (app.desktopMode) _row(tr('Skróty klawiaturowe'), null, icon: Icons.keyboard_outlined, onTap: () => showShortcuts(app.context)),
   ];
 }
 
 void showShortcuts(BuildContext context) => showDialog<void>(
   context: context,
   builder: (context) => AlertDialog(
-    title: const Text('Skróty klawiaturowe', style: Txt.title),
+    title: Text(tr('Skróty klawiaturowe'), style: Txt.title),
     content: SizedBox(
       width: 420,
       child: SingleChildScrollView(
         child: Column(
           children: [
-            for (final (k, v) in const [
-              ('Spacja', 'Odtwórz / wstrzymaj'),
-              ('Ctrl + → / ←', 'Następny / poprzedni utwór'),
-              ('Ctrl + ↑ / ↓', 'Głośniej / ciszej'),
-              ('Ctrl + F', 'Szukaj'),
-              ('Ctrl + O', 'Dodaj pliki'),
-              ('Ctrl + Shift + O', 'Dodaj folder'),
-              ('Ctrl + L', 'Polub bieżący utwór'),
-              ('Ctrl + N', 'Nowa playlista'),
-              ('Ctrl + ,', 'Ustawienia'),
-              ('Ctrl + A', 'Zaznacz wszystkie utwory'),
-              ('Enter', 'Odtwórz zaznaczony utwór'),
-              ('Delete', 'Usuń zaznaczone'),
-              ('F11', 'Pełny ekran odtwarzacza'),
-              ('Alt + ← / →', 'Wstecz / dalej'),
-              ('Esc', 'Zamknij panel lub okno'),
+            for (final (k, v) in [
+              (tr('Spacja'), tr('Odtwórz / wstrzymaj')),
+              (tr('Ctrl + → / ←'), tr('Następny / poprzedni utwór')),
+              (tr('Ctrl + ↑ / ↓'), tr('Głośniej / ciszej')),
+              (tr('Ctrl + F'), tr('Szukaj')),
+              (tr('Ctrl + O'), tr('Dodaj pliki')),
+              (tr('Ctrl + Shift + O'), tr('Dodaj folder')),
+              (tr('Ctrl + L'), tr('Polub bieżący utwór')),
+              (tr('Ctrl + N'), tr('Nowa playlista')),
+              (tr('Ctrl + ,'), tr('Ustawienia')),
+              (tr('Ctrl + A'), tr('Zaznacz wszystkie utwory')),
+              (tr('Enter'), tr('Odtwórz zaznaczony utwór')),
+              (tr('Delete'), tr('Usuń zaznaczone')),
+              (tr('F11'), tr('Pełny ekran odtwarzacza')),
+              (tr('Alt + ← / →'), tr('Wstecz / dalej')),
+              (tr('Esc'), tr('Zamknij panel lub okno')),
             ])
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 5),
@@ -1943,7 +1952,7 @@ void showShortcuts(BuildContext context) => showDialog<void>(
         ),
       ),
     ),
-    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Zamknij'))],
+    actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Zamknij')))],
   ),
 );
 
@@ -1956,7 +1965,7 @@ class SourcesPage extends StatelessWidget {
     key: const PageStorageKey('sources'),
     padding: app.desktopMode ? const EdgeInsets.fromLTRB(Sp.xl, Sp.xl, Sp.xl, Sp.xxl) : const EdgeInsets.all(Sp.l),
     children: [
-      if (app.desktopMode) const Padding(padding: EdgeInsets.only(bottom: Sp.l), child: Text('Źródła muzyki', style: Txt.display)),
+      if (app.desktopMode) Padding(padding: EdgeInsets.only(bottom: Sp.l), child: Text(tr('Źródła muzyki'), style: Txt.display)),
       SourcesList(app: app),
     ],
   );
@@ -1984,19 +1993,19 @@ class SourcesList extends StatelessWidget {
                     app.showAddMusic(at: box?.localToGlobal(box.size.bottomLeft(Offset.zero)));
                   },
             icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Dodaj źródło'),
+            label: Text(tr('Dodaj źródło')),
           ),
         ),
         OutlinedButton.icon(
           style: Ctl.outlined,
           onPressed: app.importing || app.librarySources.isEmpty ? null : () => unawaited(app.scanSources()),
           icon: const Icon(Icons.refresh_rounded, size: 18),
-          label: const Text('Skanuj wszystkie'),
+          label: Text(tr('Skanuj wszystkie')),
         ),
       ],
     ),
     const SizedBox(height: Sp.l),
-    if (app.librarySources.isEmpty) Text('Nie dodano jeszcze żadnego źródła.', style: Txt.sub),
+    if (app.librarySources.isEmpty) Text(tr('Nie dodano jeszcze żadnego źródła.'), style: Txt.sub),
     // The download folder is managed by Mytify itself, not a source to scan or edit.
     for (final source in app.librarySources)
       if (source.kind != 'downloads') _source(source),
@@ -2004,17 +2013,17 @@ class SourcesList extends StatelessWidget {
       ListTile(
         contentPadding: EdgeInsets.zero,
         leading: Icon(Icons.download_for_offline_outlined, color: secondaryText),
-        title: const Text('Pobrane i miejsce'),
-        subtitle: Text('Kopie offline, kolejka pobierania, zajęte miejsce', style: Txt.meta),
+        title: Text(tr('Pobrane i miejsce')),
+        subtitle: Text(tr('Kopie offline, kolejka pobierania, zajęte miejsce'), style: Txt.meta),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => app.go(const Nav('downloads')),
       ),
-    if (app.lastImport != null) const SectionTitle('Więcej'),
+    if (app.lastImport != null) SectionTitle(tr('Więcej')),
     if (app.lastImport != null)
       ListTile(
         contentPadding: EdgeInsets.zero,
         leading: Icon(Icons.receipt_long_outlined, color: secondaryText),
-        title: const Text('Ostatni wynik importu'),
+        title: Text(tr('Ostatni wynik importu')),
         onTap: () => unawaited(app.showImportReport(app.lastImport!)),
       ),
   ];
@@ -2022,10 +2031,10 @@ class SourcesList extends StatelessWidget {
   Widget _source(LibrarySource source) {
     final offline = source.state == 'offline' || source.state == 'error';
     final problem = switch (source.state) {
-      'offline' => source.network ? 'Źródło niedostępne' : 'Niedostępne',
-      'error' => 'Nie można odczytać',
-      'partial' => 'Wymaga ponownego skanu',
-      'scanning' => 'Skanowanie',
+      'offline' => source.network ? tr('Źródło niedostępne') : tr('Niedostępne'),
+      'error' => tr('Nie można odczytać'),
+      'partial' => tr('Wymaga ponownego skanu'),
+      'scanning' => tr('Skanowanie'),
       _ => null,
     };
     final path = source.address.isNotEmpty
@@ -2065,7 +2074,7 @@ class SourcesList extends StatelessWidget {
             ),
           ),
           PopupMenuButton<String>(
-            tooltip: 'Opcje źródła',
+            tooltip: tr('Opcje źródła'),
             icon: Icon(Icons.more_horiz_rounded, color: secondaryText),
             enabled: !app.importing,
             onSelected: (v) {
@@ -2080,11 +2089,11 @@ class SourcesList extends StatelessWidget {
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(value: 'scan', height: 36, child: Text('Skanuj ponownie')),
-              if (source.network) const PopupMenuItem(value: 'edit', height: 36, child: Text('Edytuj połączenie')),
-              if (source.kind == 'folder') const PopupMenuItem(value: 'relink', height: 36, child: Text('Wskaż folder ponownie')),
+              PopupMenuItem(value: 'scan', height: 36, child: Text(tr('Skanuj ponownie'))),
+              if (source.network) PopupMenuItem(value: 'edit', height: 36, child: Text(tr('Edytuj połączenie'))),
+              if (source.kind == 'folder') PopupMenuItem(value: 'relink', height: 36, child: Text(tr('Wskaż folder ponownie'))),
               const PopupMenuDivider(),
-              PopupMenuItem(value: 'forget', height: 36, child: Text('Odłącz źródło', style: TextStyle(color: dangerText))),
+              PopupMenuItem(value: 'forget', height: 36, child: Text(tr('Odłącz źródło'), style: TextStyle(color: dangerText))),
             ],
           ),
         ],
@@ -2106,7 +2115,7 @@ class _PaletteSwatch extends StatelessWidget {
     return Semantics(
       selected: selected,
       button: true,
-      label: p.name,
+      label: tr(p.name),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(Rad.panel),
@@ -2146,7 +2155,7 @@ class _PaletteSwatch extends StatelessWidget {
               const SizedBox(height: Sp.s),
               Row(
                 children: [
-                  Expanded(child: Text(p.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.primaryText))),
+                  Expanded(child: Text(tr(p.name), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.primaryText))),
                   if (selected) Icon(Icons.check_circle_rounded, size: 16, color: p.accent),
                 ],
               ),

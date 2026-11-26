@@ -117,7 +117,7 @@ void main() {
     await tester.tap(find.text('Włącz parowanie'));
     await tester.pumpAndSettle();
     expect(
-      find.bySemanticsLabel('Kod QR do sparowania telefonu'),
+      find.bySemanticsLabel('Kod QR do sparowania'),
       findsOneWidget,
     );
     expect(find.text('Telefon'), findsOneWidget);

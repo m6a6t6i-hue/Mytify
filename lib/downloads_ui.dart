@@ -9,6 +9,7 @@ import 'model.dart';
 import 'playlists.dart';
 import 'sources_ui.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 
 String sizeLabel(num bytes) {
   if (bytes >= 1e9) return '${(bytes / 1e9).toStringAsFixed(1).replaceAll('.', ',')} GB';
@@ -58,7 +59,7 @@ class DownloadState extends ChangeNotifier {
   Future<void> download(List<Track> tracks, {String? title}) async {
     final ids = [for (final t in tracks) if (t.remote && !t.offline) t.id];
     if (ids.isEmpty) {
-      app.message('Wszystko jest już pobrane.');
+      app.message(tr('Wszystko jest już pobrane.'));
       return;
     }
     Map<String, dynamic> e;
@@ -73,24 +74,24 @@ class DownloadState extends ChangeNotifier {
     final unknown = (e['unknown'] as num?)?.toInt() ?? 0;
     final free = (e['free'] as num?)?.toDouble();
     if (free != null && bytes > free) {
-      app.message('Za mało miejsca: potrzeba ${sizeLabel(bytes)}, wolne ${sizeLabel(free)}.');
+      app.message(tr('Za mało miejsca: potrzeba {0}, wolne {1}.', [sizeLabel(bytes), sizeLabel(free)]));
       return;
     }
     if (!app.mounted) return;
     final ok = await confirm(
       app.context,
-      title: title ?? 'Pobrać offline?',
+      title: title ?? tr('Pobrać offline?'),
       message: [
-        '${trackCount(count)}, ${unknown > 0 ? 'co najmniej ' : ''}${sizeLabel(bytes)}.',
-        if (free != null) 'Wolne miejsce: ${sizeLabel(free)}.',
-        if (unknown > 0) 'Serwer nie podał rozmiaru części plików.',
+        '${trackCount(count)}, ${unknown > 0 ? tr('co najmniej ') : ''}${sizeLabel(bytes)}.',
+        if (free != null) tr('Wolne miejsce: {0}.', [sizeLabel(free)]),
+        if (unknown > 0) tr('Serwer nie podał rozmiaru części plików.'),
       ].join('\n'),
-      action: 'Pobierz',
+      action: tr('Pobierz'),
       destructive: false,
     );
     if (!ok) return;
     await _call('add', {'ids': ids});
-    app.message('Pobieranie: ${trackCount(count)}');
+    app.message(tr('Pobieranie: {0}', [trackCount(count)]));
   }
 
   Future<void> remove(List<Track> tracks) async {
@@ -98,7 +99,7 @@ class DownloadState extends ChangeNotifier {
     if (ids.isEmpty) return;
     await _call('remove', {'ids': ids});
     await app.loadLibrary();
-    app.message('Usunięto pobrane kopie. Oryginały na serwerze zostały bez zmian.');
+    app.message(tr('Usunięto pobrane kopie. Oryginały na serwerze zostały bez zmian.'));
   }
 
   Future<void> keep(MusicPlaylist p, bool value) => _call('keep', {'playlist': p.id, 'keep': value});
@@ -115,9 +116,9 @@ class DownloadState extends ChangeNotifier {
     final local = remote.where((t) => t.offline || pending.contains(t.id)).toList();
     return [
       if (missing.isNotEmpty)
-        MenuEntry('Pobierz offline', icon: Icons.download_for_offline_outlined, onTap: () => unawaited(download(missing, title: title))),
+        MenuEntry(tr('Pobierz offline'), icon: Icons.download_for_offline_outlined, onTap: () => unawaited(download(missing, title: title))),
       if (local.isNotEmpty)
-        MenuEntry('Usuń pobranie', icon: Icons.file_download_off_outlined, onTap: () => unawaited(remove(local))),
+        MenuEntry(tr('Usuń pobranie'), icon: Icons.file_download_off_outlined, onTap: () => unawaited(remove(local))),
     ];
   }
 
@@ -160,9 +161,9 @@ class _DownloadsPageState extends State<DownloadsPage> {
     final done = (i['done'] as num?)?.toDouble() ?? 0;
     final total = (i['total'] as num?)?.toDouble() ?? 0;
     return switch (i['state']) {
-      'running' => total > 0 ? 'Pobieranie ${(done * 100 / total).clamp(0, 100).round()}%' : 'Pobieranie',
-      'failed' => (i['error'] as String?)?.isNotEmpty == true ? i['error'] as String : 'Nie udało się',
-      _ => (i['error'] as String?)?.isNotEmpty == true ? 'Czeka: ${i['error']}' : 'W kolejce',
+      'running' => total > 0 ? tr('Pobieranie {0}%', [(done * 100 / total).clamp(0, 100).round()]) : tr('Pobieranie'),
+      'failed' => (i['error'] as String?)?.isNotEmpty == true ? i['error'] as String : tr('Nie udało się'),
+      _ => (i['error'] as String?)?.isNotEmpty == true ? tr('Czeka: {0}', [i['error']]) : tr('W kolejce'),
     };
   }
 
@@ -178,9 +179,9 @@ class _DownloadsPageState extends State<DownloadsPage> {
     return ListView(
       padding: pad.copyWith(top: Sp.l, bottom: Sp.xxl + MediaQuery.viewPaddingOf(context).bottom),
       children: [
-        if (app.desktopMode) const Padding(padding: EdgeInsets.only(bottom: Sp.m), child: Text('Pobrane', style: Txt.display)),
+        if (app.desktopMode) Padding(padding: EdgeInsets.only(bottom: Sp.m), child: Text(tr('Pobrane'), style: Txt.display)),
         Text(
-          '${trackCount(offline.length)} offline · ${sizeLabel(used)}${free != null ? ' · wolne ${sizeLabel(free)}' : ''}',
+          tr('{0} offline · {1}{2}', [trackCount(offline.length), sizeLabel(used), free != null ? tr(' · wolne {0}', [sizeLabel(free)]) : '']),
           style: Txt.sub,
         ),
         const SizedBox(height: Sp.m),
@@ -192,12 +193,12 @@ class _DownloadsPageState extends State<DownloadsPage> {
               OutlinedButton.icon(
                 onPressed: () => unawaited(d.pause(!d.paused)),
                 icon: Icon(d.paused ? Icons.play_arrow_rounded : Icons.pause_rounded, size: 18),
-                label: Text(d.paused ? 'Wznów pobieranie' : 'Wstrzymaj pobieranie'),
+                label: Text(d.paused ? tr('Wznów pobieranie') : tr('Wstrzymaj pobieranie')),
               ),
             OutlinedButton.icon(
               onPressed: () => app.go(const Nav('library', 'downloaded')),
               icon: const Icon(Icons.library_music_outlined, size: 18),
-              label: const Text('Pokaż pobrane utwory'),
+              label: Text(tr('Pokaż pobrane utwory')),
             ),
           ],
         ),
@@ -206,14 +207,14 @@ class _DownloadsPageState extends State<DownloadsPage> {
             contentPadding: EdgeInsets.zero,
             value: d.status['cellular'] == true,
             onChanged: (v) => unawaited(d.cellular(v)),
-            title: const Text('Pobieraj przez sieć komórkową'),
-            subtitle: Text('Domyślnie tylko przez Wi-Fi.', style: Txt.meta),
+            title: Text(tr('Pobieraj przez sieć komórkową')),
+            subtitle: Text(tr('Domyślnie tylko przez Wi-Fi.'), style: Txt.meta),
           ),
         const SizedBox(height: Sp.l),
         if (items.isEmpty)
-          Text('Nic nie czeka na pobranie.', style: Txt.sub)
+          Text(tr('Nic nie czeka na pobranie.'), style: Txt.sub)
         else ...[
-          SectionHeader(d.paused ? 'Wstrzymane' : 'Kolejka'),
+          SectionHeader(d.paused ? tr('Wstrzymane') : tr('Kolejka')),
           for (final i in items)
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -232,8 +233,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (i['state'] == 'failed') IconAction(Icons.refresh_rounded, 'Spróbuj ponownie', () => unawaited(d.retry(i['id'] as String))),
-                  IconAction(Icons.close_rounded, 'Anuluj', () => unawaited(d.cancel(i['id'] as String))),
+                  if (i['state'] == 'failed') IconAction(Icons.refresh_rounded, tr('Spróbuj ponownie'), () => unawaited(d.retry(i['id'] as String))),
+                  IconAction(Icons.close_rounded, tr('Anuluj'), () => unawaited(d.cancel(i['id'] as String))),
                 ],
               ),
             ),

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'model.dart';
+import 'l10n.dart';
 
 class PlaybackQueue {
   List<Track> items = [];
@@ -17,7 +18,7 @@ class PlaybackQueue {
     }
     final selected = tracks.indexWhere((t) => t.id == selectedId);
     if (selected < 0) {
-      throw ArgumentError('Wybrany utwór nie należy do kolejki.');
+      throw ArgumentError(tr('Wybrany utwór nie należy do kolejki.'));
     }
     items = List.of(tracks);
     _original = List.of(tracks);

@@ -5,6 +5,7 @@ export 'metadata_models.dart';
 
 import 'dart:convert';
 import 'dart:typed_data';
+import 'l10n.dart';
 
 const audioExtensions = [
   'mp3',
@@ -114,8 +115,8 @@ class Track {
     'releaseId': releaseId,
   };
   Track withLiked(bool value) => Track.fromJson({...toJson(), 'liked': value});
-  String get displayArtist => artist.isEmpty ? 'Nieznany wykonawca' : artist;
-  String get displayAlbum => album.isEmpty ? 'Bez albumu' : album;
+  String get displayArtist => artist.isEmpty ? tr('Nieznany wykonawca') : artist;
+  String get displayAlbum => album.isEmpty ? tr('Bez albumu') : album;
   // Untagged files must not collapse into an invented album.
   String get albumKey {
     final normalizedAlbum = albumGroupingPart(album);
@@ -208,7 +209,7 @@ abstract class LibraryRepository {
   Future<ReleaseInfo> releaseDetails(String id);
 
   /// Discogs release by number or page address (PC).
-  Future<ReleaseInfo> discogsRelease(String id) => throw UnsupportedError('Discogs jest dostępny w wersji na PC');
+  Future<ReleaseInfo> discogsRelease(String id) => throw UnsupportedError(tr('Discogs jest dostępny w wersji na PC'));
   Future<CoverChoice?> downloadCover(String id);
   Future<CoverChoice?> chooseCover();
   Future<void> editMetadata(List<MetadataEdit> edits);
@@ -235,6 +236,9 @@ abstract class LibraryRepository {
   /// Where the phone sends media now: {kind: bluetooth|usb|wired|hdmi|speaker, name}.
   Future<Map<String, dynamic>?> systemOutput() async => null;
 
+  /// Language of texts the platform shows itself (Android Auto, notification, widget).
+  Future<void> setLanguage(String code) async {}
+
   /// Opens the system picker for Bluetooth and other outputs; false when there is none.
   Future<bool> openSystemOutputs() async => false;
   Future<void> dispose() async {}
@@ -245,26 +249,26 @@ abstract class LibraryRepository {
   /// Logs in and lists the chosen folder; nothing is saved. Throws a readable message.
   /// Music servers have no folders and describe themselves in [message].
   Future<({List<String> folders, String? message})> testSource(Map<String, dynamic> config, {String? id}) =>
-      Future.error(StateError('Źródła sieciowe nie są dostępne w tej wersji.'));
+      Future.error(StateError(tr('Źródła sieciowe nie są dostępne w tej wersji.')));
 
   /// A finished play; music servers receive it as a scrobble.
   Future<void> played(String id) async {}
 
   /// Offline copies: status, estimate, add, pause, cancel, remove, keep, cellular.
   Future<Map<String, dynamic>> downloads(String action, [Map<String, dynamic> args = const {}]) =>
-      Future.error(StateError('Pobieranie offline nie jest dostępne w tej wersji.'));
+      Future.error(StateError(tr('Pobieranie offline nie jest dostępne w tej wersji.')));
 
   /// Subfolders of [path] inside the share, for the folder picker.
   Future<List<String>> browseSource(Map<String, dynamic> config, String path, {String? id}) =>
-      Future.error(StateError('Źródła sieciowe nie są dostępne w tej wersji.'));
+      Future.error(StateError(tr('Źródła sieciowe nie są dostępne w tej wersji.')));
 
   /// Adds or edits a network source. Returns its id. The password goes to the system store.
   Future<String> saveSource(Map<String, dynamic> config, {String? id}) =>
-      Future.error(StateError('Źródła sieciowe nie są dostępne w tej wersji.'));
+      Future.error(StateError(tr('Źródła sieciowe nie są dostępne w tej wersji.')));
 
   /// Saved settings without the password (`hasPassword` tells if one is stored).
   Future<Map<String, dynamic>> sourceSettings(String id) =>
-      Future.error(StateError('Źródła sieciowe nie są dostępne w tej wersji.'));
+      Future.error(StateError(tr('Źródła sieciowe nie są dostępne w tej wersji.')));
 
   /// Rust player accepts an atomic queue restore; Android Media3 does not.
   bool get queueRestore => true;

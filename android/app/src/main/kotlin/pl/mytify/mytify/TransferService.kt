@@ -28,7 +28,7 @@ class TransferService : Service() {
             .createNotificationChannel(
                 NotificationChannel(
                     "mytify-transfer",
-                    "Kopiowanie muzyki",
+                    Lang.t("Kopiowanie muzyki"),
                     NotificationManager.IMPORTANCE_LOW,
                 )
             )
@@ -54,7 +54,7 @@ class TransferService : Service() {
             )
         return Notification.Builder(this, "mytify-transfer")
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Mytify · Pobieranie na telefon")
+            .setContentTitle(Lang.t("Mytify · Pobieranie na telefon"))
             .setContentText("${s.optInt("done")} / ${s.optInt("total")} · ${s.optString("name")}")
             .setContentIntent(open)
             .setOngoing(true)
@@ -65,7 +65,7 @@ class TransferService : Service() {
                 total <= 0,
             )
             .addAction(
-                Notification.Action.Builder(android.R.drawable.ic_media_pause, "Wstrzymaj", cancel)
+                Notification.Action.Builder(android.R.drawable.ic_media_pause, Lang.t("Wstrzymaj"), cancel)
                     .build()
             )
             .build()

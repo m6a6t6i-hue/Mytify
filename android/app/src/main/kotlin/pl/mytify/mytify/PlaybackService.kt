@@ -79,6 +79,7 @@ class PlaybackService : MediaLibraryService() {
         instance = this
         catalog = Catalog(this)
         Equalizer.load(this)
+        Lang.load(this)
         val p = createPlayer(null)
         val intent =
             PendingIntent.getActivity(

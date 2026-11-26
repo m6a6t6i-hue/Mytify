@@ -13,9 +13,10 @@ import 'main.dart';
 import 'model.dart';
 import 'player_ui.dart';
 import 'widgets.dart';
+import 'l10n.dart';
 
 /// Full screen scenes. Order matches uMode in shaders/visualizer.frag.
-const visualizerScenes = ['Plazma', 'Wstęgi', 'Wir', 'Retro'];
+List<String> get visualizerScenes => [tr('Plazma'), tr('Wstęgi'), tr('Wir'), tr('Retro')];
 
 /// Mytify colours of the scenes: teal, green, violet.
 const mytifyPalette = [Color(0xff00c7bd), Color(0xff00e676), Color(0xff6b3dfa)];
@@ -339,22 +340,22 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
                                 const SizedBox(width: Sp.s),
                                 const Text('Mytify', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                                 const Spacer(),
-                                IconAction(Icons.chevron_left_rounded, 'Poprzednia wizualizacja (←)', () => _scene(-1), color: secondaryText),
+                                IconAction(Icons.chevron_left_rounded, tr('Poprzednia wizualizacja (←)'), () => _scene(-1), color: secondaryText),
                                 SizedBox(
                                   width: 84,
                                   child: Text(visualizerScenes[scene], textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                                 ),
-                                IconAction(Icons.chevron_right_rounded, 'Następna wizualizacja (→)', () => _scene(1), color: secondaryText),
+                                IconAction(Icons.chevron_right_rounded, tr('Następna wizualizacja (→)'), () => _scene(1), color: secondaryText),
                                 const SizedBox(width: Sp.s),
                                 IconAction(
                                   Icons.palette_outlined,
-                                  coverColors ? 'Kolory okładki: włączone' : 'Kolory okładki: wyłączone',
+                                  coverColors ? tr('Kolory okładki: włączone') : tr('Kolory okładki: wyłączone'),
                                   _toggleCoverColors,
                                   active: coverColors,
                                   color: coverColors ? accent : secondaryText,
                                 ),
                                 const SizedBox(width: Sp.s),
-                                IconAction(Icons.close_rounded, 'Zamknij wizualizację (Esc)', _close, color: primaryText),
+                                IconAction(Icons.close_rounded, tr('Zamknij wizualizację (Esc)'), _close, color: primaryText),
                               ],
                             ),
                             const Spacer(),
@@ -362,7 +363,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
                               Padding(
                                 padding: EdgeInsets.only(bottom: Sp.m),
                                 child: Text(
-                                  'Brak danych o dźwięku z tego wyjścia: obraz nie reaguje na muzykę.',
+                                  tr('Brak danych o dźwięku z tego wyjścia: obraz nie reaguje na muzykę.'),
                                   style: TextStyle(fontSize: 12.5, color: secondaryText),
                                 ),
                               ),
@@ -392,7 +393,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(t?.title ?? 'Wybierz utwór', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                Text(t?.title ?? tr('Wybierz utwór'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                 if (t != null) Text(t.displayArtist, maxLines: 1, overflow: TextOverflow.ellipsis, style: Txt.meta),
               ],
             ),
