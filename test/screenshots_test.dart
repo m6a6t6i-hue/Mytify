@@ -10,6 +10,8 @@ import 'package:mytify/audio_player.dart';
 import 'package:mytify/ingest.dart';
 import 'package:mytify/intro.dart';
 import 'package:mytify/main.dart';
+import 'package:mytify/l10n.dart';
+import 'package:mytify/design.dart';
 import 'package:mytify/repository_android.dart';
 import 'package:mytify/visualizer.dart';
 import 'package:mytify/widgets.dart';
@@ -228,6 +230,28 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 3));
   }
+
+  testWidgets('schemes and English', (tester) async {
+    await open(tester, const Size(390, 844));
+    for (final id in ['light', 'ocean', 'amber']) {
+      applyPalette(paletteById(id));
+      await shot(tester, 'scheme_${id}_home');
+    }
+    applyPalette(paletteById('light'));
+    await tester.tap(find.text('The last sunset over us').first);
+    await shot(tester, 'scheme_light_player');
+    await tester.tap(find.byIcon(Icons.keyboard_arrow_down_rounded).first);
+    await settle(tester);
+    lang = 'en';
+    applyPalette(paletteById('mytify'));
+    await shot(tester, 'en_home');
+    await tester.tap(find.byTooltip('Settings').first);
+    await settle(tester);
+    await tester.tap(find.text('Appearance and language'));
+    await shot(tester, 'en_look');
+    lang = 'pl';
+    await close(tester);
+  }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
   testWidgets('mobile screens', (tester) async {
     await open(tester, const Size(390, 844));
