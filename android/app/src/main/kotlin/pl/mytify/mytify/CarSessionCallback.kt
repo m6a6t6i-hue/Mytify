@@ -38,7 +38,7 @@ class CarSessionCallback(
 
     /** Like and shuffle buttons showing the real state of the current track and queue. */
     fun buttons(player: Player): ImmutableList<CommandButton> {
-        val id = player.currentMediaItem?.mediaId
+        val id = player.currentMediaItem?.mediaId?.takeUnless { it.startsWith("radio:") }
         val liked = id != null && runCatching { catalog.liked(id) }.getOrDefault(false)
         val shuffle = player.shuffleModeEnabled
         return ImmutableList.of(
@@ -67,7 +67,7 @@ class CarSessionCallback(
         val p = session.player
         when (customCommand.customAction) {
             LIKE.customAction -> {
-                val id = p.currentMediaItem?.mediaId
+                val id = p.currentMediaItem?.mediaId?.takeUnless { it.startsWith("radio:") }
                     ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
                 catalog.like(id, !catalog.liked(id))
                 // The app and Android Auto show the new state too.
@@ -208,7 +208,7 @@ class CarSessionCallback(
         controller: MediaSession.ControllerInfo,
         mediaItems: List<MediaItem>,
     ): ListenableFuture<List<MediaItem>> =
-        worker.submit(Callable { mediaItems.map { library.playable(it.mediaId) } })
+        worker.submit(Callable { mediaItems.map { if (it.mediaId.startsWith("radio:")) library.playableStation(it.mediaId) else library.playable(it.mediaId) } })
 
     override fun onPlaybackResumption(
         session: MediaSession,
@@ -234,7 +234,7 @@ class CarSessionCallback(
     fun changed(session: MediaLibrarySession) {
         val parents = synchronized(observed) { observed.toList() }
         (parents + listOf(CarLibrary.ROOT) + CarLibrary.ROOT_IDS).distinct().forEach {
-            session.notifyChildrenChanged(it, if (it == CarLibrary.ROOT) 4 else Int.MAX_VALUE, null)
+            session.notifyChildrenChanged(it, if (it == CarLibrary.ROOT) CarLibrary.ROOT_IDS.size else Int.MAX_VALUE, null)
         }
     }
 

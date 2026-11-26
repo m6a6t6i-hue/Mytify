@@ -293,6 +293,33 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                 }
+                "radio" -> {
+                    val args = JSONObject(call.arguments as String)
+                    background(r, sourceWorker) {
+                        when (args.optString("action")) {
+                            "search" ->
+                                org.json.JSONArray(
+                                    Radio.search(
+                                        name = args.optString("name"),
+                                        tag = args.optString("tag"),
+                                        country = args.optString("country"),
+                                        order = args.optString("order"),
+                                        limit = args.optInt("limit", 40),
+                                        offset = args.optInt("offset", 0),
+                                    ).map { it.json() }
+                                )
+                            "click" -> obj("url" to Radio.click(args.optString("id")))
+                            "probe" -> Radio.probe(args.optString("url").trim())
+                            "favorites" -> {
+                                val a = args.optJSONArray("stations") ?: org.json.JSONArray()
+                                Radio.setFavorites(applicationContext, (0 until a.length()).mapNotNull { Radio.Station.from(a.getJSONObject(it)) })
+                                PlaybackService.instance?.libraryChanged()
+                                obj("ok" to true)
+                            }
+                            else -> error("Nieznana operacja radia")
+                        }
+                    }
+                }
                 "sourceSettings" -> {
                     val id = call.arguments as String
                     background(r) {
@@ -347,7 +374,38 @@ class MainActivity : FlutterActivity() {
                 }
                 "audioCommand" -> {
                     val args = call.arguments as Map<*, *>
-                    if (args["action"] == "load") {
+                    if (args["action"] == "radio") {
+                        val station =
+                            Radio.Station.from(
+                                JSONObject()
+                                    .put("id", args["id"] as? String ?: "")
+                                    .put("url", args["url"] as? String ?: "")
+                                    .put("name", args["name"] as? String ?: "")
+                                    .put("logo", args["logo"] as? String ?: "")
+                                    .put("codec", args["codec"] as? String ?: "")
+                                    .put("bitrate", (args["bitrate"] as? Number)?.toInt() ?: 0)
+                                    .put("hls", args["hls"] == true)
+                            ) ?: error(Lang.t("Nieprawidłowa stacja."))
+                        audioWorker.execute {
+                            try {
+                                val (url, hls) = Radio.resolve(station.url)
+                                val ready = station.copy(url = url, hls = hls || station.hls)
+                                Radio.remember(applicationContext, ready)
+                                val item = Radio.item(ready)
+                                main.post {
+                                    withPlayer(r) { p ->
+                                        PlaybackService.instance?.clearError()
+                                        p.setMediaItem(item)
+                                        p.prepare()
+                                        p.play()
+                                        snapshot(p)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                main.post { if (!isDestroyed) r.error("audio", e.message, null) }
+                            }
+                        }
+                    } else if (args["action"] == "load") {
                         val ids = (args["ids"] as List<*>).map { it as String }
                         require(ids.isNotEmpty() && ids.size <= 10000)
                         audioWorker.execute {
@@ -375,6 +433,12 @@ class MainActivity : FlutterActivity() {
                         }
                     } else
                         withPlayer(r) { p ->
+                            // A station has no queue and no timeline to move in.
+                            if (
+                                p.currentMediaItem?.mediaId?.startsWith("radio:") == true &&
+                                    args["action"] in setOf("next", "previous", "seek", "shuffle", "jump")
+                            )
+                                return@withPlayer snapshot(p)
                             when (args["action"]) {
                                 "play" -> {
                                     PlaybackService.instance?.clearError()

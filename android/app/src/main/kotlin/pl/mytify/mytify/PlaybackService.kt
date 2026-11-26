@@ -74,6 +74,15 @@ class PlaybackService : MediaLibraryService() {
     var revision = 0
         private set
 
+    /** What the station says is on air (ICY StreamTitle) and its own name; never guessed. */
+    @Volatile var radioTitle: String? = null
+        private set
+    @Volatile private var radioStation: String? = null
+    @Volatile private var radioBitrate = 0
+    private var lastTitle: String? = null
+
+    private fun onAir(p: Player) = p.currentMediaItem?.mediaId?.startsWith("radio:") == true
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -172,14 +181,39 @@ class PlaybackService : MediaLibraryService() {
             volume = getSharedPreferences("player", 0).getFloat("volume", 0.8f)
             addListener(
                 object : Player.Listener {
+                    override fun onMetadata(metadata: androidx.media3.common.Metadata) {
+                        for (i in 0 until metadata.length()) {
+                            when (val e = metadata.get(i)) {
+                                is androidx.media3.extractor.metadata.icy.IcyInfo ->
+                                    radioTitle = e.title?.trim()?.trim('-', ' ')?.takeIf { it.isNotEmpty() }?.take(300)
+                                is androidx.media3.extractor.metadata.icy.IcyHeaders -> {
+                                    radioStation = e.name?.takeIf { it.isNotBlank() }
+                                    if (e.bitrate > 0) radioBitrate = e.bitrate / 1000
+                                }
+                            }
+                        }
+                        if (radioTitle != lastTitle) {
+                            lastTitle = radioTitle
+                            revision++
+                            Widget.update(this@PlaybackService)
+                        }
+                    }
+
                     override fun onPlayerError(error: PlaybackException) {
                         errorMessage =
+                            if (onAir(this@apply))
+                                Lang.t("Nie można odtworzyć stacji ({0}). Sprawdź internet lub wybierz inną stację.").replace("{0}", error.errorCodeName)
+                            else
                             "Nie można odtworzyć pliku (${error.errorCodeName}). Sprawdź dostęp i format."
                         errorSerial++
                         revision++
                     }
 
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        radioTitle = null
+                        radioStation = null
+                        radioBitrate = 0
+                        lastTitle = null
                         revision++
                         save()
                         refreshButtons()
@@ -199,6 +233,10 @@ class PlaybackService : MediaLibraryService() {
 
                     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                         if (!playWhenReady) a?.flush()
+                        // Radio is live: a paused station starts again from what airs then,
+                        // instead of an old buffer or a connection the station dropped meanwhile.
+                        if (!playWhenReady && reason != Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS && onAir(this@apply))
+                            handler.post { if (!this@apply.playWhenReady && onAir(this@apply)) this@apply.stop() }
                     }
 
                     override fun onPositionDiscontinuity(
@@ -349,6 +387,14 @@ class PlaybackService : MediaLibraryService() {
         val p = session?.player ?: return null
         val item = p.currentMediaItem ?: return null
         val m = item.mediaMetadata
+        if (onAir(p))
+            return Widget.State(
+                title = radioTitle ?: m.title?.toString() ?: "",
+                artist = m.station?.toString() ?: "",
+                artwork = null,
+                playing = p.isPlaying,
+                liked = false,
+            )
         return Widget.State(
             title = m.title?.toString() ?: "",
             artist = m.artist?.toString() ?: "",
@@ -416,6 +462,28 @@ class PlaybackService : MediaLibraryService() {
             "durationMs" to maxOf(0, p.duration),
             "selectedDevice" to (networkTarget?.id ?: "auto"),
             "equalizer" to Equalizer.json(),
+            "radio" to
+                p.currentMediaItem?.takeIf { onAir(p) }?.let { item ->
+                    val s = carCallback.library.station(item.mediaId)
+                    obj(
+                        "id" to item.mediaId,
+                        "name" to (s?.name ?: item.mediaMetadata.station?.toString() ?: ""),
+                        "url" to (s?.url ?: item.localConfiguration?.uri?.toString() ?: ""),
+                        "logo" to (s?.logo ?: ""),
+                        "title" to radioTitle,
+                        "station" to radioStation,
+                        "codec" to (f?.sampleMimeType?.let { m ->
+                            when {
+                                m.contains("mpeg") && !m.contains("mpegurl") -> "MP3"
+                                m.contains("mp4a") || m.contains("aac") -> "AAC"
+                                m.contains("vorbis") || m.contains("opus") -> "OGG"
+                                else -> ""
+                            }
+                        } ?: ""),
+                        "bitrate" to radioBitrate,
+                        "reconnecting" to false,
+                    )
+                },
             "pairingRequired" to (airplay?.state() == 2),
             "volumeAvailable" to ((session?.player as? DlnaPlayer)?.volumeKnown ?: true),
             "source" to

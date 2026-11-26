@@ -231,8 +231,28 @@ class DlnaPlayer(
         }
     }
 
+    /** The receiver fetches the station itself; playlists are opened here first. */
+    private fun station(item: MediaItem, play: Boolean) {
+        val address = item.localConfiguration?.uri?.toString() ?: error(Lang.t("Stacja jest niedostępna"))
+        val (url, _) = Radio.resolve(address)
+        val name = (item.mediaMetadata.station ?: item.mediaMetadata.title ?: "").toString()
+        val meta =
+            "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\"><item id=\"radio\" parentID=\"0\" restricted=\"1\"><dc:title>${NetworkDevices.escape(name)}</dc:title><upnp:class>object.item.audioItem.audioBroadcast</upnp:class><res protocolInfo=\"http-get:*:*:*\">${NetworkDevices.escape(url)}</res></item></DIDL-Lite>"
+        NetworkDevices.soap(target, "SetAVTransportURI", mapOf("CurrentURI" to url, "CurrentURIMetaData" to meta))
+        if (play) NetworkDevices.soap(target, "Play", mapOf("Speed" to "1"))
+        update {
+            loaded = true
+            ready = true
+            position = 0
+            seenPlaying = false
+            wants = play
+        }
+    }
+
     private fun current(play: Boolean, pos: Long) {
-        val id = items.getOrNull(index)?.mediaItem?.mediaId ?: return
+        val item = items.getOrNull(index)?.mediaItem ?: return
+        val id = item.mediaId
+        if (id.startsWith("radio:")) return station(item, play)
         val track = catalog.track(id)
         val uri = server.uri(id)
         val mime = NetworkDevices.mime(track.optString("format"))
@@ -264,6 +284,8 @@ class DlnaPlayer(
         val data =
             mediaItems.map { item ->
                 val id = item.mediaId
+                if (id.startsWith("radio:"))
+                    return@map MediaItemData.Builder(id).setMediaItem(item).setIsSeekable(false).build()
                 val t = catalog.track(id)
                 catalog.uri(id)
                 MediaItemData.Builder(id)
@@ -305,6 +327,7 @@ class DlnaPlayer(
     ): ListenableFuture<*> = task {
         if (items.isEmpty()) return@task
         val i = mediaItemIndex.coerceIn(0, items.lastIndex)
+        if (i == index && loaded && items[i].mediaItem.mediaId.startsWith("radio:")) return@task
         val pos = maxOf(0, positionMs)
         if (i != index || !loaded) {
             update { index = i }

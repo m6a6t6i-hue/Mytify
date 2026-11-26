@@ -63,6 +63,9 @@ dependencies {
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-session:1.11.1")
+    // Radio: HLS stations and ICY metadata classes used directly.
+    implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
+    implementation("androidx.media3:media3-extractor:1.11.1")
     // SMB 2/3 client (no SMB1). Bouncy Castle supplies MD4/AES-CMAC missing from Android JCE.
     implementation("com.hierynomus:smbj:0.13.0")
     // WebDAV: PROPFIND and HTTPS ranges; playback through the Media3 OkHttp source.

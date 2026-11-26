@@ -48,7 +48,7 @@ class CarSessionTest {
     @Test fun realMediaBrowserCanBrowseServiceBeforeAnyActivityExists() {
         val session=start();val b=await(MediaBrowser.Builder(context,session.token).buildAsync());browser=b
         val root=await(b.getLibraryRoot(null));assertEquals(0,root.resultCode);assertEquals("root",root.value!!.mediaId)
-        val children=await(b.getChildren("root",0,10,null));assertEquals(4,children.value!!.size)
+        val children=await(b.getChildren("root",0,10,null));assertEquals(5,children.value!!.size)
         assertFalse(session.player.playWhenReady);assertEquals(0,session.player.mediaItemCount)
     }
     @Test fun browserSelectionAndPhoneControllerShareOneNativeQueue() {

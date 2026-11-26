@@ -30,7 +30,30 @@ class CarLibraryTest {
         catalog.writableDatabase.insertOrThrow("tracks",null,ContentValues().apply { put("id",id);put("raw",raw.toString());put("added",n) })
         catalog.writableDatabase.insertOrThrow("locations",null,ContentValues().apply { put("uri","content://test/$n");put("source","test");put("track",id);put("name","$n.flac");put("available",if(available) 1 else 0) });return id
     }
-    @Test fun coldRootHasFourCategoriesWithoutActivityOrMusic() { assertEquals(listOf("albums","playlists","liked","all"),library.children("root",0,Int.MAX_VALUE).map { it.mediaId });assertTrue(library.children("all",0,100).isEmpty()) }
+    @Test fun radioFolderListsFavouritesAndPlaysRememberedStationsWithoutTheApp() {
+        assertEquals("stations:favorites",library.children("radio",0,100).first().mediaId)
+        val s=Radio.Station("radio:abc","Jazz Radio","https://s.example/jazz",tags=listOf("jazz"),codec="AAC",bitrate=64)
+        Radio.setFavorites(context,listOf(s,Radio.Station("bad","x","ftp://x")))
+        val rows=library.children("stations:favorites",0,100)
+        assertEquals(listOf("radio:abc"),rows.map { it.mediaId })
+        assertTrue(rows.single().mediaMetadata.isPlayable==true)
+        val item=library.playable("radio:abc")
+        assertEquals("https://s.example/jazz",item.localConfiguration!!.uri.toString())
+        assertEquals("Jazz Radio",item.mediaMetadata.station.toString())
+        assertEquals("Jazz Radio",library.get("radio:abc").mediaMetadata.title.toString())
+        assertThrows(IllegalStateException::class.java) { library.playable("radio:unknown") }
+    }
+    @Test fun playlistFilesLeadToTheStream() {
+        assertEquals("http://a.example:8000/live",Radio.parsePlaylist("[playlist]\nFile1=http://a.example:8000/live\nTitle1=A\n","http://x/"))
+        assertEquals("https://c.example/s.mp3",Radio.parsePlaylist("#EXTM3U\n#EXTINF:-1,R\nhttps://c.example/s.mp3\n","http://x/"))
+        assertEquals("http://x.example/stream/aac",Radio.parsePlaylist("stream/aac\n","http://x.example/list.m3u"))
+        assertEquals("hls",Radio.parsePlaylist("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\na.m3u8","http://x/"))
+        assertEquals("http://d.example/live",Radio.parsePlaylist("<asx><entry><ref href=\"http://d.example/live\"/></entry></asx>","http://x/"))
+        assertNull(Radio.parsePlaylist("<html></html>","http://x/"))
+        val row=Radio.Station.directory(org.json.JSONObject("""{"stationuuid":"9617a958","name":" A ","url":"http://x/a.pls","url_resolved":"https://s/a","favicon":"javascript:x","tags":"Rock, ,Pop","hls":0}"""))!!
+        assertEquals(listOf("radio:9617a958","A","https://s/a",""),listOf(row.id,row.name,row.url,row.logo));assertEquals(listOf("rock","pop"),row.tags)
+    }
+    @Test fun coldRootHasFiveCategoriesWithoutActivityOrMusic() { assertEquals(listOf("albums","playlists","liked","all","radio"),library.children("root",0,Int.MAX_VALUE).map { it.mediaId });assertTrue(library.children("all",0,100).isEmpty()) }
     @Test fun albumSelectionExpandsInDiscTrackOrderAndKeepsStart() {
         val three=add(3,number=3);val one=add(1,number=1);val two=add(2,number=2)
         val album=library.children("albums",0,100).single();val songs=library.children(album.mediaId,0,100)
