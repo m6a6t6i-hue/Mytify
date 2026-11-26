@@ -21,6 +21,8 @@ void main() {
   const events = MethodChannel('pl.mytify/import');
   late Map<String, dynamic> audio;
   late List<Map<String, dynamic>> commands, radioCalls, shopCalls;
+  var nasUp = true;
+  var probes = 0;
 
   test('stations from the directory, typed addresses and what is on air', () {
     expect(Station.fromJson({'id': 'x', 'url': 'http://a'}), isNull);
@@ -70,6 +72,8 @@ void main() {
     commands = [];
     radioCalls = [];
     shopCalls = [];
+    nasUp = true;
+    probes = -100;
     audio = {
       'available': true,
       'playing': false,
@@ -128,8 +132,19 @@ void main() {
       return jsonEncode(switch (call.method) {
         'load' => [
           {'id': 'hash', 'title': 'So What', 'artist': 'Miles Davis', 'album': 'Kind of Blue', 'fileName': 'a.flac', 'format': 'FLAC', 'durationMs': 60000},
+          {'id': 'nas1', 'title': 'Z serwera', 'artist': 'Kwartet', 'album': 'Na NAS', 'fileName': 'n.flac', 'format': 'FLAC', 'durationMs': 60000, 'remote': true, 'available': nasUp},
         ],
-        'sources' => [],
+        'probeSources' => () {
+          // Only the NAS test counts attempts: the first fails, the next one finds the NAS.
+          if (probes >= 0) {
+            probes++;
+            nasUp = probes >= 2;
+          }
+          return {'ok': true};
+        }(),
+        'sources' => [
+          {'id': 's1', 'name': 'NAS', 'path': '', 'kind': 'smb', 'protocol': 'smb', 'state': nasUp ? 'online' : 'offline', 'files': 1, 'availableFiles': nasUp ? 1 : 0, 'lastScan': 1},
+        ],
         'audioDevices' => [
           {'id': 'auto', 'name': 'Ten telefon'},
         ],
@@ -301,6 +316,31 @@ void main() {
     done.complete(ImportReport.fromJson({'added': 0, 'updated': 0, 'unchanged': 0, 'missing': 0, 'cancelled': true}));
     await settle(tester);
     expect(find.byType(ScanBanner), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('a cloud track right after start waits for its NAS, then plays', (tester) async {
+    nasUp = false;
+    probes = 0;
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MytifyApp(repository: AndroidLibraryRepository()));
+    await settle(tester);
+    final app = tester.state<LibraryScreenState>(find.byType(LibraryScreen));
+    // The start-up attempt failed (NAS still waking up): the user is told, nothing plays.
+    expect(probes, 1);
+    expect(find.textContaining('Spróbuję ponownie'), findsOneWidget);
+    expect(app.index.byId['nas1']!.available, isFalse);
+    // Play: connect again (spinner), then the fresh, available track is played.
+    await app.playTracks([app.index.byId['nas1']!]);
+    await settle(tester);
+    expect(probes, 2);
+    final load = commands.lastWhere((c) => c['action'] == 'load');
+    expect(load['ids'], ['nas1']);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 3));
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));

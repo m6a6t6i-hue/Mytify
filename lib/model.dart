@@ -180,6 +180,11 @@ class ImportReport {
   );
 }
 
+/// Platforms with network sources: checks the shares right now (normally done in the background).
+abstract class SourceProbe {
+  Future<void> probeSources();
+}
+
 abstract class LibraryRepository {
   String get storageDescription;
   Future<List<Track>> load();

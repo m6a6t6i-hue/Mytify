@@ -65,7 +65,9 @@ external JSPromise<JSString> _radio(JSString action, JSString body);
 external JSPromise<JSString> _ingest(JSString body);
 
 class WebLibraryRepository extends LibraryRepository
-    implements IngestRepository, PlaylistRepository, TransferRepository, RadioRepository, ShopRepository {
+    implements IngestRepository, PlaylistRepository, TransferRepository, RadioRepository, ShopRepository, SourceProbe {
+  @override
+  Future<void> probeSources() async => _net('probe', '');
   @override
   Future<List<Offer>> shopSearch(String query, String country) async => [
     for (final v in jsonDecode((await _shop(query.toJS, country.toJS).toDart).toDart) as List) ?Offer.fromJson(Map<String, dynamic>.from(v as Map)),

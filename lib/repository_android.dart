@@ -17,7 +17,10 @@ class AndroidLibraryRepository extends LibraryRepository
         TransferRepository,
         LibraryChangesRepository,
         RadioRepository,
-        ShopRepository {
+        ShopRepository,
+        SourceProbe {
+  @override
+  Future<void> probeSources() async => _call('probeSources');
   @override
   Future<List<Offer>> shopSearch(String query, String country) async => [
     for (final v in await _call('shop', {'query': query, 'country': country}) as List) ?Offer.fromJson(Map<String, dynamic>.from(v as Map)),

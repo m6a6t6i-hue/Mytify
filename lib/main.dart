@@ -369,7 +369,8 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (mounted) setState(() {});
     }));
     unawaited(player.start());
-    unawaited(loadLibrary());
+    // NAS shares are reached while the intro plays, so a first tap on a cloud track works.
+    unawaited(loadLibrary().then((_) => connectSources(quietly: true)));
     // PC app: notice an inserted Audio CD and offer to import it.
     if (canDigitize && canFloat) ingest.watchDiscs();
     if (canFloat) {
@@ -511,6 +512,10 @@ class LibraryScreenState extends State<LibraryScreen> {
     Track? start,
     bool shuffle = false,
   }) async {
+    final ids = {for (final t in list) t.id};
+    final fresh = await _reachable(start != null && !ids.contains(start.id) ? [start, ...list] : list);
+    list = [for (final t in fresh) if (ids.contains(t.id)) t];
+    if (start != null) start = index.byId[start.id] ?? start;
     final playable = <Track>[];
     final seen = <String>{};
     for (final t in list) {
@@ -564,6 +569,9 @@ class LibraryScreenState extends State<LibraryScreen> {
     // Tapping the spinning button gives up waiting.
     if (connecting) return audioOperation(() => player.command({'action': 'pause'}));
     if (isRadio(track.id)) return player.state.playing ? audioOperation(player.playOrPause) : starting(() => audioOperation(player.playOrPause));
+    if (!track.available && track.remote && !track.offline) {
+      return playTracks(queue.items, start: track);
+    }
     if (!track.available) {
       message(tr('Źródło jest niedostępne. Podłącz je i wykonaj skan.'));
       return;
@@ -1170,6 +1178,46 @@ class LibraryScreenState extends State<LibraryScreen> {
   }
 
   // ---------------------------------------------------------------- import & sources
+
+  Future<bool>? _connecting;
+
+  /// Reaches the network sources now (with a short limit) and reloads the library.
+  /// True when every network source answered.
+  Future<bool> connectSources({bool quietly = false, Duration limit = const Duration(seconds: 8)}) {
+    final repo = repository;
+    if (repo is! SourceProbe || !librarySources.any((s) => s.network)) return Future.value(true);
+    return _connecting ??= () async {
+      var ok = false;
+      try {
+        await (repo as SourceProbe).probeSources().timeout(limit);
+        ok = true;
+      } catch (_) {
+        /* too slow or unreachable: reported below */
+      } finally {
+        _connecting = null;
+      }
+      await loadLibrary();
+      final down = [for (final s in librarySources) if (s.network && s.state == 'offline') s.name];
+      if (!ok || down.isNotEmpty) {
+        final names = down.isEmpty ? tr('źródła sieciowe') : down.join(', ');
+        message(
+          quietly
+              ? tr('Nie udało się połączyć z: {0}. Spróbuję ponownie, gdy włączysz utwór.', [names])
+              : tr('{0} nie odpowiada. Sprawdź, czy NAS jest włączony i w tej samej sieci.', [names]),
+        );
+        return false;
+      }
+      return true;
+    }();
+  }
+
+  /// Network tracks that look unavailable may only be waiting for their source:
+  /// connect first (the play button spins), then use the fresh state.
+  Future<List<Track>> _reachable(List<Track> list) async {
+    if (!list.any((t) => t.remote && !t.available && !t.offline)) return list;
+    await starting(() => connectSources());
+    return [for (final t in list) index.byId[t.id] ?? t];
+  }
 
   Future<void> runOperation(
     Future<ImportReport> Function(void Function(ImportProgress)) action, {

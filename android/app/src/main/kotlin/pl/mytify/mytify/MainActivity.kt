@@ -287,6 +287,12 @@ class MainActivity : FlutterActivity() {
                         obj("ok" to true)
                     }
                 }
+                "probeSources" ->
+                    // Before playing from a NAS: reach the shares now (the app waits with a time limit).
+                    background(r, sourceWorker) {
+                        NetworkSources.probe(applicationContext)
+                        obj("ok" to true)
+                    }
                 "testSource", "browseSource", "saveSource" -> {
                     val args = JSONObject(call.arguments as String)
                     // A new source comes with "id": null, which optString turns into the text "null".

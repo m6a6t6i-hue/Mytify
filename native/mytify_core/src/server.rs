@@ -716,6 +716,11 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
                 };
             }
         }
+        if path == "/api/sources/probe" && method == Method::Post {
+            // Before playing from a NAS: reach the shares now instead of waiting for the background check.
+            app.catalog.probe_network_sources()?;
+            return send_json(request, 200, json!({"ok": true}));
+        }
         if path == "/api/sources/test" || path == "/api/sources/browse" || path == "/api/sources/save" {
             if method != Method::Post {
                 return send_error(request, 405, "Nieobsługiwana metoda.");

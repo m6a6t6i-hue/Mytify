@@ -327,7 +327,7 @@ impl Catalog {
                 )?;
             } else if source.state == "offline" {
                 self.db()?.execute(
-                    "UPDATE sources SET state='partial' WHERE id=?",
+                    "UPDATE sources SET state=CASE WHEN last_scan>0 THEN 'online' ELSE 'partial' END WHERE id=?",
                     [&source.id],
                 )?;
             }
@@ -477,6 +477,8 @@ impl Catalog {
             let state = match (reachable, source.state.as_str()) {
                 (_, "scanning") => continue,
                 (false, _) => "offline",
+                // Back online: a share scanned before is simply online again, it does not need a new scan.
+                (true, "offline") if source.last_scan > 0 => "online",
                 (true, "offline") => "partial",
                 (true, s) => s,
             };
