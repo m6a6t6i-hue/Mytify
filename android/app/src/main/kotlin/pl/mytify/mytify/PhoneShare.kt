@@ -180,6 +180,14 @@ internal class PhoneShare(
     private var host = ""
     private var qr: String? = null
 
+    /** Last failures of the server threads (diagnostics and tests). */
+    internal val failures = java.util.concurrent.CopyOnWriteArrayList<String>()
+
+    private fun failed(e: Throwable) {
+        if (failures.size > 20) failures.removeAt(0)
+        failures.add("${e.javaClass.simpleName}: ${e.message}")
+    }
+
     private fun now() = System.currentTimeMillis() / 1000
 
     private fun random(): String = ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
@@ -325,12 +333,14 @@ internal class PhoneShare(
                             socket.accept()
                         } catch (_: SocketTimeoutException) {
                             continue
-                        } catch (_: Exception) {
+                        } catch (e: Exception) {
+                            failed(e)
                             break
                         }
                     val a = s.inetAddress
                     val allowed =
                         a is Inet4Address && (a.isSiteLocalAddress || (allowLoopback && a.isLoopbackAddress))
+                    if (!allowed) failed(IllegalStateException("refused ${a}"))
                     if (!allowed || clients.incrementAndGet() > 4) {
                         if (allowed) clients.decrementAndGet()
                         runCatching { s.close() }
@@ -340,7 +350,9 @@ internal class PhoneShare(
                             try {
                                 s.soTimeout = 15000
                                 s.use { serve(it.getInputStream(), it.getOutputStream(), flag) }
-                            } catch (_: Exception) {} finally {
+                            } catch (e: Exception) {
+                                failed(e)
+                            } finally {
                                 clients.decrementAndGet()
                             }
                         }, "mytify-share-client")

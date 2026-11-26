@@ -66,7 +66,12 @@ class PhoneShareTest {
         try {
             val link = share.status().getString("pairUri")
             val client = TransferClient(true)
-            val peer = client.pair(link)
+            val peer =
+                try {
+                    client.pair(link)
+                } catch (e: Exception) {
+                    throw AssertionError("pair $link: ${e.javaClass.name}: ${e.message} / server: ${share.failures}", e)
+                }
             assertEquals(share.fingerprint(), peer.pin)
             // The code works once.
             assertThrows(Exception::class.java) { client.pair(link) }
