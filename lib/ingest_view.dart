@@ -1346,7 +1346,7 @@ class _WavePainter extends CustomPainter {
       marker.color = i == active ? accent : primaryText;
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), marker);
       // Tab with the number of the track that starts here.
-      tp.text = TextSpan(text: '${i + 2}', style: const TextStyle(fontSize: 10.5, color: Colors.black, fontWeight: FontWeight.w700));
+      tp.text = TextSpan(text: '${i + 2}', style: const TextStyle(fontFamily: 'Arial', fontSize: 10.5, color: Colors.black, fontWeight: FontWeight.w700));
       tp.layout();
       final tab = math.max(16.0, tp.width + 8);
       canvas.drawRRect(
