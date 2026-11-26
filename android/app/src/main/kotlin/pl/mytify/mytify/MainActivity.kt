@@ -420,6 +420,12 @@ class MainActivity : FlutterActivity() {
                                         if (args["value"] == true) Player.REPEAT_MODE_ALL
                                         else Player.REPEAT_MODE_OFF
                                 "shuffle" -> p.shuffleModeEnabled = args["value"] == true
+                                "equalizer" ->
+                                    Equalizer.set(
+                                        args["enabled"] == true,
+                                        (args["gains"] as? List<*>).orEmpty().map { (it as? Number)?.toFloat() ?: 0f },
+                                        applicationContext,
+                                    )
                                 "jump" -> {
                                     val i =
                                         (0 until p.mediaItemCount).firstOrNull {

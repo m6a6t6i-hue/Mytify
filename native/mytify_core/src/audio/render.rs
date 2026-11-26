@@ -1,4 +1,5 @@
 use super::decoder::Stereo;
+use super::eq;
 use rtrb::{Consumer, Producer, RingBuffer};
 use std::sync::{
     atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering},
@@ -41,6 +42,7 @@ pub struct Signals {
     /// Ring of rendered mono samples (f32 bits, before volume) and the count written so far.
     pub scope: Box<[AtomicU32]>,
     pub scope_head: AtomicU64,
+    pub eq: eq::Shared,
 }
 impl Signals {
     pub fn new(volume: f32) -> Self {
@@ -57,6 +59,7 @@ impl Signals {
             device_failed: AtomicBool::new(false),
             scope: (0..SCOPE).map(|_| AtomicU32::new(0)).collect(),
             scope_head: AtomicU64::new(0),
+            eq: eq::Shared::new(&eq::Equalizer::default()),
         }
     }
 }
@@ -87,6 +90,7 @@ pub struct Renderer {
     pub signals: Arc<Signals>,
     gain: f32,
     step: f32,
+    eq: eq::Filter,
 }
 pub fn pipe(rate: u32, signals: Arc<Signals>) -> (Feeder, Renderer) {
     let count = ((rate as usize * 3) / BLOCK).clamp(32, 2048);
@@ -109,6 +113,7 @@ pub fn pipe(rate: u32, signals: Arc<Signals>) -> (Feeder, Renderer) {
             offset: 0,
             gain: f32::from_bits(signals.gain.load(Ordering::Relaxed)),
             step: 1.0 / (rate as f32 * 0.005),
+            eq: eq::Filter::new(rate),
             signals,
         },
     )
@@ -148,6 +153,7 @@ impl Renderer {
             return;
         }
         let gain = f32::from_bits(self.signals.gain.load(Ordering::Relaxed));
+        self.eq.update(&self.signals.eq);
         let mut last = None;
         let mut rendered = 0;
         let mut head = self.signals.scope_head.load(Ordering::Relaxed);
@@ -182,7 +188,7 @@ impl Renderer {
                     self.recycle(old);
                     break;
                 }
-                let sample = block.samples[self.offset];
+                let sample = self.eq.process(block.samples[self.offset]);
                 self.signals.scope[(head as usize) & (SCOPE - 1)]
                     .store(((sample[0] + sample[1]) * 0.5).to_bits(), Ordering::Relaxed);
                 head += 1;

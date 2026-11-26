@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'design.dart';
 import 'devices.dart';
+import 'equalizer.dart';
 import 'main.dart';
 import 'model.dart';
 import 'player_ui.dart';
@@ -216,6 +217,10 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
                 padding: EdgeInsets.only(left: narrow ? 0 : 200, top: Sp.s),
                 child: Text(out.error!, style: const TextStyle(fontSize: 13.5, color: Color(0xffffb4b4))),
               ),
+            if (s.equalizer != null) ...[
+              const SectionTitle('Barwa dźwięku'),
+              EqualizerPanel(app: app, snapshot: s),
+            ],
             const SectionTitle('Zaawansowane'),
             Collapsible(title: 'Diagnostyka dźwięku', child: _diagnostics(s)),
             Collapsible(title: 'Protokoły i zgodność', child: _protocols()),

@@ -1,4 +1,5 @@
 pub mod decoder;
+pub mod eq;
 mod output;
 pub mod render;
 mod sequence;
@@ -21,12 +22,15 @@ use std::{
 struct Settings {
     device_id: String,
     volume: f32,
+    #[serde(default)]
+    equalizer: eq::Equalizer,
 }
 impl Default for Settings {
     fn default() -> Self {
         Self {
             device_id: "auto".into(),
             volume: 80.0,
+            equalizer: eq::Equalizer::default(),
         }
     }
 }
@@ -42,6 +46,7 @@ struct Data {
     error: Option<String>,
     error_serial: u64,
     revision: u64,
+    equalizer: eq::Equalizer,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -66,6 +71,7 @@ pub struct State {
     pub underrun_frames: u64,
     pub rendered_frames: u64,
     pub revision: u64,
+    pub equalizer: eq::Equalizer,
 }
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "action", rename_all = "camelCase", deny_unknown_fields)]
@@ -105,6 +111,10 @@ pub enum Action {
     Jump {
         id: String,
     },
+    Equalizer {
+        enabled: bool,
+        gains: Vec<f32>,
+    },
 }
 fn persist_settings(root: &std::path::Path, io: &Mutex<()>, settings: &Settings) -> Result<()> {
     let _guard = io
@@ -143,8 +153,11 @@ impl Player {
             })
             .unwrap_or_default();
         let signals = Arc::new(Signals::new(settings.volume));
+        let equalizer = settings.equalizer.clone().clean();
+        signals.eq.set(&equalizer);
         let data = Arc::new(Mutex::new(Data {
             selected_device: settings.device_id.clone(),
+            equalizer,
             ..Default::default()
         }));
         let settings_io = Arc::new(Mutex::new(()));
@@ -193,9 +206,14 @@ impl Player {
     }
     pub fn flush_settings(&self) -> Result<()> {
         self.signals.paused.store(true, Ordering::Release);
+        let (device_id, equalizer) = {
+            let data = self.data.lock().unwrap();
+            (data.selected_device.clone(), data.equalizer.clone())
+        };
         let settings = Settings {
-            device_id: self.data.lock().unwrap().selected_device.clone(),
+            device_id,
             volume: f32::from_bits(self.signals.gain.load(Ordering::Relaxed)) * 100.0,
+            equalizer,
         };
         persist_settings(&self.root, &self.settings_io, &settings)
     }
@@ -234,6 +252,7 @@ impl Player {
             underrun_frames: self.signals.underrun_frames.load(Ordering::Relaxed),
             rendered_frames: self.signals.rendered_frames.load(Ordering::Relaxed),
             revision: data.revision,
+            equalizer: data.equalizer.clone(),
         }
     }
     pub fn devices(&self) -> Result<Vec<output::Device>> {
@@ -536,6 +555,13 @@ impl Worker {
                 self.cursor = cursor;
                 self.reset(base, 0);
                 self.signals.paused.store(false, Ordering::Release);
+            }
+            Action::Equalizer { enabled, gains } => {
+                let eq = eq::Equalizer { enabled, gains }.clean();
+                self.signals.eq.set(&eq);
+                self.data.lock().unwrap().equalizer = eq.clone();
+                self.settings.equalizer = eq;
+                self.dirty = true;
             }
             Action::Volume { value } => {
                 self.settings.volume = value;

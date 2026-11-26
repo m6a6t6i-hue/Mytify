@@ -20,6 +20,9 @@ class AudioSnapshot {
   final double volume;
   final Duration position, duration;
   final Map<String, dynamic>? source, output;
+
+  /// {enabled, gains[10]} when this platform has the equalizer.
+  final Map<String, dynamic>? equalizer;
   final String selectedDevice;
   const AudioSnapshot({
     this.volumeAvailable = true,
@@ -43,6 +46,7 @@ class AudioSnapshot {
     this.duration = Duration.zero,
     this.source,
     this.output,
+    this.equalizer,
     this.selectedDevice = 'auto',
   });
   factory AudioSnapshot.fromJson(Map<String, dynamic> j) => AudioSnapshot(
@@ -67,6 +71,7 @@ class AudioSnapshot {
     duration: Duration(milliseconds: (j['durationMs'] as num).toInt()),
     source: j['source'] as Map<String, dynamic>?,
     output: j['output'] as Map<String, dynamic>?,
+    equalizer: j['equalizer'] as Map<String, dynamic>?,
     selectedDevice: j['selectedDevice'] as String,
   );
 }

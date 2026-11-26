@@ -78,6 +78,7 @@ class PlaybackService : MediaLibraryService() {
         super.onCreate()
         instance = this
         catalog = Catalog(this)
+        Equalizer.load(this)
         val p = createPlayer(null)
         val intent =
             PendingIntent.getActivity(
@@ -134,7 +135,7 @@ class PlaybackService : MediaLibraryService() {
                             enableAudioOutputPlaybackParams: Boolean,
                         ): AudioSink? =
                             super.buildAudioSink(context, enableFloatOutput, enableAudioOutputPlaybackParams)
-                                ?.let { LevelSink(it).also { sink -> levels = sink } }
+                                ?.let { EqSink(LevelSink(it).also { sink -> levels = sink }) }
                     }
                     .setEnableAudioFloatOutput(true)
             else
@@ -144,10 +145,12 @@ class PlaybackService : MediaLibraryService() {
                         enableFloatOutput: Boolean,
                         enableAudioOutputPlaybackParams: Boolean,
                     ): AudioSink =
-                        DefaultAudioSink.Builder(context)
-                            .setEnableFloatOutput(false)
-                            .setAudioProcessors(arrayOf<AudioProcessor>(AirplayProcessor(a)))
-                            .build()
+                        EqSink(
+                            DefaultAudioSink.Builder(context)
+                                .setEnableFloatOutput(false)
+                                .setAudioProcessors(arrayOf<AudioProcessor>(AirplayProcessor(a)))
+                                .build()
+                        )
                 }
         return ExoPlayer.Builder(this, factory)
             // smb:// locations stream from the NAS, everything else as before.
@@ -411,6 +414,7 @@ class PlaybackService : MediaLibraryService() {
             "positionMs" to maxOf(0, p.currentPosition),
             "durationMs" to maxOf(0, p.duration),
             "selectedDevice" to (networkTarget?.id ?: "auto"),
+            "equalizer" to Equalizer.json(),
             "pairingRequired" to (airplay?.state() == 2),
             "volumeAvailable" to ((session?.player as? DlnaPlayer)?.volumeKnown ?: true),
             "source" to
