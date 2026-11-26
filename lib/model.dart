@@ -231,6 +231,12 @@ abstract class LibraryRepository {
 
   /// Keeps the display on (full screen visualizations on a phone).
   Future<void> keepScreenOn(bool value) async {}
+
+  /// Where the phone sends media now: {kind: bluetooth|usb|wired|hdmi|speaker, name}.
+  Future<Map<String, dynamic>?> systemOutput() async => null;
+
+  /// Opens the system picker for Bluetooth and other outputs; false when there is none.
+  Future<bool> openSystemOutputs() async => false;
   Future<void> dispose() async {}
 
   /// Network protocols that really work here ("smb" ...). Empty means local music only.

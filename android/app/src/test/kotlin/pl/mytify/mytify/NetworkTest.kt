@@ -13,6 +13,13 @@ import java.net.URL
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk=[35],manifest=Config.NONE)
 class NetworkTest {
+ @Test fun oneAirplayReceiverHasOneIdForRaopAndAirplayRecords() {
+  val raop = NetworkDevices.airplayDeviceId("00A0DEDA4A79@RX-V481 DA4A79", "")
+  val air = NetworkDevices.airplayDeviceId("RX-V481 DA4A79", "00:a0:de:da:4a:79")
+  assertEquals("00:A0:DE:DA:4A:79", raop)
+  assertEquals(raop, air)
+  assertNull(NetworkDevices.airplayDeviceId("Kuchnia", ""))
+ }
  @Test fun actualRangeServerReadsOnlyAuthorizedCatalogFileAndSupportsHead() {
   val context=RuntimeEnvironment.getApplication();context.deleteDatabase("catalog-android.sqlite3")
   val provider=FilesProvider();provider.attachInfo(context,ProviderInfo().apply { authority="test.network" });ShadowContentResolver.registerProviderInternal("test.network",provider)

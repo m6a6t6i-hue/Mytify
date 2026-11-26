@@ -156,6 +156,15 @@ class AndroidLibraryRepository extends LibraryRepository
   @override
   Future<List<double>?> audioLevels() async => levelsFrom(await _call('audioLevels'));
   @override
+  Future<Map<String, dynamic>?> systemOutput() async {
+    final v = await _channel.invokeMethod<Object?>('systemOutput');
+    return v is Map ? Map<String, dynamic>.from(v) : null;
+  }
+
+  @override
+  Future<bool> openSystemOutputs() async => await _channel.invokeMethod<bool>('openSystemOutputs') ?? false;
+
+  @override
   Future<void> keepScreenOn(bool value) async {
     await _channel.invokeMethod<void>('keepScreenOn', value);
   }

@@ -730,7 +730,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       final updated = index.byId[list.first.id];
       if (updated != null) replaceRoute(Nav('album', updated.albumKey));
     }
-    message('Zapisano zmiany w katalogu. Pliki pozostają bez zmian.');
+    message('Zapisano zmiany.');
     return true;
   }
 

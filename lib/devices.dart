@@ -176,6 +176,35 @@ class _DevicePanelState extends State<DevicePanel> {
   final pin = TextEditingController();
   int _errorSerial = 0;
 
+  /// Phone: where Android plays media right now (speaker, headphones, Bluetooth).
+  Map<String, dynamic>? system;
+  Timer? _systemPoll;
+
+  Future<void> _readSystem() async {
+    final v = await app.repository.systemOutput().catchError((Object _) => null);
+    if (mounted && v != null) setState(() => system = v);
+  }
+
+  String? get _systemLabel {
+    final v = system;
+    if (v == null) return null;
+    final name = '${v['name'] ?? ''}'.trim();
+    return switch (v['kind']) {
+      'bluetooth' => name.isEmpty ? 'Słuchawki Bluetooth' : '$name · Bluetooth',
+      'usb' => name.isEmpty ? 'Urządzenie USB' : '$name · USB',
+      'wired' => 'Słuchawki przewodowe',
+      'hdmi' => 'HDMI',
+      _ => 'Głośnik telefonu',
+    };
+  }
+
+  Future<void> _openSystemOutputs() async {
+    // Bluetooth plays what the phone plays: leave AirPlay or DLNA first.
+    if (app.player.state.selectedDevice != 'auto') await out.choose('auto');
+    final opened = await app.repository.openSystemOutputs().catchError((Object _) => false);
+    if (!opened) app.message('Ten telefon nie ma systemowego wyboru wyjścia. Połącz słuchawki w ustawieniach Bluetooth.');
+  }
+
   LibraryScreenState get app => widget.app;
   OutputDevices get out => app.outputs;
 
@@ -186,6 +215,11 @@ class _DevicePanelState extends State<DevicePanel> {
     out.addListener(_changed);
     // Looking for devices never changes the current output.
     unawaited(out.refresh());
+    if (app.isPhone) {
+      unawaited(_readSystem());
+      // Headphones connect and disconnect while the sheet is open.
+      _systemPoll = Timer.periodic(const Duration(seconds: 2), (_) => unawaited(_readSystem()));
+    }
   }
 
   void _changed() {
@@ -195,6 +229,7 @@ class _DevicePanelState extends State<DevicePanel> {
   @override
   void dispose() {
     out.removeListener(_changed);
+    _systemPoll?.cancel();
     pin.dispose();
     super.dispose();
   }
@@ -247,6 +282,8 @@ class _DevicePanelState extends State<DevicePanel> {
                 ? 'Niedostępne'
                 : s.buffering
                 ? 'Buforowanie'
+                : selected == 'auto' && _systemLabel != null
+                ? _systemLabel!
                 : s.playing
                 ? 'Odtwarza'
                 : 'Połączono',
@@ -346,9 +383,18 @@ class _DevicePanelState extends State<DevicePanel> {
               child: Text('Szukam urządzeń…', style: Txt.sub),
             ),
           if (app.isPhone)
-            const Padding(
-              padding: EdgeInsets.only(top: Sp.s),
-              child: Text('Słuchawki i głośniki Bluetooth wybierzesz w panelu multimediów Androida.', style: Txt.meta),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(color: elevated, borderRadius: BorderRadius.circular(Rad.control)),
+                child: const Icon(Icons.bluetooth_audio_rounded, color: primaryText),
+              ),
+              title: const Text('Bluetooth i słuchawki'),
+              subtitle: const Text('Systemowy wybór wyjścia', style: Txt.meta),
+              trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: secondaryText),
+              onTap: connecting == null ? () => unawaited(_openSystemOutputs()) : null,
             ),
         ],
       );

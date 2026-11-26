@@ -79,5 +79,9 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- System output switcher (Bluetooth, wired, speaker) on Android 12 and 13. -->
+        <intent>
+            <action android:name="com.android.systemui.action.LAUNCH_MEDIA_OUTPUT_DIALOG"/>
+        </intent>
     </queries>
 </manifest>

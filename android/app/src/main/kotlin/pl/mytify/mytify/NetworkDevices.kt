@@ -27,6 +27,14 @@ data class NetworkTarget(
 object NetworkDevices {
     val targets = ConcurrentHashMap<String, NetworkTarget>()
 
+    /** One id per AirPlay receiver: "deviceid" of _airplay or the MAC before '@' of _raop. */
+    fun airplayDeviceId(instance: String, deviceId: String): String? {
+        val raw = deviceId.ifBlank { instance.substringBefore('@', "") }
+        val hex = raw.filter { it.isDigit() || it.lowercaseChar() in 'a'..'f' }.uppercase()
+        if (hex.length != 12) return deviceId.ifBlank { null }?.uppercase()
+        return hex.chunked(2).joinToString(":")
+    }
+
     fun privateHost(host: String): Boolean {
         val p = host.split('.').mapNotNull { it.toIntOrNull() }
         return p.size == 4 &&
@@ -274,7 +282,11 @@ object NetworkDevices {
                                         } else if (model.startsWith("AirPort")) 2 else 0
                                     val id =
                                         "airplay:" +
-                                            attr("deviceid").ifBlank { s.serviceName + host }
+                                            (airplayDeviceId(s.serviceName, attr("deviceid"))
+                                                ?: (s.serviceName + host))
+                                    val raop = s.serviceType.contains("_raop")
+                                    // One receiver comes as _raop and _airplay; streaming uses RAOP.
+                                    if (!raop && found[id]?.service == "raop") return
                                     found[id] =
                                         NetworkTarget(
                                             id,
@@ -284,6 +296,7 @@ object NetworkDevices {
                                             host,
                                             s.port,
                                             "airplay",
+                                            service = if (raop) "raop" else "airplay",
                                             auth = auth,
                                             ap2 = ap2,
                                         )

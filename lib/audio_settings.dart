@@ -314,8 +314,8 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
         if (android)
           item(
             'Ten telefon',
-            'Odtwarzanie przez Media3. Słuchawki i głośniki Bluetooth wybierzesz w panelu multimediów Androida. '
-                'Ta wersja nie odczytuje poziomów dźwięku na Androidzie, więc wizualizacja w pasku postępu jest statyczna.',
+            'Odtwarzanie przez Media3. Dźwięk idzie tam, gdzie wskaże Android: głośnik, słuchawki albo Bluetooth. '
+                'Wybierzesz je w „Połącz z urządzeniem” → Bluetooth i słuchawki.',
           )
         else
           item(

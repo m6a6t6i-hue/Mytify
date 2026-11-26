@@ -330,6 +330,8 @@ class MainActivity : FlutterActivity() {
                     val bands = PlaybackService.instance?.levelBands()
                     r.success(JSONObject().put("bands", bands?.let { JSONArray(it.toList()) } ?: JSONObject.NULL).toString())
                 }
+                "systemOutput" -> r.success(systemOutput())
+                "openSystemOutputs" -> r.success(openSystemOutputs())
                 "keepScreenOn" -> {
                     if (call.arguments == true) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -656,5 +658,69 @@ class MainActivity : FlutterActivity() {
         controllerFuture?.let { MediaController.releaseFuture(it) }
         events = null
         super.onDestroy()
+    }
+
+    /** Where Android sends media right now (when Mytify plays on "this phone"). */
+    private fun systemOutput(): Map<String, Any> {
+        val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+        val routed =
+            if (android.os.Build.VERSION.SDK_INT >= 33)
+                runCatching {
+                        am.getAudioDevicesForAttributes(
+                            android.media.AudioAttributes.Builder()
+                                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                                .build()
+                        )
+                    }
+                    .getOrDefault(emptyList())
+            else emptyList()
+        val pool = routed.ifEmpty { am.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS).toList() }
+        fun kind(d: android.media.AudioDeviceInfo) =
+            when (d.type) {
+                android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                26, // TYPE_BLE_HEADSET
+                27, // TYPE_BLE_SPEAKER
+                30 -> "bluetooth" // TYPE_BLE_BROADCAST
+                android.media.AudioDeviceInfo.TYPE_USB_HEADSET,
+                android.media.AudioDeviceInfo.TYPE_USB_DEVICE -> "usb"
+                android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "wired"
+                android.media.AudioDeviceInfo.TYPE_HDMI -> "hdmi"
+                android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker"
+                else -> ""
+            }
+        val rank = listOf("bluetooth", "usb", "wired", "hdmi", "speaker")
+        val d = pool.filter { kind(it).isNotEmpty() }.minByOrNull { rank.indexOf(kind(it)) }
+            ?: return mapOf("kind" to "speaker", "name" to "")
+        val k = kind(d)
+        val name = if (k == "bluetooth" || k == "usb") d.productName?.toString() ?: "" else ""
+        return mapOf("kind" to k, "name" to name)
+    }
+
+    /** The system picker for Bluetooth and other outputs, the same one other players open. */
+    private fun openSystemOutputs(): Boolean {
+        if (android.os.Build.VERSION.SDK_INT >= 34 &&
+            runCatching { android.media.MediaRouter2.getInstance(this).showSystemOutputSwitcher() }
+                .getOrDefault(false)
+        ) return true
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            val i = Intent("com.android.systemui.action.LAUNCH_MEDIA_OUTPUT_DIALOG")
+                .setPackage("com.android.systemui")
+                .putExtra("package_name", packageName)
+            if (packageManager.queryBroadcastReceivers(i, 0).isNotEmpty()) {
+                sendBroadcast(i)
+                return true
+            }
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 30 &&
+            runCatching {
+                    startActivity(
+                        Intent("com.android.settings.panel.action.MEDIA_OUTPUT")
+                            .putExtra("com.android.settings.panel.extra.PACKAGE_NAME", packageName)
+                    )
+                }
+                .isSuccess
+        ) return true
+        return runCatching { startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)) }.isSuccess
     }
 }

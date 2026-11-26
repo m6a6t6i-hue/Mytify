@@ -496,19 +496,27 @@ class TrackFacts extends StatelessWidget {
     final t = track;
     final live = snapshot.currentId == t.id;
     final out = snapshot.output;
+    final outRate = (out?['sampleRate'] as num? ?? 0).toInt();
+    final added = t.addedAt > 0 ? DateTime.fromMillisecondsSinceEpoch(t.addedAt) : null;
+    // Lossy files: bit rate is estimated from size and length (the cover counts too).
+    final quality = [
+      formatLabel(t),
+      if (lossless(t.format) && t.bitDepth > 0) '${t.bitDepth} bit',
+      if (!lossless(t.format) && bitrateLabel(t) != null) 'ok. ${bitrateLabel(t)}',
+      if (t.sampleRate > 0) sampleRateLabel(t.sampleRate),
+    ].join(' · ');
     final rows = <(String, String)>[
-      ('Format', formatLabel(t)),
-      if (bitrateLabel(t) != null) ('Bitrate', bitrateLabel(t)!),
-      ('Częstotliwość', sampleRateLabel(t.sampleRate)),
-      if (bitDepthLabel(t) != null) ('Głębia bitowa', bitDepthLabel(t)!),
-      ('Długość', t.durationMs > 0 ? clock(t.durationMs) : 'brak danych'),
+      ('Wykonawca', t.displayArtist),
+      ('Album', t.displayAlbum),
+      if (t.trackNumber > 0) ('Utwór', t.discNumber > 1 ? 'płyta ${t.discNumber}, nr ${t.trackNumber}' : 'nr ${t.trackNumber}'),
+      ('Jakość', quality),
+      if (t.durationMs > 0) ('Długość', clock(t.durationMs)),
       ('Rozmiar', '${(t.size / 1024 / 1024).toStringAsFixed(1).replaceAll('.', ',')} MB'),
-      ('Plik', t.fileName),
-      ('Opis', t.edited ? 'poprawki w Mytify' : 'tagi w pliku'),
-      if (live && out?['name'] != null) ('Wyjście', out!['name'].toString()),
-      if (live && (out?['sampleRate'] as num? ?? 0) > 0)
-        ('Sygnał wyjściowy', sampleRateLabel((out!['sampleRate'] as num).toInt())),
-      if (live && snapshot.source?['resampled'] == true) ('Konwersja', 'zmiana częstotliwości'),
+      ('Plik', t.remote ? (t.offline ? '${t.fileName}\nz serwera, pobrany na urządzenie' : '${t.fileName}\nna serwerze w sieci') : t.fileName),
+      if (added != null) ('Dodano', '${added.day}.${added.month.toString().padLeft(2, '0')}.${added.year}'),
+      // Only when the PC engine really converts the signal for the output device.
+      if (live && outRate > 0 && t.sampleRate > 0 && outRate != t.sampleRate)
+        ('Odtwarzanie', 'konwersja ${sampleRateLabel(t.sampleRate)} → ${sampleRateLabel(outRate)}'),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

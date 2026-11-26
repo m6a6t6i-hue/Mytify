@@ -45,7 +45,7 @@ class _IngestViewState extends State<IngestView> {
       key: const PageStorageKey('import'),
       padding: widget.padding,
       children: [
-        const Text('Import', style: Txt.display),
+        const Text('Płyty CD i winyle', style: Txt.display),
         const SizedBox(height: Sp.l),
         TextTabs(
           labels: const ['Audio CD', 'Winyl i kaseta'],

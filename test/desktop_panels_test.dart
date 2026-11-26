@@ -203,7 +203,7 @@ void main() {
     final app = await start(tester, repo: repo);
     app.go(const Nav('settings', 'audio'));
     await settle(tester);
-    await tester.tap(find.text('Import').first);
+    await tester.tap(find.text('Płyty CD i winyle').first);
     await settle(tester);
     expect(app.route, const Nav('import'));
     expect(find.byType(IngestView), findsOneWidget);

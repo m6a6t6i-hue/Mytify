@@ -219,10 +219,6 @@ class _MetadataEditorState extends State<MetadataEditor> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Zmiany trafią do katalogu Mytify. Pliki zostaną bez zmian.',
-                  ),
-                  const SizedBox(height: 20),
                   if (!widget.album) ...[
                     field('Tytuł', title, required: true),
                     field('Wykonawca', artist),

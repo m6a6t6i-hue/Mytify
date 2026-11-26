@@ -98,6 +98,8 @@ class ShotRepo extends AndroidLibraryRepository implements IngestRepository {
   List<dynamic> sessions = [];
   Map<String, dynamic> state = {'running': false, 'stage': ''};
   @override
+  Future<Map<String, dynamic>?> systemOutput() async => {'kind': 'bluetooth', 'name': 'Galaxy Buds2'};
+  @override
   bool get hasAudioLevels => true;
   @override
   bool get hasWindow => true;

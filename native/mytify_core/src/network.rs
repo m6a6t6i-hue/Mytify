@@ -278,14 +278,14 @@ pub fn discover() -> Vec<Target> {
                                 } else {
                                     0
                                 };
-                                let id = prop("deviceid");
-                                let id = if id.is_empty() {
-                                    s.fullname.clone()
-                                } else {
-                                    id.to_owned()
-                                };
+                                let instance = s.fullname.split("._").next().unwrap_or("");
+                                let id = airplay_device_id(instance, prop("deviceid"))
+                                    .unwrap_or_else(|| s.fullname.clone());
                                 let _ = tx.send(Target {
                                     id: format!("airplay:{id}"),
+                                    // Which mDNS record it came from: one receiver shows up as
+                                    // both, streaming uses the RAOP one.
+                                    service: if ty.starts_with("_raop") { "raop" } else { "airplay" }.into(),
                                     name: format!(
                                         "{} · AirPlay{}",
                                         s.fullname
@@ -314,10 +314,13 @@ pub fn discover() -> Vec<Target> {
         }
     });
     let until = Instant::now() + Duration::from_secs(4);
-    let mut found = HashMap::new();
+    let mut found: HashMap<String, Target> = HashMap::new();
     while Instant::now() < until {
         if let Ok(t) = rx.recv_timeout(Duration::from_millis(100)) {
-            found.insert(t.id.clone(), t);
+            let keep = matches!(found.get(&t.id), Some(old) if old.kind == "airplay" && old.service == "raop" && t.service != "raop");
+            if !keep {
+                found.insert(t.id.clone(), t);
+            }
         }
     }
     let mut reg = registry().lock().unwrap();
@@ -326,6 +329,22 @@ pub fn discover() -> Vec<Target> {
     out.sort_by(|a, b| a.name.cmp(&b.name));
     out
 }
+/// One id per AirPlay receiver: "deviceid" from _airplay, or the MAC before '@' in the
+/// _raop instance name ("A0B1C2D3E4F5@Salon"), both as "A0:B1:C2:D3:E4:F5".
+pub fn airplay_device_id(instance: &str, deviceid: &str) -> Option<String> {
+    let raw = if deviceid.is_empty() {
+        instance.split_once('@')?.0.to_owned()
+    } else {
+        deviceid.to_owned()
+    };
+    let hex: String = raw.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+    if hex.len() != 12 {
+        return (!deviceid.is_empty()).then(|| deviceid.to_uppercase());
+    }
+    let hex = hex.to_uppercase();
+    Some((0..6).map(|i| &hex[i * 2..i * 2 + 2]).collect::<Vec<_>>().join(":"))
+}
+
 pub fn soap(t: &Target, action: &str, args: &[(&str, String)], render: bool) -> Result<String> {
     let st = if render {
         "urn:schemas-upnp-org:service:RenderingControl:1"
@@ -1001,5 +1020,18 @@ mod receiver_integration {
             403
         );
         network.deselect();
+    }
+}
+
+#[cfg(test)]
+mod airplay_id_tests {
+    use super::airplay_device_id;
+    #[test]
+    fn raop_and_airplay_records_of_one_receiver_match() {
+        let raop = airplay_device_id("00A0DEDA4A79@RX-V481 DA4A79", "");
+        let air = airplay_device_id("RX-V481 DA4A79", "00:a0:de:da:4a:79");
+        assert_eq!(raop.as_deref(), Some("00:A0:DE:DA:4A:79"));
+        assert_eq!(raop, air);
+        assert_eq!(airplay_device_id("Kuchnia", ""), None);
     }
 }

@@ -126,8 +126,7 @@ class _CleanupPageState extends State<CleanupPage> {
     final extra = groups.fold(0, (n, g) => n + g.length - 1);
     return [
       const Text(
-        'Ten sam wykonawca, tytuł i długość (do 3 s różnicy). Pierwsza jest najlepsza kopia. '
-        'Usunięcie zabiera tylko wpis z Mytify, pliki na dysku i w sieci zostają.',
+        'Ten sam wykonawca, tytuł i długość (do 3 s różnicy). Pierwsza jest najlepsza kopia.',
         style: Txt.meta,
       ),
       const SizedBox(height: Sp.m),
@@ -181,7 +180,7 @@ class _CleanupPageState extends State<CleanupPage> {
     }
     return [
       const Text(
-        'Opis i okładka z MusicBrainz, każdy album zatwierdzasz sam. Zmiany trafiają do katalogu Mytify, pliki zostają bez zmian.',
+        'Opis i okładka z MusicBrainz. Każdy album zatwierdzasz sam.',
         style: Txt.meta,
       ),
       const SizedBox(height: Sp.m),

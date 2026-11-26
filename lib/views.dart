@@ -42,7 +42,7 @@ Widget pageFor(LibraryScreenState app, Nav nav) {
       state: app.ingest,
       padding: app.desktopMode ? const EdgeInsets.fromLTRB(Sp.xl, Sp.xl, Sp.xl, Sp.xxl) : const EdgeInsets.all(Sp.l),
     ),
-    'import' => SettingsPage(app: app, section: 'import'),
+    'import' => SourcesPage(app: app),
     'downloads' => DownloadsPage(app: app),
     'cleanup' => CleanupPage(app: app),
     'transfer' when app.canTransfer => app.transferScreen(),
@@ -62,7 +62,7 @@ String pageTitle(LibraryScreenState app, Nav nav) => switch (nav.page) {
   'downloads' => 'Pobrane',
   'cleanup' => 'Porządki',
   'sources' => 'Źródła muzyki',
-  'import' => 'Import',
+  'import' => 'Płyty CD i winyle',
   'transfer' => app.isPhone ? 'Z komputera' : 'Połącz telefon',
   _ => 'Start',
 };
@@ -1708,7 +1708,7 @@ class _SearchPageState extends State<SearchPage> {
 
 String? settingsTitle(String? section) => switch (section) {
   'sources' => 'Źródła muzyki',
-  'import' => 'Import',
+  'import' => 'Płyty CD i winyle',
   'audio' => 'Audio',
   'look' => 'Wygląd',
   'phone' => 'Telefon i komputer',
@@ -1725,7 +1725,8 @@ class SettingsPage extends StatelessWidget {
   List<(String, IconData, String)> get sections => [
     if (!app.desktopMode) ('sources', Icons.folder_open_outlined, 'Źródła muzyki'),
     ('audio', Icons.volume_up_outlined, 'Audio'),
-    ('import', Icons.download_outlined, 'Import'),
+    // Adding music is one place (sources). Import here means digitizing CD and vinyl.
+    if (app.canDigitize && !app.isPhone) ('import', Icons.album_outlined, 'Płyty CD i winyle'),
     ('cleanup', Icons.cleaning_services_outlined, 'Porządki w bibliotece'),
     if (app.desktopMode) ('look', Icons.tune_rounded, 'Wygląd'),
     if (app.canTransfer && !app.desktopMode) ('phone', Icons.phonelink_rounded, app.isPhone ? 'Z komputera' : 'Połącz telefon'),
@@ -1832,29 +1833,8 @@ class SettingsPage extends StatelessWidget {
   );
 
   List<Widget> _import() => [
-    const Text('Muzyka na urządzeniu', style: Txt.meta),
-    _row('Dodaj folder', null, icon: Icons.create_new_folder_outlined, onTap: app.importing ? null : () => unawaited(app.importMusic(true))),
-    _row('Dodaj pliki', null, icon: Icons.audio_file_outlined, onTap: app.importing ? null : () => unawaited(app.importMusic(false))),
-    if (app.canDigitize && !app.isPhone) ...[
-      const SizedBox(height: Sp.l),
-      const Text('Digitalizacja', style: Txt.meta),
-      _row('Audio CD', 'Odczyt cyfrowy, dane albumu, FLAC', icon: Icons.album_outlined, onTap: () => app.openIngest(true)),
-      _row('Winyl i kaseta', 'Nagranie, podział i opis utworów', icon: Icons.radio_outlined, onTap: () => app.openIngest(false)),
-    ],
-    if (!app.isPhone) ...[
-      const SizedBox(height: Sp.l),
-      const Text('Zaawansowane', style: Txt.meta),
-      _row('Przenieś bibliotekę z wersji 0.1', null, icon: Icons.move_to_inbox_outlined, onTap: app.importing ? null : () => unawaited(app.migrateLegacy())),
-    ],
-    if (app.lastImport != null)
-      _row('Ostatni wynik importu', null, icon: Icons.receipt_long_outlined, onTap: () => unawaited(app.showImportReport(app.lastImport!))),
-    const SizedBox(height: Sp.l),
-    Text(
-      app.isPhone
-          ? 'MP3, FLAC, WAV, AAC, OGG, OPUS. Import nie zmienia plików.'
-          : 'MP3, FLAC, WAV, M4A, OGG. Import nie zmienia plików.',
-      style: Txt.meta,
-    ),
+    _row('Audio CD', 'Odczyt cyfrowy, opis z MusicBrainz, FLAC', icon: Icons.album_outlined, onTap: () => app.openIngest(true)),
+    _row('Winyl i kaseta', 'Nagranie, podział i opis utworów', icon: Icons.radio_outlined, onTap: () => app.openIngest(false)),
   ];
 
   List<Widget> _look() => [
@@ -1906,7 +1886,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', 'Wersja 0.20', icon: Icons.info_outline_rounded),
+    _row('Mytify', 'Wersja 0.20.1', icon: Icons.info_outline_rounded),
     _row('Autor', 'Mateusz Kanik', icon: Icons.person_outline_rounded),
     _row(
       'Strona',
@@ -1916,7 +1896,7 @@ class SettingsPage extends StatelessWidget {
       onTap: () => unawaited(openLink('https://kanik.dev').catchError((_) => app.message('Nie można otworzyć strony.'))),
     ),
     _row('Biblioteka', '${trackCount(app.tracks.length)} · ${albumCount(app.index.albums.length)}', icon: Icons.library_music_outlined),
-    _row('Skróty klawiaturowe', null, icon: Icons.keyboard_outlined, onTap: app.desktopMode ? () => showShortcuts(app.context) : null),
+    if (app.desktopMode) _row('Skróty klawiaturowe', null, icon: Icons.keyboard_outlined, onTap: () => showShortcuts(app.context)),
   ];
 }
 
@@ -2020,20 +2000,13 @@ class SourcesList extends StatelessWidget {
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => app.go(const Nav('downloads')),
       ),
-    if (app.lastImport != null || !app.isPhone) const SectionTitle('Więcej'),
+    if (app.lastImport != null) const SectionTitle('Więcej'),
     if (app.lastImport != null)
       ListTile(
         contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.receipt_long_outlined, color: secondaryText),
         title: const Text('Ostatni wynik importu'),
         onTap: () => unawaited(app.showImportReport(app.lastImport!)),
-      ),
-    if (!app.isPhone)
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.move_to_inbox_outlined, color: secondaryText),
-        title: const Text('Przenieś bibliotekę z wersji 0.1'),
-        onTap: app.importing ? null : () => unawaited(app.migrateLegacy()),
       ),
   ];
 
