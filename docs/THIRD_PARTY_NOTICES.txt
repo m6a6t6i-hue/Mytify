@@ -6,6 +6,8 @@ Rust Windows graph: RUST_NOTICES.txt
 Native AirPlay/SRC and Windows runtimes: NETWORK_NOTICES.txt
 WebView2 SDK: WEBVIEW2_SDK_LICENSE.txt
 Symphonia unmodified MPL-2.0 corresponding sources: third_party/symphonia-source.
+LAME MP3 encoder (CD and vinyl MP3 copies, Windows), LGPL-2.0, built from unmodified sources by the mp3lame-sys crate: https://lame.sourceforge.io
+souvlaki (Windows media keys), MIT: https://github.com/Sinono3/souvlaki
 
 Build-only JavaScript tool esbuild, MIT:
 

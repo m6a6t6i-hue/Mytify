@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:material_ui/material_ui.dart';
@@ -29,7 +30,72 @@ class CoverTint {
     return localProvider(uri);
   }
 
-  static Future<Color?> _compute(String uri) async {
+  static final _palettes = <String, Future<List<Color>?>>{};
+
+  /// Three vivid colours of the artwork, most present first, for the visualizer.
+  /// Grey or black covers give null (the visualizer keeps its own palette).
+  static Future<List<Color>?> palette(String? uri) {
+    if (uri == null) return Future.value(null);
+    if (_palettes.length > 100) _palettes.clear();
+    return _palettes.putIfAbsent(uri, () async {
+      try {
+        final data = await _pixels(uri);
+        return data == null ? null : paletteOf(data);
+      } catch (_) {
+        return null;
+      }
+    });
+  }
+
+  /// Hue histogram of RGBA pixels: picks up to three separated hues weighted by how
+  /// colourful and how common they are. Pure function, tested directly.
+  static List<Color>? paletteOf(List<int> rgba) {
+    const bins = 24;
+    final weight = List.filled(bins, 0.0);
+    final sum = List.generate(bins, (_) => [0.0, 0.0, 0.0]);
+    for (var i = 0; i + 3 < rgba.length; i += 4) {
+      final c = Color.fromARGB(255, rgba[i], rgba[i + 1], rgba[i + 2]);
+      final hsv = HSVColor.fromColor(c);
+      if (hsv.saturation < .22 || hsv.value < .18) continue;
+      final w = hsv.saturation * hsv.value;
+      final b = (hsv.hue / 360 * bins).floor() % bins;
+      weight[b] += w;
+      sum[b][0] += c.r * w;
+      sum[b][1] += c.g * w;
+      sum[b][2] += c.b * w;
+    }
+    final total = weight.fold(0.0, (a, b) => a + b);
+    // Under ~4% colourful pixels the cover is effectively grey.
+    if (total < rgba.length / 4 * .04) return null;
+    final order = List.generate(bins, (i) => i)..sort((a, b) => weight[b].compareTo(weight[a]));
+    final picked = <int>[];
+    for (final b in order) {
+      if (weight[b] < total * .03) break;
+      if (picked.every((p) {
+        final d = (p - b).abs();
+        return math.min(d, bins - d) >= 3;
+      })) {
+        picked.add(b);
+      }
+      if (picked.length == 3) break;
+    }
+    Color vivid(Color c) {
+      final hsv = HSVColor.fromColor(c);
+      return hsv.withSaturation(hsv.saturation.clamp(.6, 1)).withValue(hsv.value.clamp(.75, .95)).toColor();
+    }
+
+    final colors = [
+      for (final b in picked) vivid(Color.from(alpha: 1, red: sum[b][0] / weight[b], green: sum[b][1] / weight[b], blue: sum[b][2] / weight[b])),
+    ];
+    // One or two hues: neighbours on the colour wheel complete the set.
+    while (colors.length < 3) {
+      final h = HSVColor.fromColor(colors.first);
+      colors.add(h.withHue((h.hue + (colors.length == 1 ? 40 : -40)) % 360).toColor());
+    }
+    return colors;
+  }
+
+  static Future<List<int>?> _pixels(String uri) async {
     final base = provider(uri);
     if (base == null) return null;
     final completer = Completer<ui.Image?>();
@@ -50,16 +116,20 @@ class CoverTint {
       },
     );
     stream.addListener(listener);
+    final image = await completer.future.timeout(const Duration(seconds: 6));
+    if (image == null) return null;
+    return (await image.toByteData(format: ui.ImageByteFormat.rawRgba))?.buffer.asUint8List();
+  }
+
+  static Future<Color?> _compute(String uri) async {
     try {
-      final image = await completer.future.timeout(const Duration(seconds: 6));
-      if (image == null) return null;
-      final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      final data = await _pixels(uri);
       if (data == null) return null;
       double r = 0, g = 0, b = 0, weight = 0;
-      for (var i = 0; i + 3 < data.lengthInBytes; i += 4) {
-        final cr = data.getUint8(i) / 255,
-            cg = data.getUint8(i + 1) / 255,
-            cb = data.getUint8(i + 2) / 255;
+      for (var i = 0; i + 3 < data.length; i += 4) {
+        final cr = data[i] / 255,
+            cg = data[i + 1] / 255,
+            cb = data[i + 2] / 255;
         final hi = [cr, cg, cb].reduce((x, y) => x > y ? x : y);
         final lo = [cr, cg, cb].reduce((x, y) => x < y ? x : y);
         final w = .08 + (hi - lo) * 2 + (hi > .12 && hi < .95 ? .3 : 0);

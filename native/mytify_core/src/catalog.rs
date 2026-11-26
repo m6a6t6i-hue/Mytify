@@ -127,6 +127,37 @@ pub struct Catalog {
     db: Mutex<Connection>,
 }
 
+const TRACK_SELECT: &str = "SELECT t.id,t.title,t.artist,t.album,t.album_artist,t.file_name,t.format,t.size,t.duration_ms,t.track_number,t.disc_number,t.sample_rate,t.bit_depth,t.added_at,t.cover,t.liked,MAX(CASE WHEN l.available=1 AND s.state IN ('online','partial','scanning') THEN 1 ELSE 0 END),COUNT(l.path_key),MIN(CASE WHEN s.kind='managed' THEN 1 ELSE 0 END),MAX(CASE WHEN s.kind='downloads' AND l.available=1 THEN 1 ELSE 0 END),MAX(CASE WHEN s.kind IN ('smb','webdav','subsonic') THEN 1 ELSE 0 END) FROM tracks t JOIN locations l ON l.track_id=t.id JOIN sources s ON s.id=l.source_id";
+
+fn track_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Track> {
+    Ok(Track {
+        id: r.get(0)?,
+        title: r.get(1)?,
+        artist: r.get(2)?,
+        album: r.get(3)?,
+        album_artist: r.get(4)?,
+        file_name: r.get(5)?,
+        format: r.get(6)?,
+        size: r.get(7)?,
+        duration_ms: r.get(8)?,
+        track_number: r.get(9)?,
+        disc_number: r.get(10)?,
+        sample_rate: r.get(11)?,
+        bit_depth: r.get(12)?,
+        added_at: r.get(13)?,
+        cover: r.get(14)?,
+        liked: r.get(15)?,
+        available: r.get(16)?,
+        location_count: r.get(17)?,
+        managed: r.get(18)?,
+        offline: r.get(19)?,
+        remote: r.get(20)?,
+        edited: false,
+        metadata_source: String::new(),
+        release_id: None,
+    })
+}
+
 pub fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -462,35 +493,8 @@ impl Catalog {
     pub fn tracks(&self) -> Result<Vec<Track>> {
         self.refresh_sources()?;
         let db = self.db()?;
-        let mut stmt = db.prepare("SELECT t.id,t.title,t.artist,t.album,t.album_artist,t.file_name,t.format,t.size,t.duration_ms,t.track_number,t.disc_number,t.sample_rate,t.bit_depth,t.added_at,t.cover,t.liked,MAX(CASE WHEN l.available=1 AND s.state IN ('online','partial','scanning') THEN 1 ELSE 0 END),COUNT(l.path_key),MIN(CASE WHEN s.kind='managed' THEN 1 ELSE 0 END),MAX(CASE WHEN s.kind='downloads' AND l.available=1 THEN 1 ELSE 0 END),MAX(CASE WHEN s.kind IN ('smb','webdav','subsonic') THEN 1 ELSE 0 END) FROM tracks t JOIN locations l ON l.track_id=t.id JOIN sources s ON s.id=l.source_id GROUP BY t.id ORDER BY t.added_at DESC,t.id")?;
-        let rows = stmt.query_map([], |r| {
-            Ok(Track {
-                id: r.get(0)?,
-                title: r.get(1)?,
-                artist: r.get(2)?,
-                album: r.get(3)?,
-                album_artist: r.get(4)?,
-                file_name: r.get(5)?,
-                format: r.get(6)?,
-                size: r.get(7)?,
-                duration_ms: r.get(8)?,
-                track_number: r.get(9)?,
-                disc_number: r.get(10)?,
-                sample_rate: r.get(11)?,
-                bit_depth: r.get(12)?,
-                added_at: r.get(13)?,
-                cover: r.get(14)?,
-                liked: r.get(15)?,
-                available: r.get(16)?,
-                location_count: r.get(17)?,
-                managed: r.get(18)?,
-                offline: r.get(19)?,
-                remote: r.get(20)?,
-                edited: false,
-                metadata_source: String::new(),
-                release_id: None,
-            })
-        })?;
+        let mut stmt = db.prepare(&format!("{TRACK_SELECT} GROUP BY t.id ORDER BY t.added_at DESC,t.id"))?;
+        let rows = stmt.query_map([], track_row)?;
         let mut values = rows.collect::<rusqlite::Result<Vec<_>>>()?;
         let mut overrides = db.prepare("SELECT track_id,patch FROM metadata_overrides")?;
         let patches = overrides
@@ -502,6 +506,21 @@ impl Catalog {
             }
         }
         Ok(values)
+    }
+    /// One track with its edits, without refreshing sources (now playing, media keys).
+    pub fn track(&self, id: &str) -> Result<Option<Track>> {
+        let db = self.db()?;
+        let mut stmt = db.prepare(&format!("{TRACK_SELECT} WHERE t.id=?1 GROUP BY t.id"))?;
+        let Some(mut track) = stmt.query_map([id], track_row)?.next().transpose()? else {
+            return Ok(None);
+        };
+        let patch: Option<String> = db
+            .query_row("SELECT patch FROM metadata_overrides WHERE track_id=?1", [id], |r| r.get(0))
+            .ok();
+        if let Some(p) = patch {
+            crate::metadata::overlay(&mut track, &serde_json::from_str(&p)?)?;
+        }
+        Ok(Some(track))
     }
     pub fn search_ids(&self, query: &str) -> Result<Vec<String>> {
         let terms: Vec<String> = search_key(query)

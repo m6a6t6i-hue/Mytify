@@ -4,6 +4,8 @@ use std::{io::Write, path::PathBuf, sync::Arc};
 
 #[cfg(all(windows, feature = "desktop"))]
 mod desktop;
+#[cfg(all(windows, feature = "desktop"))]
+mod os_media;
 
 fn main() {
     if let Err(error) = run() {
@@ -73,7 +75,7 @@ fn run() -> Result<()> {
         let worker = running.clone();
         std::thread::spawn(move || worker.serve());
         let app = running.app.clone();
-        desktop::run(&running.app.origin, &running.app.catalog.root, move || {
+        desktop::run(running.app.clone(), move || {
             let _ = app.player.flush_settings();
         })?;
         return Ok(());

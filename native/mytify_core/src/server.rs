@@ -320,6 +320,9 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
                 app.network.state(serde_json::to_value(app.player.state())?),
             );
         }
+        if path == "/api/player/idle" && method == Method::Get {
+            return send_json(request, 200, json!({ "idleMs": system_idle_ms() }));
+        }
         if path == "/api/player/levels" && method == Method::Get {
             return send_json(request, 200, json!({ "bands": app.player.levels() }));
         }
@@ -987,4 +990,21 @@ fn migrate(app: Arc<App>, mut request: Request) -> Result<()> {
         Ok(report) => send_json(request, 200, serde_json::to_value(report)?),
         Err(error) => send_error(request, 400, error),
     }
+}
+
+/// Time since the last keyboard or mouse input anywhere in the session (screensaver).
+fn system_idle_ms() -> Option<u64> {
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::System::SystemInformation::GetTickCount;
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+        let mut info = LASTINPUTINFO {
+            cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
+            dwTime: 0,
+        };
+        if GetLastInputInfo(&mut info) != 0 {
+            return Some(GetTickCount().wrapping_sub(info.dwTime) as u64);
+        }
+    }
+    None
 }

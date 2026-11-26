@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'audio_settings.dart';
+import 'cleanup.dart';
 import 'cover_tint.dart';
 import 'design.dart';
 import 'downloads_ui.dart';
@@ -43,6 +44,7 @@ Widget pageFor(LibraryScreenState app, Nav nav) {
     ),
     'import' => SettingsPage(app: app, section: 'import'),
     'downloads' => DownloadsPage(app: app),
+    'cleanup' => CleanupPage(app: app),
     'transfer' when app.canTransfer => app.transferScreen(),
     _ => HomePage(app: app),
   };
@@ -58,6 +60,7 @@ String pageTitle(LibraryScreenState app, Nav nav) => switch (nav.page) {
   'recent' => 'Ostatnio dodane',
   'settings' => settingsTitle(nav.arg) ?? 'Ustawienia',
   'downloads' => 'Pobrane',
+  'cleanup' => 'Porządki',
   'sources' => 'Źródła muzyki',
   'import' => 'Import',
   'transfer' => app.isPhone ? 'Z komputera' : 'Połącz telefon',
@@ -1723,6 +1726,7 @@ class SettingsPage extends StatelessWidget {
     if (!app.desktopMode) ('sources', Icons.folder_open_outlined, 'Źródła muzyki'),
     ('audio', Icons.volume_up_outlined, 'Audio'),
     ('import', Icons.download_outlined, 'Import'),
+    ('cleanup', Icons.cleaning_services_outlined, 'Porządki w bibliotece'),
     if (app.desktopMode) ('look', Icons.tune_rounded, 'Wygląd'),
     if (app.canTransfer && !app.desktopMode) ('phone', Icons.phonelink_rounded, app.isPhone ? 'Z komputera' : 'Połącz telefon'),
     ('about', Icons.info_outline_rounded, 'Informacje'),
@@ -1732,6 +1736,8 @@ class SettingsPage extends StatelessWidget {
   void open(String key) {
     if (key == 'sources') {
       app.go(const Nav('sources'));
+    } else if (key == 'cleanup') {
+      app.go(const Nav('cleanup'));
     } else if (key == 'import' && app.canDigitize && !app.isPhone) {
       app.go(const Nav('import'));
     } else if (key == 'phone' && !app.desktopMode) {
@@ -1874,10 +1880,33 @@ class SettingsPage extends StatelessWidget {
       value: app.prefs.get('sidebarCollapsed', false),
       onChanged: (v) => app.refresh(() => app.prefs.set('sidebarCollapsed', v)),
     ),
+    const SectionTitle('Wizualizacje'),
+    SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Kolory okładki', style: TextStyle(fontSize: 14.5)),
+      subtitle: const Text('Plazma, wstęgi i wir biorą barwy z okładki grającego albumu.', style: Txt.meta),
+      value: app.prefs.get<bool>('viz.cover', true),
+      onChanged: (v) => app.refresh(() => app.prefs.set('viz.cover', v)),
+    ),
+    if (app.canFloat)
+      _row(
+        'Wygaszacz z wizualizacją',
+        'Gdy gra muzyka, a komputer nie jest używany. Ruch myszy lub klawisz zamyka.',
+        trailing: DropdownButton<int>(
+          value: const [0, 2, 5, 10, 20].contains(app.screensaverMinutes) ? app.screensaverMinutes : 0,
+          underline: const SizedBox.shrink(),
+          dropdownColor: elevated,
+          items: [
+            for (final m in const [0, 2, 5, 10, 20])
+              DropdownMenuItem(value: m, child: Text(m == 0 ? 'Wyłączony' : 'Po $m min', style: const TextStyle(fontSize: 13.5))),
+          ],
+          onChanged: (v) => app.refresh(() => app.prefs.set('screensaver', v ?? 0)),
+        ),
+      ),
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', 'Wersja 0.19.1', icon: Icons.info_outline_rounded),
+    _row('Mytify', 'Wersja 0.20', icon: Icons.info_outline_rounded),
     _row('Autor', 'Mateusz Kanik', icon: Icons.person_outline_rounded),
     _row(
       'Strona',

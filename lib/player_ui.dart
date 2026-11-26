@@ -581,7 +581,16 @@ class QueueList extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ReorderableListView.builder(
+          child: DragTarget<List<Track>>(
+            // Tracks dragged from the library land at the end; onto a row, before it.
+            onWillAcceptWithDetails: (_) => app.desktopMode,
+            onAcceptWithDetails: (d) => unawaited(app.insertInQueue(d.data, null)),
+            builder: (context, waiting, _) => DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: waiting.isNotEmpty ? accent.withValues(alpha: .6) : Colors.transparent),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ReorderableListView.builder(
             scrollController: controller,
             buildDefaultDragHandles: false,
             padding: const EdgeInsets.only(bottom: Sp.l),
@@ -591,8 +600,15 @@ class QueueList extends StatelessWidget {
               final t = items[i];
               final current = i == at;
               final past = i < at;
-              return Material(
+              return DragTarget<List<Track>>(
                 key: ValueKey(t.id),
+                onWillAcceptWithDetails: (_) => app.desktopMode && i > at,
+                onAcceptWithDetails: (d) => unawaited(app.insertInQueue(d.data, i)),
+                builder: (context, waiting, _) => Container(
+                  decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: waiting.isNotEmpty ? accent : Colors.transparent, width: 2)),
+                  ),
+                  child: Material(
                 color: current ? selectedFill : Colors.transparent,
                 child: InkWell(
                   onTap: current ? app.openNowPlaying : () => unawaited(app.jumpTo(t.id)),
@@ -657,8 +673,12 @@ class QueueList extends StatelessWidget {
                     ),
                   ),
                 ),
+                  ),
+                ),
               );
             },
+          ),
+            ),
           ),
         ),
       ],

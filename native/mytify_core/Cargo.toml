@@ -14,7 +14,7 @@ path = "src/main.rs"
 [features]
 default = []
 embed-ui = ["dep:include_dir"]
-desktop = ["dep:wry", "dep:tao"]
+desktop = ["dep:wry", "dep:tao", "dep:souvlaki", "dep:windows"]
 # Tests on systems without a credential store (Linux CI) keep passwords in memory.
 memory-secrets = []
 
@@ -56,7 +56,9 @@ cpal = "0.18.2"
 rfd = "0.18.0"
 wry = { version = "0.57.3", optional = true }
 tao = { version = "0.37.3", optional = true }
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console", "Win32_UI_WindowsAndMessaging", "Win32_NetworkManagement_WNet", "Win32_Security_Credentials", "Win32_Storage_FileSystem", "Win32_Graphics_Dwm", "Win32_Media_Audio"] }
+souvlaki = { version = "0.9.3", default-features = false, optional = true }
+windows = { version = "0.62", optional = true, features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console", "Win32_UI_WindowsAndMessaging", "Win32_NetworkManagement_WNet", "Win32_Security_Credentials", "Win32_Storage_FileSystem", "Win32_Graphics_Dwm", "Win32_Media_Audio", "Win32_Graphics_Gdi", "Win32_UI_Shell", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_SystemInformation"] }
 
 [dev-dependencies]
 tempfile = "3"

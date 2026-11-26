@@ -5,10 +5,14 @@ import android.os.Handler
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionError
+import androidx.media3.session.SessionResult
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -25,6 +29,56 @@ class CarSessionCallback(
     private val worker = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor())
     val library = CarLibrary(context, catalog)
     private val observed = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    companion object {
+        /** Notification, lock screen and car buttons next to play, previous and next. */
+        val LIKE = SessionCommand("pl.mytify.LIKE", android.os.Bundle.EMPTY)
+        val SHUFFLE = SessionCommand("pl.mytify.SHUFFLE", android.os.Bundle.EMPTY)
+    }
+
+    /** Like and shuffle buttons showing the real state of the current track and queue. */
+    fun buttons(player: Player): ImmutableList<CommandButton> {
+        val id = player.currentMediaItem?.mediaId
+        val liked = id != null && runCatching { catalog.liked(id) }.getOrDefault(false)
+        val shuffle = player.shuffleModeEnabled
+        return ImmutableList.of(
+            CommandButton.Builder(if (liked) CommandButton.ICON_HEART_FILLED else CommandButton.ICON_HEART_UNFILLED)
+                .setDisplayName(if (liked) "Usuń z polubionych" else "Polub")
+                .setSessionCommand(LIKE)
+                .setEnabled(id != null)
+                .build(),
+            CommandButton.Builder(if (shuffle) CommandButton.ICON_SHUFFLE_ON else CommandButton.ICON_SHUFFLE_OFF)
+                .setDisplayName(if (shuffle) "Wyłącz losową kolejność" else "Losowa kolejność")
+                .setSessionCommand(SHUFFLE)
+                .build(),
+        )
+    }
+
+    fun refreshButtons(session: MediaSession) {
+        runCatching { session.setMediaButtonPreferences(buttons(session.player)) }
+    }
+
+    override fun onCustomCommand(
+        session: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        customCommand: SessionCommand,
+        args: android.os.Bundle,
+    ): ListenableFuture<SessionResult> {
+        val p = session.player
+        when (customCommand.customAction) {
+            LIKE.customAction -> {
+                val id = p.currentMediaItem?.mediaId
+                    ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
+                catalog.like(id, !catalog.liked(id))
+                // The app and Android Auto show the new state too.
+                LibraryChanges.changed()
+            }
+            SHUFFLE.customAction -> p.shuffleModeEnabled = !p.shuffleModeEnabled
+            else -> return super.onCustomCommand(session, controller, customCommand, args)
+        }
+        refreshButtons(session)
+        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+    }
 
     fun allowed(info: MediaSession.ControllerInfo): Boolean {
         if (info.uid == context.applicationInfo.uid || info.isTrusted) return true
@@ -54,9 +108,13 @@ class CarSessionCallback(
         return Futures.immediateFuture(
             MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
                 .setAvailableSessionCommands(
-                    MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
+                    MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
+                        .add(LIKE)
+                        .add(SHUFFLE)
+                        .build()
                 )
                 .setAvailablePlayerCommands(Player.Commands.Builder().addAllCommands().build())
+                .setMediaButtonPreferences(buttons(session.player))
                 .build()
         )
     }

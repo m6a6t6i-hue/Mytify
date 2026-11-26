@@ -224,6 +224,9 @@ abstract class LibraryRepository {
 
   /// The desktop window can switch to the mini player and full screen.
   bool get hasWindow => false;
+
+  /// Time since the last keyboard or mouse input in the whole system (PC), or null.
+  Future<int?> systemIdleMs() async => null;
   Future<void> windowAction(Map<String, dynamic> action) async {}
 
   /// Keeps the display on (full screen visualizations on a phone).

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use std::{os::windows::ffi::OsStrExt, path::Path};
+use std::{os::windows::ffi::OsStrExt, sync::Arc};
 use tao::{
     dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{Event, WindowEvent},
@@ -203,9 +203,12 @@ impl Windowing {
     }
 }
 
-pub fn run(url: &str, data: &Path, on_close: impl Fn() + 'static) -> Result<()> {
+pub fn run(app: Arc<mytify_core::server::App>, on_close: impl Fn() + 'static) -> Result<()> {
+    let url = app.origin.as_str();
+    let data = app.catalog.root.as_path();
     let event_loop = EventLoopBuilder::<serde_json::Value>::with_user_event().build();
     let proxy = event_loop.create_proxy();
+    let media_proxy = event_loop.create_proxy();
     let file = data.join("window.json");
     let mut windowing = Windowing {
         mode: Mode::Normal,
@@ -252,6 +255,9 @@ pub fn run(url: &str, data: &Path, on_close: impl Fn() + 'static) -> Result<()> 
         .context(
             "Nie można otworzyć okna WebView2. Sprawdź instalację Microsoft Edge WebView2 Runtime.",
         )?;
+    // Media keys, the volume flyout and taskbar buttons control the same player.
+    let mut media = crate::os_media::Media::new(window.hwnd() as _, app.clone());
+    crate::os_media::watch(app.clone(), media_proxy);
     unsafe {
         let console = GetConsoleWindow();
         if !console.is_null() {
@@ -262,6 +268,7 @@ pub fn run(url: &str, data: &Path, on_close: impl Fn() + 'static) -> Result<()> 
         let _keep_alive = (&webview, &web_context, &window);
         *flow = ControlFlow::Wait;
         match event {
+            Event::UserEvent(v) if v["action"] == "nowPlaying" => media.update(&v),
             Event::UserEvent(v) => windowing.handle(&window, &v),
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,

@@ -317,6 +317,9 @@ class LibraryScreenState extends State<LibraryScreen> {
     unawaited(loadLibrary());
     // PC app: notice an inserted Audio CD and offer to import it.
     if (canDigitize && canFloat) ingest.watchDiscs();
+    if (canFloat) {
+      _screensaver = Timer.periodic(const Duration(seconds: 20), (_) => unawaited(_checkScreensaver()));
+    }
     unawaited(
       repository.networkProtocols().then((v) {
         if (mounted) setState(() => networkProtocols = v);
@@ -333,6 +336,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     }
     unawaited(player.dispose());
     _libraryRefresh?.cancel();
+    _screensaver?.cancel();
     unawaited(repository.dispose());
     prefs.dispose();
     _ingest?.dispose();
@@ -553,6 +557,28 @@ class LibraryScreenState extends State<LibraryScreen> {
     message(list.length == 1 ? 'Zagra jako następny' : 'Zagrają jako następne');
   }
 
+  /// Tracks dropped onto the queue: inserted before [at] (or at the end), never before
+  /// the current track, without duplicates.
+  Future<void> insertInQueue(List<Track> list, int? at) async {
+    final add = list.where((t) => t.available).map((t) => t.id).toList();
+    if (add.isEmpty) return;
+    if (queue.current == null) return playTracks(list);
+    final current = queue.current!.id;
+    final ids = queue.items.map((t) => t.id).toList();
+    var target = (at ?? ids.length).clamp(ids.indexOf(current) + 1, ids.length);
+    for (final id in add) {
+      final i = ids.indexOf(id);
+      if (id == current) continue;
+      if (i >= 0) {
+        ids.removeAt(i);
+        if (i < target) target--;
+      }
+    }
+    ids.insertAll(target, add.where((id) => id != current));
+    await _rearrange(ids);
+    message(list.length == 1 ? 'Dodano do kolejki' : 'Dodano do kolejki: ${trackCount(add.length)}');
+  }
+
   Future<void> enqueue(List<Track> list) async {
     final add = list.where((t) => t.available).map((t) => t.id).toList();
     if (add.isEmpty) return;
@@ -682,12 +708,13 @@ class LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  Future<void> metadataFor(
+  /// Opens the metadata editor; true when something was saved.
+  Future<bool> metadataFor(
     List<Track> list, {
     bool online = false,
     bool album = false,
   }) async {
-    if (importing || list.isEmpty) return;
+    if (importing || list.isEmpty) return false;
     final changed = await editMusicMetadata(
       context,
       repository,
@@ -695,15 +722,16 @@ class LibraryScreenState extends State<LibraryScreen> {
       online: online,
       album: album,
     );
-    if (changed != true || !mounted) return;
+    if (changed != true || !mounted) return false;
     final before = route;
     await loadLibrary();
-    if (!mounted) return;
+    if (!mounted) return true;
     if (before.page == 'album' && !index.albumByKey.containsKey(before.arg)) {
       final updated = index.byId[list.first.id];
       if (updated != null) replaceRoute(Nav('album', updated.albumKey));
     }
     message('Zapisano zmiany w katalogu. Pliki pozostają bez zmian.');
+    return true;
   }
 
   // ---------------------------------------------------------------- playlists
@@ -899,6 +927,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     return showActions(context, at: at, title: p.name, [
       MenuEntry('Odtwórz', icon: Icons.play_arrow_rounded, onTap: list.isEmpty ? null : () => unawaited(playTracks(list))),
       MenuEntry('Odtwórz losowo', icon: Icons.shuffle_rounded, onTap: list.isEmpty ? null : () => unawaited(playTracks(list, shuffle: true))),
+      MenuEntry('Odtwórz jako następny', icon: Icons.playlist_play_rounded, onTap: list.isEmpty ? null : () => unawaited(playNext(list))),
       MenuEntry('Dodaj do kolejki', icon: Icons.queue_rounded, onTap: list.isEmpty ? null : () => unawaited(enqueue(list))),
       MenuEntry(prefs.pinned(pinId) ? 'Odepnij' : 'Przypnij', icon: Icons.push_pin_outlined, onTap: () => togglePin(pinId)),
       MenuEntry('Zmień nazwę', icon: Icons.edit_outlined, onTap: () => unawaited(renamePlaylist(p))),
@@ -1273,14 +1302,30 @@ class LibraryScreenState extends State<LibraryScreen> {
   }
 
   /// Full screen visualization reacting to the music (PC and Android).
-  void openVisualizer() {
+  bool visualizerOpen = false;
+  Timer? _screensaver;
+
+  /// Minutes of system-wide inactivity during playback before the visualizer covers
+  /// the screen (PC). 0 turns it off.
+  int get screensaverMinutes => prefs.get<int>('screensaver', 0);
+
+  Future<void> _checkScreensaver() async {
+    final minutes = screensaverMinutes;
+    if (minutes <= 0 || visualizerOpen || !player.state.playing || !mounted) return;
+    final idle = await repository.systemIdleMs().catchError((Object _) => null);
+    if (idle != null && idle >= minutes * 60000 && mounted && !visualizerOpen && player.state.playing) {
+      openVisualizer(screensaver: true);
+    }
+  }
+
+  void openVisualizer({bool screensaver = false}) {
     if (floating != null) setFloating(null);
     Navigator.of(context).push(
       PageRouteBuilder<void>(
         opaque: true,
         transitionDuration: motion(context, Dur.screen),
         reverseTransitionDuration: motion(context, Dur.standard),
-        pageBuilder: (_, _, _) => VisualizerScreen(app: this),
+        pageBuilder: (_, _, _) => VisualizerScreen(app: this, screensaver: screensaver),
         transitionsBuilder: (_, animation, _, child) => FadeTransition(opacity: animation, child: child),
       ),
     );

@@ -178,6 +178,8 @@ class PlaybackService : MediaLibraryService() {
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                         revision++
                         save()
+                        refreshButtons()
+                        Widget.update(this@PlaybackService)
                     }
 
                     override fun onVolumeChanged(volume: Float) {
@@ -188,6 +190,7 @@ class PlaybackService : MediaLibraryService() {
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
                         revision++
                         save()
+                        Widget.update(this@PlaybackService)
                     }
 
                     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -208,6 +211,7 @@ class PlaybackService : MediaLibraryService() {
 
                     override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                         save()
+                        refreshButtons()
                     }
                 }
             )
@@ -326,8 +330,30 @@ class PlaybackService : MediaLibraryService() {
         handler.post {
             val s = session ?: return@post
             carCallback.changed(s)
+            // A like from the app changes the heart in the notification.
+            carCallback.refreshButtons(s)
+            Widget.update(this)
         }
     }
+
+    fun refreshButtons() {
+        handler.post { session?.let { carCallback.refreshButtons(it) } }
+    }
+
+    /** What the home screen widget shows: real track, artist, cover and play state. */
+    fun widgetState(): Widget.State? {
+        val p = session?.player ?: return null
+        val item = p.currentMediaItem ?: return null
+        val m = item.mediaMetadata
+        return Widget.State(
+            title = m.title?.toString() ?: "",
+            artist = m.artist?.toString() ?: "",
+            artwork = m.artworkUri,
+            playing = p.isPlaying,
+            liked = runCatching { catalog.liked(item.mediaId) }.getOrDefault(false),
+        )
+    }
+
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         save()

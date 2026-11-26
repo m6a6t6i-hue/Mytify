@@ -13,12 +13,16 @@ uniform float uHigh;
 uniform float uEnergy;
 uniform float uBeat;   // 1 on a bass onset, decays
 uniform float uMode;   // 0 plasma, 1 ribbons, 2 vortex, 3 retro
+// Palette: the Mytify colours, or three colours of the current cover.
+uniform vec3 uColA;
+uniform vec3 uColB;
+uniform vec3 uColC;
 
 out vec4 fragColor;
 
-const vec3 TEAL = vec3(0.0, 0.78, 0.74);
-const vec3 GREEN = vec3(0.0, 0.90, 0.46);
-const vec3 PURPLE = vec3(0.42, 0.24, 0.98);
+#define TEAL uColA
+#define GREEN uColB
+#define PURPLE uColC
 const vec3 DEEP = vec3(0.012, 0.024, 0.035);
 
 float hash(vec2 p) {

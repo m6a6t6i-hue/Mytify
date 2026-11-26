@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'audio_player.dart';
+import 'cover_tint.dart';
 import 'design.dart';
 import 'main.dart';
 import 'model.dart';
@@ -15,6 +16,18 @@ import 'widgets.dart';
 
 /// Full screen scenes. Order matches uMode in shaders/visualizer.frag.
 const visualizerScenes = ['Plazma', 'Wstęgi', 'Wir', 'Retro'];
+
+/// Mytify colours of the scenes: teal, green, violet.
+const mytifyPalette = [Color(0xff00c7bd), Color(0xff00e676), Color(0xff6b3dfa)];
+
+/// Colours the scene shows now; eases towards [target] when the track changes.
+class ScenePalette {
+  List<Color> target = mytifyPalette, shown = mytifyPalette;
+  void step(double dt) {
+    final k = 1 - math.exp(-dt / .8);
+    shown = [for (var i = 0; i < 3; i++) Color.lerp(shown[i], target[i], k)!];
+  }
+}
 
 /// Loudness features from real band levels: bass, mids, highs, overall energy and a
 /// beat pulse on bass onsets. Without data every value falls to zero.
@@ -77,7 +90,10 @@ class AudioFeatures {
 
 class VisualizerScreen extends StatefulWidget {
   final LibraryScreenState app;
-  const VisualizerScreen({super.key, required this.app});
+
+  /// Opened by idle time on PC: any key, click or mouse move closes it.
+  final bool screensaver;
+  const VisualizerScreen({super.key, required this.app, this.screensaver = false});
   @override
   State<VisualizerScreen> createState() => _VisualizerScreenState();
 }
@@ -89,13 +105,18 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
   late final ticker = createTicker(_tick);
   StreamSubscription<Object?>? _player;
   final features = AudioFeatures();
+  final palette = ScenePalette();
+  String? _paletteFor;
+  Offset? _firstPointer;
   final time = ValueNotifier<double>(0);
   Duration last = Duration.zero;
   double sceneTime = 0, noDataFor = 0;
   LevelFeed? feed;
-  bool controls = true, resumed = true;
+  late bool controls = !widget.screensaver;
+  bool resumed = true;
   Timer? hide;
   late int scene = (widget.app.prefs.get<int>('viz.scene', 0)).clamp(0, visualizerScenes.length - 1);
+  late bool coverColors = widget.app.prefs.get<bool>('viz.cover', true);
 
   LibraryScreenState get app => widget.app;
   bool get phone => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -114,6 +135,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
         }, onError: (Object _) {}),
       );
     }
+    app.visualizerOpen = true;
     _player = app.player.stream.snapshot.listen((_) => _sync());
     if (phone) {
       unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky));
@@ -121,8 +143,29 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
     } else if (app.canFloat) {
       unawaited(app.repository.windowAction({'action': 'mode', 'mode': 'fullscreen'}));
     }
-    _poke();
+    if (!widget.screensaver) _poke();
     _sync();
+  }
+
+  /// Cover colours of the current track, or the Mytify palette.
+  void _updatePalette() {
+    final cover = coverColors ? app.current?.cover : null;
+    if (cover == _paletteFor) return;
+    _paletteFor = cover;
+    if (cover == null) {
+      palette.target = mytifyPalette;
+      return;
+    }
+    unawaited(CoverTint.palette(cover).then((p) {
+      if (mounted && _paletteFor == cover) palette.target = p ?? mytifyPalette;
+    }));
+  }
+
+  void _toggleCoverColors() {
+    setState(() => coverColors = !coverColors);
+    app.prefs.set('viz.cover', coverColors);
+    _updatePalette();
+    _poke();
   }
 
   @override
@@ -136,6 +179,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
   /// Runs while playing and visible; paused, hidden or minimised freezes the picture.
   void _sync() {
     if (!mounted) return;
+    _updatePalette();
     final playing = app.player.state.playing;
     final want = playing && resumed;
     if (want && feed == null) {
@@ -160,6 +204,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
     last = elapsed;
     final bands = feed?.bands;
     features.step(dt, bands);
+    palette.step(dt);
     noDataFor = bands == null ? noDataFor + dt : 0;
     // Louder music moves the scene faster. Without data only a slow, even drift.
     final speed = features.live ? .15 + 1.6 * features.energy + .8 * features.beat : (app.player.state.playing ? .05 : 0.0);
@@ -169,6 +214,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
   }
 
   void _poke() {
+    if (widget.screensaver) return _close();
     hide?.cancel();
     if (!controls) setState(() => controls = true);
     hide = Timer(const Duration(seconds: 3), () {
@@ -182,10 +228,16 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
     _poke();
   }
 
-  void _close() => Navigator.of(context).maybePop();
+  bool _closing = false;
+  void _close() {
+    if (_closing) return;
+    _closing = true;
+    Navigator.of(context).maybePop();
+  }
 
   @override
   void dispose() {
+    app.visualizerOpen = false;
     hide?.cancel();
     feed?.detach();
     unawaited(_player?.cancel());
@@ -203,6 +255,10 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
 
   KeyEventResult _key(FocusNode _, KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
+    if (widget.screensaver) {
+      _close();
+      return KeyEventResult.handled;
+    }
     final k = e.logicalKey;
     final ctrl = HardwareKeyboard.instance.isControlPressed;
     if (k == LogicalKeyboardKey.escape) {
@@ -233,10 +289,19 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
       onKeyEvent: _key,
       child: MouseRegion(
         cursor: controls ? SystemMouseCursors.basic : SystemMouseCursors.none,
-        onHover: (_) => _poke(),
+        onHover: (e) {
+          // The screensaver ignores a tiny jitter of the mouse, any real move closes it.
+          if (widget.screensaver) {
+            final first = _firstPointer ??= e.position;
+            if ((e.position - first).distance > 12) _close();
+            return;
+          }
+          _poke();
+        },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {
+            if (widget.screensaver) return _close();
             if (controls) {
               hide?.cancel();
               setState(() => controls = false);
@@ -255,7 +320,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
               children: [
                 RepaintBoundary(
                   child: CustomPaint(
-                    painter: _ScenePainter(shader: shader, time: time, features: features, scene: scene),
+                    painter: _ScenePainter(shader: shader, time: time, features: features, scene: scene, palette: palette),
                   ),
                 ),
                 AnimatedOpacity(
@@ -280,6 +345,14 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
                                   child: Text(visualizerScenes[scene], textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                                 ),
                                 IconAction(Icons.chevron_right_rounded, 'Następna wizualizacja (→)', () => _scene(1), color: secondaryText),
+                                const SizedBox(width: Sp.s),
+                                IconAction(
+                                  Icons.palette_outlined,
+                                  coverColors ? 'Kolory okładki: włączone' : 'Kolory okładki: wyłączone',
+                                  _toggleCoverColors,
+                                  active: coverColors,
+                                  color: coverColors ? accent : secondaryText,
+                                ),
                                 const SizedBox(width: Sp.s),
                                 IconAction(Icons.close_rounded, 'Zamknij wizualizację (Esc)', _close, color: primaryText),
                               ],
@@ -355,7 +428,8 @@ class _ScenePainter extends CustomPainter {
   final ValueNotifier<double> time;
   final AudioFeatures features;
   final int scene;
-  _ScenePainter({required this.shader, required this.time, required this.features, required this.scene}) : super(repaint: time);
+  final ScenePalette palette;
+  _ScenePainter({required this.shader, required this.time, required this.features, required this.scene, required this.palette}) : super(repaint: time);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -374,7 +448,7 @@ class _ScenePainter extends CustomPainter {
           r,
           Paint()
             ..shader = ui.Gradient.radial(p, r, [
-              [accent, const Color(0xff00c7bd), const Color(0xff6b3dfa)][i].withValues(alpha: .25 + f.energy * .4),
+              palette.shown[i].withValues(alpha: .25 + f.energy * .4),
               Colors.transparent,
             ]),
         );
@@ -391,6 +465,13 @@ class _ScenePainter extends CustomPainter {
       ..setFloat(6, f.energy)
       ..setFloat(7, f.beat)
       ..setFloat(8, scene.toDouble());
+    for (var i = 0; i < 3; i++) {
+      final c = palette.shown[i];
+      s
+        ..setFloat(9 + i * 3, c.r)
+        ..setFloat(10 + i * 3, c.g)
+        ..setFloat(11 + i * 3, c.b);
+    }
     canvas.drawRect(Offset.zero & size, Paint()..shader = s);
   }
 

@@ -227,6 +227,11 @@ class Catalog(private val context: Context) :
         error("Plik jest niedostępny. Wskaż źródło ponownie i wykonaj skan.")
     }
 
+    fun liked(id: String): Boolean =
+        readableDatabase.rawQuery("SELECT liked FROM tracks WHERE id=?", arrayOf(id)).use {
+            it.moveToFirst() && it.getInt(0) != 0
+        }
+
     fun like(id: String, value: Boolean) {
         val db = writableDatabase
         db.beginTransaction()
