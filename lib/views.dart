@@ -1559,13 +1559,25 @@ class _SearchPageState extends State<SearchPage> {
 
   void _remember() => app.prefs.rememberSearch(app.query);
 
+  // The search field stays outside the list: when it moved between the empty, "no match" and
+  // results lists it was rebuilt on every keystroke, which closed the phone keyboard.
   @override
   Widget build(BuildContext context) {
-    final desktop = app.desktopMode;
-    final q = app.query.trim();
-    final field = desktop
+    final field = app.desktopMode
         ? null
-        : Padding(
+        : _field();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ?field,
+        Expanded(child: _results(context)),
+      ],
+    );
+  }
+
+  Widget _field() {
+    final q = app.query.trim();
+    return Padding(
             padding: const EdgeInsets.fromLTRB(Sp.l, Sp.s, Sp.l, Sp.s),
             child: TextField(
               controller: app.searchText,
@@ -1580,11 +1592,15 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
           );
+  }
+
+  Widget _results(BuildContext context) {
+    final desktop = app.desktopMode;
+    final q = app.query.trim();
     if (q.isEmpty) {
       final recent = app.prefs.list('searches');
       return ListView(
         children: [
-          ?field,
           if (desktop) Padding(padding: EdgeInsets.fromLTRB(Sp.xl, Sp.xl, Sp.xl, Sp.s), child: Text(tr('Szukaj'), style: Txt.display)),
           if (recent.isNotEmpty) ...[
             SectionHeader(tr('Ostatnie wyszukiwania'), padding: EdgeInsets.fromLTRB(desktop ? Sp.xl : Sp.l, Sp.l, Sp.s, Sp.xs)),
@@ -1617,7 +1633,6 @@ class _SearchPageState extends State<SearchPage> {
     final card = desktop ? 184.0 : 148.0;
     if (tracks.isEmpty && albums.isEmpty && artists.isEmpty && playlists.isEmpty) {
       return ListView(children: [
-        ?field,
         Padding(
           padding: const EdgeInsets.all(Sp.xxl),
           child: Text(tr('Nic nie pasuje do „{0}”', [q]), textAlign: TextAlign.center, style: Txt.sub),
@@ -1640,7 +1655,6 @@ class _SearchPageState extends State<SearchPage> {
     return ListView(
       key: const PageStorageKey('search-results'),
       children: [
-        ?field,
         if (best != null) ...[
           SectionHeader(tr('Najlepszy wynik'), padding: pad),
           best,
@@ -1930,7 +1944,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.23.1']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.23.2']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),

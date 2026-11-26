@@ -207,4 +207,31 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 3));
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('typing in phone search keeps the field focused as results appear and go', (tester) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MytifyApp(repository: AndroidLibraryRepository()));
+    await settle(tester);
+    final app = tester.state<LibraryScreenState>(find.byType(LibraryScreen));
+    await tester.tap(find.text('Szukaj').last);
+    await settle(tester);
+    final field = find.byType(TextField).first;
+    await tester.tap(field);
+    await tester.pump();
+    final editable = tester.state(find.byType(EditableText).first);
+    // Empty -> results -> no match -> results again: the same field, still focused.
+    for (final text in ['S', 'So', 'Soq', 'So']) {
+      await tester.enterText(field, text);
+      await settle(tester);
+      expect(app.searchFocus.hasFocus, isTrue, reason: text);
+      expect(tester.state(find.byType(EditableText).first), same(editable), reason: text);
+      expect(tester.testTextInput.isVisible, isTrue, reason: text);
+    }
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 }
