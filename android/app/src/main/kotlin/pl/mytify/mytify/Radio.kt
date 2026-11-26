@@ -181,7 +181,7 @@ object Radio {
             .firstNotNullOfOrNull { absolute(it) }
     }
 
-    private fun playlistPath(url: String): Boolean {
+    private fun playlistPathOf(url: String): Boolean {
         val p = url.substringBefore('?').substringBefore('#').lowercase()
         return listOf(".pls", ".m3u", ".asx", ".xspf").any { p.endsWith(it) }
     }
@@ -192,7 +192,7 @@ object Radio {
         repeat(4) {
             if (!http(u)) throw IllegalArgumentException(Lang.t("Adres stacji musi zaczynać się od http:// lub https://"))
             if (u.substringBefore('?').lowercase().endsWith(".m3u8")) return u to true
-            if (!playlistPath(u)) return u to false
+            if (!playlistPathOf(u)) return u to false
             val (text, base) =
                 client.newCall(Request.Builder().url(u).build()).execute().use { r ->
                     if (!r.isSuccessful) throw java.io.IOException(Lang.t("Stacja odpowiedziała błędem HTTP {0}.").replace("{0}", "${r.code}"))
@@ -249,8 +249,18 @@ object Radio {
 
     fun setFavorites(context: Context, list: List<Station>) {
         prefs(context).edit().putString("favorites", JSONArray(list.take(500).map { it.json() }).toString()).apply()
-        list.forEach { remember(context, it) }
     }
+
+    /** Stations of the list being played (for next/previous and restarts); not "recently played". */
+    fun see(context: Context, list: List<Station>) {
+        val ids = list.map { it.id }.toSet()
+        val all = list + seen(context).filter { it.id !in ids }
+        prefs(context).edit().putString("seen", JSONArray(all.take(300).map { it.json() }).toString()).apply()
+    }
+
+    private fun seen(context: Context): List<Station> =
+        runCatching { JSONArray(prefs(context).getString("seen", "[]")).let { a -> (0 until a.length()).mapNotNull { Station.from(a.getJSONObject(it)) } } }
+            .getOrDefault(emptyList())
 
     fun recent(context: Context): List<Station> =
         runCatching { JSONArray(prefs(context).getString("known", "[]")).let { a -> (0 until a.length()).mapNotNull { Station.from(a.getJSONObject(it)) } } }
@@ -262,7 +272,19 @@ object Radio {
     }
 
     fun known(context: Context, id: String): Station? =
-        recent(context).firstOrNull { it.id == id } ?: favorites(context).firstOrNull { it.id == id }
+        recent(context).firstOrNull { it.id == id }
+            ?: favorites(context).firstOrNull { it.id == id }
+            ?: seen(context).firstOrNull { it.id == id }
+
+    /** Next/previous on air go through this list: favourites first, then the rest. */
+    fun queue(context: Context, current: Station, others: List<Station> = emptyList()): Pair<List<Station>, Int> {
+        val list = LinkedHashMap<String, Station>()
+        (favorites(context) + others + recent(context) + listOf(current)).forEach { list.putIfAbsent(it.id, it) }
+        val all = list.values.take(100).let { if (it.any { s -> s.id == current.id }) it else listOf(current) + it.take(99) }
+        return all to all.indexOfFirst { it.id == current.id }
+    }
+
+    fun playlistPath(url: String): Boolean = playlistPathOf(url)
 
     /** Playable item: the address must already be resolved ([resolve]) on a network thread. */
     fun item(s: Station, url: String = s.url, hls: Boolean = s.hls): MediaItem =

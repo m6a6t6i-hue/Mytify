@@ -386,16 +386,25 @@ class MainActivity : FlutterActivity() {
                                     .put("bitrate", (args["bitrate"] as? Number)?.toInt() ?: 0)
                                     .put("hls", args["hls"] == true)
                             ) ?: error(Lang.t("Nieprawidłowa stacja."))
+                        // The list next/previous walk through (favourites first), built by the app.
+                        val others =
+                            (args["stations"] as? List<*>).orEmpty().mapNotNull { v ->
+                                (v as? Map<*, *>)?.let { m -> Radio.Station.from(JSONObject(m.mapKeys { it.key.toString() })) }
+                            }
                         audioWorker.execute {
                             try {
                                 val (url, hls) = Radio.resolve(station.url)
                                 val ready = station.copy(url = url, hls = hls || station.hls)
                                 Radio.remember(applicationContext, ready)
-                                val item = Radio.item(ready)
+                                val (list, at) =
+                                    if (others.isEmpty()) Radio.queue(applicationContext, ready)
+                                    else (others.map { if (it.id == ready.id) ready else it }.let { l -> if (l.any { it.id == ready.id }) l else listOf(ready) + l }).let { l -> l to l.indexOfFirst { it.id == ready.id } }
+                                Radio.see(applicationContext, list)
+                                val items = list.map { if (it.id == ready.id) Radio.item(ready) else Radio.item(it) }
                                 main.post {
                                     withPlayer(r) { p ->
                                         PlaybackService.instance?.clearError()
-                                        p.setMediaItem(item)
+                                        p.setMediaItems(items, at, androidx.media3.common.C.TIME_UNSET)
                                         p.prepare()
                                         p.play()
                                         snapshot(p)
@@ -434,11 +443,18 @@ class MainActivity : FlutterActivity() {
                     } else
                         withPlayer(r) { p ->
                             // A station has no queue and no timeline to move in.
-                            if (
-                                p.currentMediaItem?.mediaId?.startsWith("radio:") == true &&
-                                    args["action"] in setOf("next", "previous", "seek", "shuffle", "jump")
-                            )
+                            val onAir = p.currentMediaItem?.mediaId?.startsWith("radio:") == true
+                            if (onAir && args["action"] in setOf("seek", "shuffle", "jump")) return@withPlayer snapshot(p)
+                            // On air, next and previous change the station (the list wraps around).
+                            if (onAir && (args["action"] == "next" || args["action"] == "previous")) {
+                                if (p.mediaItemCount > 1) {
+                                    PlaybackService.instance?.clearError()
+                                    if (args["action"] == "next") p.seekToNextMediaItem() else p.seekToPreviousMediaItem()
+                                    if (p.playbackState == Player.STATE_IDLE) p.prepare()
+                                    p.play()
+                                }
                                 return@withPlayer snapshot(p)
+                            }
                             when (args["action"]) {
                                 "play" -> {
                                     PlaybackService.instance?.clearError()

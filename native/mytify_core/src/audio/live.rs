@@ -461,7 +461,14 @@ pub(crate) mod tests {
                 std::thread::sleep(Duration::from_millis(20));
             }
         };
-        let station = |url: String| Action::Radio { id: "radio:test".into(), url, name: "Test".into(), logo: String::new() };
+        // Exactly what the app sends, extra fields included.
+        let station = |url: String| -> Action {
+            serde_json::from_value(serde_json::json!({
+                "action": "radio", "id": "radio:test", "url": url, "name": "Test", "logo": "",
+                "codec": "AAC+", "bitrate": 48, "hls": false,
+            }))
+            .unwrap()
+        };
         assert!(p.command(station("ftp://x".into())).is_err());
         let url = serve("audio/aacp", adts(44100, true), 3000, "Artysta - Utwór");
         p.command(station(url)).unwrap();
@@ -471,10 +478,30 @@ pub(crate) mod tests {
         assert_eq!(s.duration_ms, 0);
         let r = s.radio.unwrap();
         assert_eq!((r.title.as_deref(), r.codec.as_str(), r.station.as_deref()), (Some("Artysta - Utwór"), "AAC", Some("Test FM")));
-        // Seeking and skipping mean nothing on air.
+        // Seeking means nothing on air; with a single station neither does skipping.
         p.command(Action::Seek { position_ms: 90_000 }).unwrap();
         p.command(Action::Next).unwrap();
         assert_eq!(p.state().current_id.as_deref(), Some("radio:test"));
+        // With a list, next and previous change the station and go round.
+        let other = serve("audio/mpeg", mp3(44100), 4000, "Inny - Utwór");
+        let list: Action = serde_json::from_value(serde_json::json!({
+            "action": "radio", "id": "radio:b", "url": other, "name": "B", "logo": "", "codec": "MP3", "bitrate": 128, "hls": false,
+            "stations": [
+                {"id": "radio:a", "url": p.state().radio.unwrap().url, "name": "A", "logo": "", "tags": ["jazz"]},
+                {"id": "radio:b", "url": "http://ignored.example/", "name": "B", "logo": ""},
+                {"id": "bad", "url": "http://x/", "name": "X", "logo": ""},
+            ],
+        }))
+        .unwrap();
+        p.command(list).unwrap();
+        wait(&|s| s.current_id.as_deref() == Some("radio:b") && s.radio.as_ref().is_some_and(|r| r.title.as_deref() == Some("Inny - Utwór")));
+        assert_eq!(p.state().radio.unwrap().stations.len(), 2);
+        p.command(Action::Next).unwrap();
+        wait(&|s| s.current_id.as_deref() == Some("radio:a") && s.radio.as_ref().is_some_and(|r| r.name == "A" && r.title.is_some()));
+        p.command(Action::Next).unwrap();
+        assert_eq!(p.state().current_id.as_deref(), Some("radio:b"));
+        p.command(Action::Previous).unwrap();
+        assert_eq!(p.state().current_id.as_deref(), Some("radio:a"));
         p.command(Action::Pause).unwrap();
         let frames = p.state().rendered_frames;
         std::thread::sleep(Duration::from_millis(300));

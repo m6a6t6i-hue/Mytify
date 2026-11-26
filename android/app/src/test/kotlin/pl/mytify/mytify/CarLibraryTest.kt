@@ -43,6 +43,17 @@ class CarLibraryTest {
         assertEquals("Jazz Radio",library.get("radio:abc").mediaMetadata.title.toString())
         assertThrows(IllegalStateException::class.java) { library.playable("radio:unknown") }
     }
+    @Test fun stationQueueStartsWithFavouritesThenTheList() {
+        val a=Radio.Station("radio:a","A","https://a/live");val b=Radio.Station("radio:b","B","https://b/live");val c=Radio.Station("radio:c","C","https://c/live")
+        Radio.setFavorites(context,listOf(b))
+        assertTrue(Radio.recent(context).none { it.id=="radio:b" })
+        val (list,at)=Radio.queue(context,a,listOf(c,a,b))
+        assertEquals(listOf("radio:b","radio:c","radio:a"),list.map { it.id });assertEquals(2,at)
+        Radio.see(context,list)
+        assertEquals("C",Radio.known(context,"radio:c")!!.name)
+        assertEquals("https://c/live",library.playable("radio:c").localConfiguration!!.uri.toString())
+        assertTrue(Radio.playlistPath("http://x/list.pls?a=1"));assertTrue(!Radio.playlistPath("http://x/live.mp3"))
+    }
     @Test fun playlistFilesLeadToTheStream() {
         assertEquals("http://a.example:8000/live",Radio.parsePlaylist("[playlist]\nFile1=http://a.example:8000/live\nTitle1=A\n","http://x/"))
         assertEquals("https://c.example/s.mp3",Radio.parsePlaylist("#EXTM3U\n#EXTINF:-1,R\nhttps://c.example/s.mp3\n","http://x/"))

@@ -143,14 +143,15 @@ void main() {
     expect(find.descendant(of: mini, matching: find.text('So What')), findsOneWidget);
     expect(tester.widget<SeekBar>(find.descendant(of: mini, matching: find.byType(SeekBar))).live, isTrue);
 
-    // Skipping means nothing on air; the heart makes the station a favourite.
-    await app.nextTrack();
+    // The heart makes the station a favourite.
     app.openNowPlaying();
     await settle(tester);
     final screen = find.byType(NowPlayingScreen);
     expect(find.descendant(of: screen, matching: find.text('NA ŻYWO')), findsOneWidget);
+    // Next changes the station: the list sent along starts with favourites, then the list it came from.
     final skip = tester.widget<IconAction>(find.descendant(of: screen, matching: find.widgetWithIcon(IconAction, Icons.skip_next_rounded)));
-    expect(skip.onPressed, isNull);
+    expect(skip.onPressed, isNotNull);
+    expect([for (final x in play['stations'] as List) (x as Map)['id']], ['radio:jazz', 'radio:hls']);
     await tester.tap(find.descendant(of: screen, matching: find.byType(LikeButton)));
     await settle(tester);
     expect(app.isFavoriteStation('radio:jazz'), isTrue);

@@ -183,13 +183,27 @@ extension RadioActions on LibraryScreenState {
     return Station.fromJson(r);
   }
 
-  Future<void> playStation(Station s) async {
+  /// What next/previous walk through on air: favourites first, then the list the
+  /// station was picked from, then recently played. Stations this device cannot play are left out.
+  List<Station> radioQueue(Station s, List<Station> from) {
+    final hls = radio?.radioHls ?? false;
+    final ids = <String>{};
+    final out = <Station>[
+      for (final x in [...favoriteStations, ...from, ...recentStations])
+        if ((!x.hls || hls) && ids.add(x.id)) x,
+    ].take(100).toList();
+    if (!out.any((x) => x.id == s.id)) out.insert(0, s);
+    return out;
+  }
+
+  Future<void> playStation(Station s, {List<Station> from = const []}) async {
     final repo = radio;
     if (repo == null) return;
     if (s.hls && !repo.radioHls) {
       message(tr('Ta stacja nadaje w formacie HLS, który na PC jeszcze nie jest obsługiwany.'));
       return;
     }
+    final stations = radioQueue(s, from);
     final recent = recentStations..removeWhere((x) => x.id == s.id);
     refresh(() => prefs.set('radio.recent', [for (final x in [s, ...recent].take(20)) x.toJson()]));
     // Play at once from the known address. The directory only counts the listen,
@@ -205,6 +219,7 @@ extension RadioActions on LibraryScreenState {
         'codec': s.codec,
         'bitrate': s.bitrate,
         'hls': s.hls,
+        'stations': [for (final x in stations) x.toJson()],
       }),
     );
   }
@@ -499,7 +514,7 @@ class _RadioPageState extends State<RadioPage> {
     });
   }
 
-  Widget _row(Station s) {
+  Widget _row(Station s, [List<Station> from = const []]) {
     final onAir = app.player.state.radio?['id'] == s.id;
     final blocked = s.hls && !(app.radio?.radioHls ?? true);
     final fav = app.isFavoriteStation(s.id);
@@ -532,7 +547,7 @@ class _RadioPageState extends State<RadioPage> {
             ),
           ],
         ),
-        onTap: () => unawaited(onAir ? app.togglePlay() : app.playStation(s)),
+        onTap: () => unawaited(onAir ? app.togglePlay() : app.playStation(s, from: from)),
       ),
     );
   }
@@ -610,7 +625,7 @@ class _RadioPageState extends State<RadioPage> {
         else if (results!.isEmpty)
           Padding(padding: pad, child: Text(tr('Brak stacji.'), style: Txt.sub))
         else
-          for (final s in results!) _row(s),
+          for (final s in results!) _row(s, results!),
       ] else ...[
         _header(tr('Ulubione stacje')),
         if (favorites.isEmpty)
@@ -619,10 +634,10 @@ class _RadioPageState extends State<RadioPage> {
             child: Text(tr('Dotknij serca przy stacji, żeby mieć ją tutaj i w Android Auto.'), style: Txt.sub),
           )
         else
-          for (final s in favorites) _row(s),
+          for (final s in favorites) _row(s, favorites),
         if (recent.isNotEmpty) ...[
           _header(tr('Ostatnio słuchane')),
-          for (final s in recent) _row(s),
+          for (final s in recent) _row(s, recent),
         ],
         if (heard.isNotEmpty) ...[
           _header(tr('Słyszane w radiu')),
@@ -642,7 +657,7 @@ class _RadioPageState extends State<RadioPage> {
         else if (popularError != null)
           Padding(padding: pad, child: Text(popularError!, style: TextStyle(color: dangerText)))
         else
-          for (final s in popular!) _row(s),
+          for (final s in popular!) _row(s, popular!),
         Padding(
           padding: pad.copyWith(top: Sp.l, bottom: Sp.xxl),
           child: Text(tr('Katalog stacji: radio-browser.info (społecznościowy, bez reklam).'), style: Txt.meta),
@@ -664,6 +679,6 @@ Widget stationCard(LibraryScreenState app, Station s, double size) {
     size: size,
     current: onAir,
     playing: onAir && app.playing,
-    onOpen: () => unawaited(onAir ? app.togglePlay() : app.playStation(s)),
+    onOpen: () => unawaited(onAir ? app.togglePlay() : app.playStation(s, from: app.recentStations)),
   );
 }

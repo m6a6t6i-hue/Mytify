@@ -78,7 +78,7 @@ class TransportControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final has = app.current != null;
-    // A station has no queue: skipping, shuffling and repeating mean nothing there.
+    // On air, previous and next change the station; shuffling and repeating mean nothing there.
     final queue = has && !isRadio(app.current!.id);
     final box = icon + 18;
     // Scales down instead of overflowing on very narrow screens or large text.
@@ -101,8 +101,8 @@ class TransportControls extends StatelessWidget {
         ],
         IconAction(
           Icons.skip_previous_rounded,
-          tr('Poprzedni utwór'),
-          queue ? () => unawaited(app.previousTrack()) : null,
+          queue || !has ? tr('Poprzedni utwór') : tr('Poprzednia stacja'),
+          has ? () => unawaited(app.previousTrack()) : null,
           size: icon + 4,
           box: box,
         ),
@@ -117,8 +117,8 @@ class TransportControls extends StatelessWidget {
         SizedBox(width: gap),
         IconAction(
           Icons.skip_next_rounded,
-          tr('Następny utwór'),
-          queue ? () => unawaited(app.nextTrack()) : null,
+          queue || !has ? tr('Następny utwór') : tr('Następna stacja'),
+          has ? () => unawaited(app.nextTrack()) : null,
           size: icon + 4,
           box: box,
         ),

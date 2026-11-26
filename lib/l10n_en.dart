@@ -872,4 +872,6 @@ const enStrings = <String, String>{
   'Strumień AAC jest uszkodzony.': 'The AAC stream is damaged.',
   'Nie można odtworzyć stacji ({0}). Sprawdź internet lub wybierz inną stację.': 'Cannot play the station ({0}). Check your internet connection or pick another station.',
   'Ostatnio słuchane stacje': 'Recently played stations',
+  'Poprzednia stacja': 'Previous station',
+  'Następna stacja': 'Next station',
 };

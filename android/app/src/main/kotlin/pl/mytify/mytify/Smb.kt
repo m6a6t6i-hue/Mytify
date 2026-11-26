@@ -414,6 +414,15 @@ class RoutingDataSource(private val context: Context) : androidx.media3.datasour
         }
         val source = if (dataSpec.uri.scheme == "smb") smb else fallback
         current = source
+        // Stations further down the radio list may still point at a .pls/.m3u file:
+        // open it here, on the loading thread, when the station is reached.
+        val address = dataSpec.uri.toString()
+        if ((dataSpec.uri.scheme == "http" || dataSpec.uri.scheme == "https") && Radio.playlistPath(address)) {
+            val (url, hls) = Radio.resolve(address)
+            // An HLS list behind a .m3u needs the HLS source; the error retry resolves it properly.
+            if (hls) throw IOException("HLS")
+            return source.open(dataSpec.buildUpon().setUri(Uri.parse(url)).build())
+        }
         return source.open(dataSpec)
     }
 

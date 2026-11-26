@@ -472,7 +472,7 @@ impl Network {
     pub fn state(&self, local: Value) -> Value {
         let d = self.data.lock().unwrap();
         if let Some(t) = &d.target {
-            let radio = d.radio.as_ref().map(|r| json!({"id":r["id"],"name":r["name"],"url":r["url"],"logo":r["logo"],"title":null,"station":null,"codec":"","bitrate":0,"reconnecting":false}));
+            let radio = d.radio.as_ref().map(|r| json!({"id":r["id"],"name":r["name"],"url":r["url"],"logo":r["logo"],"title":null,"station":null,"codec":"","bitrate":0,"reconnecting":false,"stations":r["stations"]}));
             let mut v = json!({"available":true,"playing":d.playing,"completed":false,"buffering":false,"queueIds":d.ids,"currentId":d.ids.get(d.index),"index":d.index,"positionMs":d.position,"durationMs":d.duration,"volume":d.volume,"volumeAvailable":d.volume_known,"repeat":d.repeat,"shuffled":d.shuffled,"selectedDevice":t.id,"source":null,"output":{"name":t.name,"backend":"DLNA · oryginalny plik","sampleRate":0,"sampleFormat":"Format pliku","channels":2,"testSink":false},"error":d.error,"errorSerial":d.serial,"revision":d.revision,"underrunFrames":0,"renderedFrames":0});
             v["radio"] = radio.unwrap_or(Value::Null);
             v
@@ -641,7 +641,23 @@ impl Network {
             .ok_or_else(|| anyhow!("Brak odbiornika"))?;
         let result = (|| {
             let action = v["action"].as_str().unwrap_or("");
-            if self.data.lock().unwrap().radio.is_some() && matches!(action, "seek" | "next" | "previous" | "jump" | "shuffle") {
+            let on_air = self.data.lock().unwrap().radio.clone();
+            if let (Some(r), "next" | "previous") = (&on_air, action) {
+                // On air, next and previous change the station; the list goes round.
+                let list: Vec<Value> = r["stations"].as_array().cloned().unwrap_or_default();
+                if list.len() < 2 {
+                    return Ok(());
+                }
+                let at = list.iter().position(|e| e["id"] == r["id"]).unwrap_or(0);
+                let step = if action == "next" { 1 } else { list.len() - 1 };
+                let e = &list[(at + step) % list.len()];
+                let mut d = self.data.lock().unwrap();
+                d.radio = Some(json!({"id":e["id"],"url":e["url"],"name":e["name"],"logo":e["logo"],"stations":list}));
+                d.ids = vec![e["id"].as_str().unwrap_or("").to_string()];
+                drop(d);
+                return self.load_radio(true);
+            }
+            if on_air.is_some() && matches!(action, "seek" | "next" | "previous" | "jump" | "shuffle") {
                 return Ok(());
             }
             match action {
@@ -651,8 +667,21 @@ impl Network {
                     if !id.starts_with("radio:") || !(url.starts_with("http://") || url.starts_with("https://")) {
                         bail!("Nieprawidłowa stacja")
                     }
+                    let stations: Vec<Value> = v["stations"]
+                        .as_array()
+                        .map(|a| {
+                            a.iter()
+                                .filter(|e| {
+                                    e["id"].as_str().is_some_and(|i| i.starts_with("radio:"))
+                                        && e["url"].as_str().is_some_and(|u| u.starts_with("http://") || u.starts_with("https://"))
+                                })
+                                .take(200)
+                                .map(|e| json!({"id":e["id"],"url":e["url"],"name":e["name"],"logo":e["logo"]}))
+                                .collect()
+                        })
+                        .unwrap_or_default();
                     let mut d = self.data.lock().unwrap();
-                    d.radio = Some(json!({"id":id,"url":url,"name":text("name"),"logo":text("logo")}));
+                    d.radio = Some(json!({"id":id,"url":url,"name":text("name"),"logo":text("logo"),"stations":stations}));
                     d.ids = vec![id];
                     d.index = 0;
                     drop(d);
@@ -1017,8 +1046,16 @@ mod receiver_integration {
         network.command(&json!({"action":"seek","positionMs":5000})).unwrap();
         network.command(&json!({"action":"next"})).unwrap();
         assert!(sent.lock().unwrap().is_empty());
-        network.command(&json!({"action":"radio","id":"radio:def","url":"http://other.example/mp3","name":"B"})).unwrap();
+        network.command(&json!({"action":"radio","id":"radio:def","url":"http://other.example/mp3","name":"B",
+            "stations":[{"id":"radio:abc","url":"https://s.example/live.aac","name":"A"},{"id":"radio:def","url":"http://other.example/mp3","name":"B"}]})).unwrap();
         assert!(sent.lock().unwrap().contains(&("SetAVTransportURI".into(), "http://other.example/mp3".into())));
+        // Next and previous change the station on the receiver too.
+        sent.lock().unwrap().clear();
+        network.command(&json!({"action":"next"})).unwrap();
+        assert!(sent.lock().unwrap().contains(&("SetAVTransportURI".into(), "https://s.example/live.aac".into())));
+        assert_eq!(network.state(json!({}))["radio"]["id"], "radio:abc");
+        network.command(&json!({"action":"previous"})).unwrap();
+        assert_eq!(network.state(json!({}))["radio"]["id"], "radio:def");
         assert!(network.command(&json!({"action":"radio","id":"x","url":"http://a"})).is_err());
         network.command(&json!({"action":"stop"})).unwrap();
         assert!(network.state(json!({}))["radio"].is_null());

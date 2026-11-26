@@ -49,6 +49,28 @@ struct Data {
     revision: u64,
     equalizer: eq::Equalizer,
     radio: Option<RadioNow>,
+    /// Stations next/previous walk through while on air (favourites first, chosen by the app).
+    radio_list: Vec<RadioEntry>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct RadioEntry {
+    pub id: String,
+    pub url: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub logo: String,
+}
+impl RadioEntry {
+    fn valid(&self) -> bool {
+        let http = |u: &str| u.starts_with("http://") || u.starts_with("https://");
+        self.id.starts_with("radio:")
+            && self.id.len() <= 100
+            && self.name.chars().count() <= 300
+            && http(&self.url)
+            && self.url.len() <= 2048
+            && (self.logo.is_empty() || (http(&self.logo) && self.logo.len() <= 2048))
+    }
 }
 #[derive(Clone)]
 struct RadioNow {
@@ -71,6 +93,8 @@ pub struct RadioState {
     pub codec: String,
     pub bitrate: u32,
     pub reconnecting: bool,
+    /// What next/previous walk through (kept when the sound moves to a receiver).
+    pub stations: Vec<RadioEntry>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -147,6 +171,15 @@ pub enum Action {
         name: String,
         #[serde(default)]
         logo: String,
+        // Shown by the app; the engine reads the stream itself.
+        #[serde(default)]
+        codec: String,
+        #[serde(default)]
+        bitrate: u32,
+        #[serde(default)]
+        hls: bool,
+        #[serde(default)]
+        stations: Vec<RadioEntry>,
     },
 }
 fn persist_settings(root: &std::path::Path, io: &Mutex<()>, settings: &Settings) -> Result<()> {
@@ -298,6 +331,7 @@ impl Player {
                     codec: m.codec.clone(),
                     bitrate: m.bitrate,
                     reconnecting: m.reconnecting,
+                    stations: data.radio_list.clone(),
                 }
             }),
         }
@@ -329,13 +363,16 @@ impl Player {
             Action::Device { id } if id.is_empty() || id.len() > 4096 => {
                 bail!("Nieprawidłowe urządzenie.")
             }
-            Action::Radio { id, url, name, logo } => {
-                let http = |u: &str| u.starts_with("http://") || u.starts_with("https://");
+            Action::Radio { id, url, name, logo, stations, .. } => {
+                let entry = RadioEntry { id: id.clone(), url: url.clone(), name: name.clone(), logo: logo.clone() };
                 if !id.starts_with("radio:") || id.len() > 100 || name.chars().count() > 300 {
                     bail!("Nieprawidłowa stacja.")
                 }
-                if !http(url) || url.len() > 2048 || (!logo.is_empty() && (!http(logo) || logo.len() > 2048)) {
+                if !entry.valid() {
                     bail!("Nieprawidłowy adres stacji.")
+                }
+                if stations.len() > 200 {
+                    bail!("Za dużo stacji.")
                 }
             }
             _ => {}
@@ -494,16 +531,62 @@ impl Worker {
         self.data.lock().unwrap().radio = None;
     }
     fn apply(&mut self, action: Action) -> Result<()> {
+        if self.radio().is_some() && matches!(action, Action::Next | Action::Previous) {
+            // On air, next and previous change the station; the list goes round.
+            let (list, at) = {
+                let data = self.data.lock().unwrap();
+                let id = data.radio.as_ref().map(|r| r.id.clone()).unwrap_or_default();
+                let at = data.radio_list.iter().position(|e| e.id == id).unwrap_or(0);
+                (data.radio_list.clone(), at)
+            };
+            if list.len() < 2 {
+                return Ok(());
+            }
+            let step = if matches!(action, Action::Next) { 1 } else { list.len() - 1 };
+            let e = list[(at + step) % list.len()].clone();
+            return self.tune(e);
+        }
         if self.radio().is_some()
-            && matches!(
-                action,
-                Action::Seek { .. } | Action::Next | Action::Previous | Action::Jump { .. } | Action::Shuffle { .. }
-            )
+            && matches!(action, Action::Seek { .. } | Action::Jump { .. } | Action::Shuffle { .. })
         {
             return Ok(());
         }
         match action {
-            Action::Radio { id, url, name, logo } => {
+            Action::Radio { id, url, name, logo, stations, .. } => {
+                let current = RadioEntry { id, url, name, logo };
+                let mut list: Vec<RadioEntry> = Vec::new();
+                for e in stations.into_iter().filter(RadioEntry::valid) {
+                    if !list.iter().any(|x| x.id == e.id) {
+                        list.push(e);
+                    }
+                }
+                match list.iter().position(|x| x.id == current.id) {
+                    Some(i) => list[i] = current.clone(),
+                    None => list.insert(0, current.clone()),
+                }
+                self.data.lock().unwrap().radio_list = list;
+                self.tune(current)?;
+            }
+            Action::Restore {
+                ids,
+                index,
+                position_ms,
+                playing,
+            } => {
+                self.apply(Action::Load { ids, index })?;
+                self.apply(Action::Seek { position_ms })?;
+                if !playing {
+                    self.apply(Action::Pause)?;
+                }
+            }
+            _ => self.apply_files(action)?,
+        }
+        Ok(())
+    }
+    fn tune(&mut self, e: RadioEntry) -> Result<()> {
+        let RadioEntry { id, url, name, logo } = e;
+        {
+            {
                 self.ensure_output()?;
                 {
                     let mut data = self.data.lock().unwrap();
@@ -527,18 +610,12 @@ impl Worker {
                 self.start_live();
                 self.signals.paused.store(false, Ordering::Release);
             }
-            Action::Restore {
-                ids,
-                index,
-                position_ms,
-                playing,
-            } => {
-                self.apply(Action::Load { ids, index })?;
-                self.apply(Action::Seek { position_ms })?;
-                if !playing {
-                    self.apply(Action::Pause)?;
-                }
-            }
+        }
+        Ok(())
+    }
+    fn apply_files(&mut self, action: Action) -> Result<()> {
+        match action {
+            Action::Radio { .. } | Action::Restore { .. } => {}
             Action::Load { ids, index } => {
                 self.end_radio();
                 let tracks = self.catalog.tracks()?;

@@ -168,7 +168,15 @@ class CarLibrary(private val context: Context,private val catalog: Catalog) {
             require(matches.isNotEmpty()) { Lang.t("Brak wyników") }
             return androidx.media3.session.MediaSession.MediaItemsWithStartPosition(matches.map { playable(it.id) },0,0)
         }
-        if(requested.size==1 && first.mediaId.startsWith("radio:")) return androidx.media3.session.MediaSession.MediaItemsWithStartPosition(listOf(playableStation(first.mediaId)),0,0)
+        if(requested.size==1 && first.mediaId.startsWith("radio:")) {
+            // The car's next/previous walk favourites first, then the list the station came from.
+            val ready=playableStation(first.mediaId)
+            val s=station(first.mediaId)!!
+            val folder=stationCache.values.map { it.second }.firstOrNull { l->l.any { it.id==s.id } }.orEmpty()
+            val (list,at)=Radio.queue(context,s,folder)
+            Radio.see(context,list)
+            return androidx.media3.session.MediaSession.MediaItemsWithStartPosition(list.mapIndexed { i,x->if(i==at) ready else Radio.item(x) },at,0)
+        }
         val parent=if(requested.size==1) parent(first.mediaId) else null
         if(parent!=null) {
             val hash=canonical(first.mediaId);val contextItems=collection(parent);val index=contextItems.indexOfFirst { it.id==hash };require(index>=0)

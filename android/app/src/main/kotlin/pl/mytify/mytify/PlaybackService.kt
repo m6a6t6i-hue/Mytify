@@ -220,7 +220,7 @@ class PlaybackService : MediaLibraryService() {
                                 val item = runCatching { carCallback.library.playableStation(id) }.getOrNull()
                                 handler.post {
                                     if (player.currentMediaItem?.mediaId != id) return@post
-                                    if (item != null) player.setMediaItem(item)
+                                    if (item != null) player.replaceMediaItem(player.currentMediaItemIndex, item)
                                     player.prepare()
                                     player.play()
                                 }
@@ -237,6 +237,17 @@ class PlaybackService : MediaLibraryService() {
                     }
 
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        val radio = mediaItem?.mediaId?.startsWith("radio:") == true
+                        // Stations go round in a circle; the user's repeat setting comes back with music.
+                        val saved = getSharedPreferences("player", 0)
+                        if (radio && !saved.contains("repeatBeforeRadio")) {
+                            saved.edit().putInt("repeatBeforeRadio", repeatMode).apply()
+                            repeatMode = Player.REPEAT_MODE_ALL
+                        } else if (!radio && mediaItem != null && saved.contains("repeatBeforeRadio")) {
+                            repeatMode = saved.getInt("repeatBeforeRadio", Player.REPEAT_MODE_OFF)
+                            saved.edit().remove("repeatBeforeRadio").apply()
+                        }
+                        if (radio) carCallback.library.station(mediaItem!!.mediaId)?.let { Radio.remember(this@PlaybackService, it) }
                         if (mediaItem?.mediaId != radioRetryId) radioRetries = 0
                         radioRetryId = mediaItem?.mediaId
                         radioTitle = null

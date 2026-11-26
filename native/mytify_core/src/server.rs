@@ -405,6 +405,10 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
                             url: text("url"),
                             name: text("name"),
                             logo: text("logo"),
+                            codec: String::new(),
+                            bitrate: 0,
+                            hls: false,
+                            stations: serde_json::from_value(r["stations"].clone()).unwrap_or_default(),
                         })?;
                         if old["playing"] != true {
                             app.player.command(crate::audio::Action::Pause)?;
