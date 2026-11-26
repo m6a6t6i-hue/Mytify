@@ -1881,6 +1881,13 @@ class SettingsPage extends StatelessWidget {
     SectionTitle(tr('Wizualizacje')),
     SwitchListTile(
       contentPadding: EdgeInsets.zero,
+      title: Text(tr('Stroboskop'), style: const TextStyle(fontSize: 14.5)),
+      subtitle: Text(tr('Pulsujące wiązki światła jako dodatkowa scena. Nie pojawia się, gdy system ogranicza animacje.'), style: Txt.meta),
+      value: app.prefs.get<bool>('viz.strobe', false),
+      onChanged: (v) => app.refresh(() => app.prefs.set('viz.strobe', v)),
+    ),
+    SwitchListTile(
+      contentPadding: EdgeInsets.zero,
       title: Text(tr('Kolory okładki'), style: TextStyle(fontSize: 14.5)),
       subtitle: Text(tr('Plazma, wstęgi i wir biorą barwy z okładki grającego albumu.'), style: Txt.meta),
       value: app.prefs.get<bool>('viz.cover', true),

@@ -414,11 +414,12 @@ void main() {
       app.openVisualizer();
       // Shader programs load asynchronously.
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 500)));
-      for (var i = 0; i < visualizerScenes.length; i++) {
+      final scenes = availableScenes(app.prefs);
+      for (var i = 0; i < scenes.length; i++) {
         for (var k = 0; k < 30; k++) {
           await tester.pump(const Duration(milliseconds: 33));
         }
-        await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/viz_${name}_${i}_${visualizerScenes[i]}.png'));
+        await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/viz_${name}_${i}_${scenes[i].$2.replaceAll(' ', '_')}.png'));
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       }
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);

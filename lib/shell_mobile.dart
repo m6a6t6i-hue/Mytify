@@ -115,6 +115,9 @@ class _Header extends StatelessWidget {
     final route = app.route;
     final root = !app.canGoBack;
     final actions = <Widget>[
+      // Full screen visualization one tap away while something plays.
+      if (route.page == 'home' && app.current != null)
+        IconAction(Icons.blur_on_rounded, tr('Wizualizacja'), app.openVisualizer, size: 22, box: 48),
       if (route.page == 'home') DeviceButton(app: app, size: 22),
       if (route.page == 'library')
         Builder(

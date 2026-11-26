@@ -14,9 +14,30 @@ import 'model.dart';
 import 'player_ui.dart';
 import 'widgets.dart';
 import 'l10n.dart';
+import 'ui_prefs.dart';
 
 /// Full screen scenes. Order matches uMode in shaders/visualizer.frag.
-List<String> get visualizerScenes => [tr('Plazma'), tr('Wstęgi'), tr('Wir'), tr('Retro')];
+/// Scenes in cycling order; the number is the shader's uMode. Ids never change meaning.
+const visualizerModes = <(int, String)>[
+  (0, 'Plazma'),
+  (1, 'Wstęgi'),
+  (2, 'Wir'),
+  (3, 'Retro'),
+  (4, 'Lot przez kosmos'),
+  (5, 'Morze'),
+  (6, 'Aurora'),
+  (7, 'Prism Club'),
+  (8, 'Stroboskop'),
+  (9, 'Retro Amiga'),
+];
+
+/// Stroboskop only after an explicit opt-in, and never with reduced motion.
+List<(int, String)> availableScenes(UiPrefs prefs, {bool reducedMotion = false}) => [
+  for (final m in visualizerModes)
+    if (m.$1 != 8 || (prefs.get<bool>('viz.strobe', false) && !reducedMotion)) m,
+];
+
+String sceneName(int mode) => tr(visualizerModes.firstWhere((m) => m.$1 == mode, orElse: () => visualizerModes.first).$2);
 
 /// Mytify colours of the scenes: teal, green, violet.
 const mytifyPalette = [Color(0xff00c7bd), Color(0xff00e676), Color(0xff6b3dfa)];
@@ -116,7 +137,13 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
   late bool controls = !widget.screensaver;
   bool resumed = true;
   Timer? hide;
-  late int scene = (widget.app.prefs.get<int>('viz.scene', 0)).clamp(0, visualizerScenes.length - 1);
+  late int scene = _initialScene();
+
+  int _initialScene() {
+    final saved = widget.app.prefs.get<int>('viz.scene', 0);
+    // Unknown or switched-off scene (e.g. Stroboskop turned off): Lot przez kosmos.
+    return availableScenes(widget.app.prefs).any((m) => m.$1 == saved) ? saved : 4;
+  }
   late bool coverColors = widget.app.prefs.get<bool>('viz.cover', true);
 
   LibraryScreenState get app => widget.app;
@@ -224,7 +251,9 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
   }
 
   void _scene(int delta) {
-    setState(() => scene = (scene + delta) % visualizerScenes.length);
+    final list = availableScenes(app.prefs, reducedMotion: MediaQuery.disableAnimationsOf(context));
+    final at = list.indexWhere((m) => m.$1 == scene);
+    setState(() => scene = list[((at < 0 ? 0 : at) + delta) % list.length].$1);
     app.prefs.set('viz.scene', scene);
     _poke();
   }
@@ -343,7 +372,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
                                 IconAction(Icons.chevron_left_rounded, tr('Poprzednia wizualizacja (←)'), () => _scene(-1), color: secondaryText),
                                 SizedBox(
                                   width: 84,
-                                  child: Text(visualizerScenes[scene], textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                                  child: Text(sceneName(scene), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                                 ),
                                 IconAction(Icons.chevron_right_rounded, tr('Następna wizualizacja (→)'), () => _scene(1), color: secondaryText),
                                 const SizedBox(width: Sp.s),
