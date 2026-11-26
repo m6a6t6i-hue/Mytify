@@ -46,15 +46,20 @@ impl QueueInput {
         d.error = Some(message.to_string());
         d.error_serial += 1;
     }
+    /// `wait`: when the first track lives on a NAS that does not answer, give up with the
+    /// reason instead of skipping to the next track, so the caller can reach the NAS and retry.
     fn open(
         catalog: &Arc<Catalog>,
         data: &Arc<Mutex<Data>>,
         plan: &Plan,
         mut cursor: usize,
         mut seek_ms: u64,
-    ) -> Option<Opened> {
-        for _ in 0..plan.order.len() {
-            let index = *plan.order.get(cursor)?;
+        wait: bool,
+    ) -> std::result::Result<Option<Opened>, String> {
+        for attempt in 0..plan.order.len() {
+            let Some(&index) = plan.order.get(cursor) else {
+                return Ok(None);
+            };
             let id = &plan.ids[index];
             let result = catalog
                 .open_audio(id)
@@ -62,14 +67,15 @@ impl QueueInput {
                 .and_then(|mut source| source.next().map(|first| (source, first)));
             match result {
                 Ok((source, Some(first))) => {
-                    return Some(Opened {
+                    return Ok(Some(Opened {
                         source,
                         first,
                         cursor,
                         seek_ms,
-                    })
+                    }))
                 }
                 Ok(_) => Self::report(data, "Pominięto pusty utwór audio."),
+                Err(e) if wait && attempt == 0 && catalog.network_only(id) => return Err(format!("{e:#}")),
                 Err(e) => Self::report(data, format!("Nie można odtworzyć utworu: {e:#}")),
             }
             if cursor + 1 < plan.order.len() {
@@ -77,11 +83,11 @@ impl QueueInput {
             } else if plan.repeat {
                 cursor = 0;
             } else {
-                return None;
+                return Ok(None);
             }
             seek_ms = 0;
         }
-        None
+        Ok(None)
     }
     fn new(
         catalog: Arc<Catalog>,
@@ -163,7 +169,7 @@ impl StereoInput for QueueInput {
                 self.finished = true;
                 return Ok(None);
             };
-            let Some(opened) = Self::open(&self.catalog, &self.data, &self.plan, cursor, 0) else {
+            let Some(opened) = Self::open(&self.catalog, &self.data, &self.plan, cursor, 0, false).unwrap_or(None) else {
                 self.finished = true;
                 return Ok(None);
             };
@@ -197,6 +203,12 @@ pub struct TaggedFrame {
 }
 /// Adjacent files at the same source rate share one sinc state and fractional phase.
 /// This avoids zero-padding/filter resets at album boundaries, including 44.1 -> 48 kHz.
+/// What opening the queue gave: sound, nothing left, or a NAS that does not answer (yet).
+pub enum Opening {
+    Ready(SequenceSource),
+    Ended,
+    Unreachable(String),
+}
 pub struct SequenceSource {
     converter: Converter<QueueInput>,
     position: u64,
@@ -209,7 +221,8 @@ impl SequenceSource {
         cursor: usize,
         seek_ms: u64,
         output_rate: u32,
-    ) -> Result<Option<Self>> {
+        wait: bool,
+    ) -> Result<Opening> {
         let plan = {
             let d = data.lock().unwrap();
             Arc::new(Plan {
@@ -218,12 +231,14 @@ impl SequenceSource {
                 repeat: d.repeat,
             })
         };
-        let Some(opened) = QueueInput::open(&catalog, &data, &plan, cursor, seek_ms) else {
-            return Ok(None);
+        let opened = match QueueInput::open(&catalog, &data, &plan, cursor, seek_ms, wait) {
+            Ok(Some(opened)) => opened,
+            Ok(None) => return Ok(Opening::Ended),
+            Err(reason) => return Ok(Opening::Unreachable(reason)),
         };
         let input = QueueInput::new(catalog, data, plan, opened, output_rate);
         let rate = input.rate;
-        Ok(Some(Self {
+        Ok(Opening::Ready(Self {
             converter: Converter::new(input, rate, output_rate)?,
             position: 0,
             output_rate,
@@ -296,9 +311,9 @@ mod tests {
             infos: vec![SourceInfo::default(); parts.len()],
             ..Default::default()
         }));
-        let mut source = SequenceSource::open(catalog, data.clone(), 0, 0, 48000)
-            .unwrap()
-            .unwrap();
+        let Opening::Ready(mut source) = SequenceSource::open(catalog, data.clone(), 0, 0, 48000, true).unwrap() else {
+            panic!("the queue did not open")
+        };
         let mut samples = vec![];
         let mut boundaries = vec![];
         while let Some(frame) = source.next().unwrap() {

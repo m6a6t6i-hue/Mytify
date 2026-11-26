@@ -463,6 +463,18 @@ impl Catalog {
             None => Ok(()),
         }
     }
+    /// The track lives only on network sources (a NAS that may still be waking up).
+    pub fn network_only(&self, id: &str) -> bool {
+        self.db()
+            .and_then(|db| {
+                Ok(db.query_row(
+                    "SELECT COALESCE(SUM(CASE WHEN s.kind IN ('smb','webdav','subsonic') THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN s.kind NOT IN ('smb','webdav','subsonic') AND l.available=1 THEN 1 ELSE 0 END),0) FROM locations l JOIN sources s ON s.id=l.source_id WHERE l.track_id=?",
+                    [id],
+                    |r| Ok(r.get::<_, i64>(0)? > 0 && r.get::<_, i64>(1)? == 0),
+                )?)
+            })
+            .unwrap_or(false)
+    }
     /// Background reachability check, so the library shows the real state of a NAS.
     pub fn probe_network_sources(&self) -> Result<()> {
         for source in self.sources()?.into_iter().filter(|s| matches!(s.kind.as_str(), "smb" | "webdav" | "subsonic")) {

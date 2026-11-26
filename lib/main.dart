@@ -538,7 +538,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (mounted && generation == playGeneration) _openedTrackId = first.id;
     } catch (e) {
       if (mounted && generation == playGeneration) {
-        message(tr('Nie można uruchomić odtwarzania: {0}', [e]));
+        message(tr('Nie można uruchomić odtwarzania: {0}', [trMessage(readableError(e))]));
       }
     }
   }
@@ -1214,6 +1214,13 @@ class LibraryScreenState extends State<LibraryScreen> {
   /// Network tracks that look unavailable may only be waiting for their source:
   /// connect first (the play button spins), then use the fresh state.
   Future<List<Track>> _reachable(List<Track> list) async {
+    final network = list.any((t) => t.remote && !t.offline);
+    // Right after start the NAS is still being reached: wait for that answer first.
+    final pending = _connecting;
+    if (network && pending != null) {
+      await starting(() => pending);
+      list = [for (final t in list) index.byId[t.id] ?? t];
+    }
     if (!list.any((t) => t.remote && !t.available && !t.offline)) return list;
     await starting(() => connectSources());
     return [for (final t in list) index.byId[t.id] ?? t];

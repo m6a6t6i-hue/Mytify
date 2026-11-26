@@ -20,6 +20,7 @@ object Lang {
         mapOf(
             "Albumy" to "Albums",
             "Radio" to "Radio",
+            "Serwer z muzyką nie odpowiada. Sprawdź, czy NAS jest włączony i w tej samej sieci." to "The music server is not responding. Check that the NAS is on and in the same network.",
             "Ulubione stacje" to "Favourite stations",
             "Ostatnio słuchane" to "Recently played",
             "Popularne w Polsce" to "Popular in Poland",

@@ -81,6 +81,11 @@ class PlaybackService : MediaLibraryService() {
     @Volatile private var radioBitrate = 0
     private var lastTitle: String? = null
     private var radioRetries = 0
+    /** A NAS file failed to open: the share is being reached again (the app shows a spinner). */
+    @Volatile var reconnecting = false
+        private set
+    private var networkRetryId: String? = null
+    private var networkDeadline = 0L
     private var radioRetryId: String? = null
 
     private fun onAir(p: Player) = p.currentMediaItem?.mediaId?.startsWith("radio:") == true
@@ -227,6 +232,38 @@ class PlaybackService : MediaLibraryService() {
                             }.start()
                             return
                         }
+                        // A file on a NAS that does not open yet: reach the share again and retry
+                        // for up to 15 s (NAS waking up, Wi-Fi not ready after the screen was off).
+                        val uri = currentMediaItem?.localConfiguration?.uri
+                        if (id != null && !onAir(this@apply) && uri?.scheme in setOf("smb", "dav", "subsonic")) {
+                            val now = android.os.SystemClock.elapsedRealtime()
+                            if (networkRetryId != id) {
+                                networkRetryId = id
+                                networkDeadline = now + 15_000
+                            }
+                            if (now < networkDeadline) {
+                                reconnecting = true
+                                revision++
+                                val player = this@apply
+                                prober.execute {
+                                    val started = android.os.SystemClock.elapsedRealtime()
+                                    runCatching { NetworkSources.probe(this@PlaybackService) }
+                                    val spent = android.os.SystemClock.elapsedRealtime() - started
+                                    handler.postDelayed(
+                                        {
+                                            // Paused or moved on meanwhile: stop waiting.
+                                            if (player.currentMediaItem?.mediaId == id && player.playWhenReady && reconnecting) {
+                                                player.prepare()
+                                                player.play()
+                                            } else reconnecting = false
+                                        },
+                                        maxOf(0L, 1500 - spent),
+                                    )
+                                }
+                                return
+                            }
+                        }
+                        reconnecting = false
                         errorMessage =
                             if (onAir(this@apply))
                                 Lang.t("Nie można odtworzyć stacji ({0}). Sprawdź internet lub wybierz inną stację.").replace("{0}", error.errorCodeName)
@@ -266,14 +303,21 @@ class PlaybackService : MediaLibraryService() {
                     }
 
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        if (isPlaying) radioRetries = 0
+                        if (isPlaying) {
+                            radioRetries = 0
+                            reconnecting = false
+                            networkRetryId = null
+                        }
                         revision++
                         save()
                         Widget.update(this@PlaybackService)
                     }
 
                     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                        if (!playWhenReady) a?.flush()
+                        if (!playWhenReady) {
+                            a?.flush()
+                            reconnecting = false
+                        }
                         // Radio is live: a paused station starts again from what airs then,
                         // instead of an old buffer or a connection the station dropped meanwhile.
                         if (!playWhenReady && reason != Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS && onAir(this@apply))
@@ -486,7 +530,7 @@ class PlaybackService : MediaLibraryService() {
             "available" to true,
             "playing" to p.isPlaying,
             "completed" to (p.playbackState == Player.STATE_ENDED),
-            "buffering" to (p.playbackState == Player.STATE_BUFFERING && p.playWhenReady),
+            "buffering" to ((p.playbackState == Player.STATE_BUFFERING && p.playWhenReady) || reconnecting),
             "repeat" to (p.repeatMode == Player.REPEAT_MODE_ALL),
             "shuffled" to p.shuffleModeEnabled,
             "queueIds" to

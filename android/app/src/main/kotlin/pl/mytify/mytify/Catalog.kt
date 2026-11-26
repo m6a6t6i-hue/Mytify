@@ -227,6 +227,15 @@ class Catalog(private val context: Context) :
         error("Plik jest niedostępny. Wskaż źródło ponownie i wykonaj skan.")
     }
 
+    /** The track is on a NAS or server that is marked offline right now (it may only be waking up). */
+    fun waitsForNetwork(id: String): Boolean =
+        readableDatabase
+            .rawQuery(
+                "SELECT COUNT(*) FROM locations l JOIN sources s ON s.id=l.source WHERE l.track=? AND l.available=1 AND s.state='offline' AND s.kind IN ('smb','webdav','subsonic')",
+                arrayOf(id),
+            )
+            .use { it.moveToFirst() && it.getInt(0) > 0 }
+
     fun liked(id: String): Boolean =
         readableDatabase.rawQuery("SELECT liked FROM tracks WHERE id=?", arrayOf(id)).use {
             it.moveToFirst() && it.getInt(0) != 0

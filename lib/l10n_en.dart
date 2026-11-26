@@ -904,4 +904,5 @@ const enStrings = <String, String>{
   'źródła sieciowe': 'network sources',
   'Nie udało się połączyć z: {0}. Spróbuję ponownie, gdy włączysz utwór.': 'Could not connect to: {0}. I will try again when you play a track.',
   '{0} nie odpowiada. Sprawdź, czy NAS jest włączony i w tej samej sieci.': '{0} is not responding. Check that the NAS is on and in the same network.',
+  'Serwer z muzyką nie odpowiada. Sprawdź, czy NAS jest włączony i w tej samej sieci.': 'The music server is not responding. Check that the NAS is on and in the same network.',
 };

@@ -407,6 +407,13 @@ struct Worker {
     settings_io: Arc<Mutex<()>>,
     live: Option<live::Live>,
     live_position: u64,
+    /// The first track is on a NAS that did not answer: retry until the deadline.
+    waiting: Option<Waiting>,
+}
+struct Waiting {
+    deadline: Instant,
+    next: Instant,
+    probing: Arc<std::sync::atomic::AtomicBool>,
 }
 impl Worker {
     fn new(
@@ -439,6 +446,7 @@ impl Worker {
             settings_io,
             live: None,
             live_position: 0,
+            waiting: None,
         }
     }
     fn error(&self, error: impl ToString) {
@@ -458,6 +466,7 @@ impl Worker {
             .position
             .store(ms * self.rate as u64 / 1000, Ordering::Release);
         self.source = None;
+        self.waiting = None;
         self.seek_ms = ms;
         self.terminal_sent = false;
         self.pending_frame = None;
@@ -883,14 +892,50 @@ impl Worker {
         block.terminal = false;
         block.epoch = self.signals.epoch.load(Ordering::Acquire);
         if self.source.is_none() && !self.ended {
-            self.source = SequenceSource::open(
+            if let Some(w) = &self.waiting {
+                if Instant::now() < w.next || w.probing.load(Ordering::Acquire) {
+                    self.feeder.as_mut().unwrap().spare = Some(block);
+                    return Ok(false);
+                }
+            }
+            match SequenceSource::open(
                 self.catalog.clone(),
                 self.data.clone(),
                 self.cursor,
                 self.seek_ms,
                 self.rate,
-            )?;
-            self.ended = self.source.is_none();
+                true,
+            )? {
+                sequence::Opening::Ready(source) => {
+                    self.source = Some(source);
+                    self.waiting = None;
+                }
+                sequence::Opening::Ended => {
+                    self.ended = true;
+                    self.waiting = None;
+                }
+                sequence::Opening::Unreachable(reason) => {
+                    // A NAS often needs a moment (waking up, Wi-Fi after sleep): reach it again
+                    // and retry for up to 15 s; the app shows a spinner, since nothing is ready.
+                    let now = Instant::now();
+                    let deadline = self.waiting.as_ref().map(|w| w.deadline).unwrap_or(now + Duration::from_secs(15));
+                    if now >= deadline {
+                        self.waiting = None;
+                        self.feeder.as_mut().unwrap().spare = Some(block);
+                        anyhow::bail!("Serwer z muzyką nie odpowiada ({reason}). Sprawdź, czy NAS jest włączony i w tej samej sieci.");
+                    }
+                    let probing = Arc::new(std::sync::atomic::AtomicBool::new(true));
+                    let flag = probing.clone();
+                    let catalog = self.catalog.clone();
+                    std::thread::spawn(move || {
+                        let _ = catalog.probe_network_sources();
+                        flag.store(false, Ordering::Release);
+                    });
+                    self.waiting = Some(Waiting { deadline, next: now + Duration::from_millis(1500), probing });
+                    self.feeder.as_mut().unwrap().spare = Some(block);
+                    return Ok(false);
+                }
+            }
         }
         while block.len < BLOCK {
             let next = if let Some(frame) = self.pending_frame.take() {

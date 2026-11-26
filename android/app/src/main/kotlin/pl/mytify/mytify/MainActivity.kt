@@ -446,7 +446,7 @@ class MainActivity : FlutterActivity() {
                         require(ids.isNotEmpty() && ids.size <= 10000)
                         audioWorker.execute {
                             try {
-                                val items = ids.map { mediaItem(it) }
+                                val items = reachingNetwork(ids) { ids.map { mediaItem(it) } }
                                 main.post {
                                     withPlayer(r) { p ->
                                         p.setMediaItems(
@@ -632,6 +632,29 @@ class MainActivity : FlutterActivity() {
             }
         } catch (e: Exception) {
             r.error("mytify", e.message, null)
+        }
+    }
+
+    /**
+     * Builds the queue; when its NAS was marked offline (often it is only waking up or the
+     * Wi-Fi is not ready yet), reaches it again for up to 15 s before giving up. The app's
+     * play button spins meanwhile. Runs on a worker thread.
+     */
+    private fun <T> reachingNetwork(ids: List<String>, build: () -> T): T {
+        val deadline = android.os.SystemClock.elapsedRealtime() + 15_000
+        while (true) {
+            try {
+                return build()
+            } catch (e: Exception) {
+                val waiting = ids.take(100).any { runCatching { catalog.waitsForNetwork(it) }.getOrDefault(false) }
+                if (!waiting) throw e
+                if (android.os.SystemClock.elapsedRealtime() > deadline)
+                    throw IllegalStateException(Lang.t("Serwer z muzyką nie odpowiada. Sprawdź, czy NAS jest włączony i w tej samej sieci."))
+                val started = android.os.SystemClock.elapsedRealtime()
+                runCatching { NetworkSources.probe(applicationContext) }
+                val spent = android.os.SystemClock.elapsedRealtime() - started
+                if (spent < 1500) Thread.sleep(1500 - spent)
+            }
         }
     }
 

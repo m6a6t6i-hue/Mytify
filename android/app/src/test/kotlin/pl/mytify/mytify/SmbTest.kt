@@ -186,4 +186,17 @@ class SmbTest {
         assertEquals("smb", catalog.sourceList().getJSONObject(0).getString("protocol"))
         assertEquals(id, catalog.sourceList().getJSONObject(0).getString("id"))
     }
+
+    @Test fun aTrackOnAnOfflineNasWaitsForIt() {
+        val id = catalog.saveSmb(null, config("host" to "nas.invalid", "share" to "music", "user" to "mat", "password" to "x"))
+        catalog.writableDatabase.execSQL("INSERT INTO tracks(id,raw,patch,liked,added) VALUES('w1','{\"title\":\"Z NAS\"}','{}',0,1)")
+        catalog.writableDatabase.execSQL("INSERT INTO locations(uri,source,track,name,available) VALUES('smb://$id/a.flac','$id','w1','a.flac',1)")
+        catalog.writableDatabase.execSQL("UPDATE sources SET state='offline' WHERE id='$id'")
+        assertTrue(catalog.waitsForNetwork("w1"))
+        // Not playable now, but worth waiting for (the queue retries while the NAS wakes up).
+        assertThrows(IllegalStateException::class.java) { catalog.uri("w1") }
+        catalog.writableDatabase.execSQL("UPDATE sources SET state='online' WHERE id='$id'")
+        assertFalse(catalog.waitsForNetwork("w1"))
+        assertEquals("smb://$id/a.flac", catalog.uri("w1").toString())
+    }
 }
