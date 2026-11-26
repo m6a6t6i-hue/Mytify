@@ -121,6 +121,7 @@ class EqSink(sink: AudioSink) : ForwardingAudioSink(sink) {
     private var out: ByteBuffer? = null
     private var source: ByteBuffer? = null
     private var sourceStart = 0
+    private var filtered = false
 
     override fun configure(audioSinkConfig: AudioSink.AudioSinkConfig) {
         val f = audioSinkConfig.format
@@ -152,49 +153,22 @@ class EqSink(sink: AudioSink) : ForwardingAudioSink(sink) {
         }
 
     override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
-        val f = filter
-        val size = bytes()
-        f?.update()
-        if (f == null || size == 0 || !f.active) {
-            source = null
-            return super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
-        }
-        // The player offers the same buffer again until the sink takes all of it: filter it once.
-        if (source == null || source !== buffer || out == null) {
+        // The player offers the same buffer again until the sink takes all of it, and the
+        // sink rejects a different buffer while one is pending. So the filter on/off decision
+        // is made once per buffer: switching presets mid-buffer must not swap buffers.
+        if (source !== buffer) {
             source = buffer
             sourceStart = buffer.position()
-            val n = buffer.remaining()
-            var o = out
-            if (o == null || o.capacity() < n) o = ByteBuffer.allocateDirect(max(n, 16384)).order(ByteOrder.nativeOrder())
-            o!!.clear()
-            val b = buffer.duplicate().order(ByteOrder.nativeOrder())
-            val frames = n / (size * channels)
-            var at = b.position()
-            for (fr in 0 until frames) {
-                for (ch in 0 until channels) {
-                    when (encoding) {
-                        C.ENCODING_PCM_16BIT -> {
-                            val y = f.process(b.getShort(at) / 32768f, ch)
-                            o.putShort((y * 32767f).coerceIn(-32768f, 32767f).toInt().toShort())
-                        }
-                        C.ENCODING_PCM_24BIT -> {
-                            val v = (b.get(at).toInt() and 0xff) or ((b.get(at + 1).toInt() and 0xff) shl 8) or (b.get(at + 2).toInt() shl 16)
-                            val y = (f.process(v / 8388608f, ch) * 8388607f).coerceIn(-8388608f, 8388607f).toInt()
-                            o.put(y.toByte()).put((y shr 8).toByte()).put((y shr 16).toByte())
-                        }
-                        C.ENCODING_PCM_32BIT -> {
-                            val y = f.process(b.getInt(at) / 2147483648f, ch).toDouble()
-                            o.putInt((y * 2147483647.0).coerceIn(-2147483648.0, 2147483647.0).toInt())
-                        }
-                        else -> o.putFloat(f.process(b.getFloat(at), ch))
-                    }
-                    at += size
-                }
-            }
-            // A trailing partial frame (should not happen) passes unchanged.
-            while (at < b.limit()) o.put(b.get(at++))
-            o.flip()
-            out = o
+            val f = filter
+            val size = bytes()
+            f?.update()
+            filtered = f != null && size != 0 && f.active
+            if (filtered) fill(buffer, f!!, size)
+        }
+        if (!filtered) {
+            val done = super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
+            if (done) source = null
+            return done
         }
         val o = out!!
         val done = super.handleBuffer(o, presentationTimeUs, encodedAccessUnitCount)
@@ -205,5 +179,40 @@ class EqSink(sink: AudioSink) : ForwardingAudioSink(sink) {
             source = null
         }
         return done
+    }
+
+    private fun fill(buffer: ByteBuffer, f: EqFilter, size: Int) {
+        val n = buffer.remaining()
+        var o = out
+        if (o == null || o.capacity() < n) o = ByteBuffer.allocateDirect(max(n, 16384)).order(ByteOrder.nativeOrder())
+        o!!.clear()
+        val b = buffer.duplicate().order(ByteOrder.nativeOrder())
+        val frames = n / (size * channels)
+        var at = b.position()
+        for (fr in 0 until frames) {
+            for (ch in 0 until channels) {
+                when (encoding) {
+                    C.ENCODING_PCM_16BIT -> {
+                        val y = f.process(b.getShort(at) / 32768f, ch)
+                        o.putShort((y * 32767f).coerceIn(-32768f, 32767f).toInt().toShort())
+                    }
+                    C.ENCODING_PCM_24BIT -> {
+                        val v = (b.get(at).toInt() and 0xff) or ((b.get(at + 1).toInt() and 0xff) shl 8) or (b.get(at + 2).toInt() shl 16)
+                        val y = (f.process(v / 8388608f, ch) * 8388607f).coerceIn(-8388608f, 8388607f).toInt()
+                        o.put(y.toByte()).put((y shr 8).toByte()).put((y shr 16).toByte())
+                    }
+                    C.ENCODING_PCM_32BIT -> {
+                        val y = f.process(b.getInt(at) / 2147483648f, ch).toDouble()
+                        o.putInt((y * 2147483647.0).coerceIn(-2147483648.0, 2147483647.0).toInt())
+                    }
+                    else -> o.putFloat(f.process(b.getFloat(at), ch))
+                }
+                at += size
+            }
+        }
+        // A trailing partial frame (should not happen) passes unchanged.
+        while (at < b.limit()) o.put(b.get(at++))
+        o.flip()
+        out = o
     }
 }
