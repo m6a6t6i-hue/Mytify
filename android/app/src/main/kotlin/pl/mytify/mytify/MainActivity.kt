@@ -161,7 +161,7 @@ class MainActivity : FlutterActivity() {
                                 .setDesiredBarcodeFormats(
                                     com.journeyapps.barcodescanner.ScanOptions.QR_CODE
                                 )
-                                .setPrompt("Zeskanuj kod w Mytify na PC")
+                                .setPrompt("Zeskanuj kod Mytify z komputera lub telefonu")
                                 .setBeepEnabled(false)
                                 .setOrientationLocked(false)
                         startActivityForResult(options.createScanIntent(this), 409)
@@ -169,6 +169,8 @@ class MainActivity : FlutterActivity() {
                         background(r, networkWorker) {
                             val m = TransferManager.get(this)
                             when (args.optString("action")) {
+                                // This phone shares its own music with another phone.
+                                "share" -> PhoneShare.get(this).command(args.getJSONObject("request"))
                                 "pair" -> m.pair(args.getString("link"))
                                 "manifest" -> m.manifest(args.getString("id"))
                                 "startDownload" -> {
