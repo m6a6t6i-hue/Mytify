@@ -1348,9 +1348,9 @@ class _WavePainter extends CustomPainter {
       // Tab with the number of the track that starts here.
       tp.text = TextSpan(text: '${i + 2}', style: const TextStyle(fontSize: 10.5, color: Colors.black, fontWeight: FontWeight.w700));
       tp.layout();
-      final w = math.max(16.0, tp.width + 8);
+      final tab = math.max(16.0, tp.width + 8);
       canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromLTWH(x - w / 2, 0, w, 16), const Radius.circular(4)),
+        RRect.fromRectAndRadius(Rect.fromLTWH(x - tab / 2, 0, tab, 16), const Radius.circular(4)),
         Paint()..color = marker.color,
       );
       tp.paint(canvas, Offset(x - tp.width / 2, 8 - tp.height / 2));
