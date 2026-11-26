@@ -254,7 +254,7 @@ class _TransferScreenState extends State<TransferScreen> {
                 : sharing
                 ? 'Na drugim telefonie: Ustawienia, potem Z komputera lub telefonu, Skanuj kod. Udostępniasz muzykę zapisaną w tym telefonie, dopóki ten ekran jest otwarty.'
                 : 'Zeskanuj kod Mytify z komputera albo z drugiego telefonu i wybierz albumy. Pobrane utwory działają bez sieci.',
-            style: const TextStyle(color: secondaryText, height: 1.5),
+            style: TextStyle(color: secondaryText, height: 1.5),
           ),
           if (receiver) ...[
             const SizedBox(height: 16),
@@ -352,7 +352,7 @@ class _TransferScreenState extends State<TransferScreen> {
                   ),
                 ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Kod jest jednorazowy i ważny przez 2 minuty.',
                 style: TextStyle(color: secondaryText, fontSize: 12),
               ),
@@ -367,7 +367,7 @@ class _TransferScreenState extends State<TransferScreen> {
               if (!receiver)
                 Text(
                   'Transfer: port ${state['port']}. Jeśli Windows zapyta o dostęp do sieci, zezwól dla sieci prywatnej.',
-                  style: const TextStyle(color: secondaryText, fontSize: 12),
+                  style: TextStyle(color: secondaryText, fontSize: 12),
                 ),
             ],
             const SizedBox(height: 24),
@@ -378,7 +378,7 @@ class _TransferScreenState extends State<TransferScreen> {
             for (final p in peers)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.smartphone_rounded, color: accent),
+                leading: Icon(Icons.smartphone_rounded, color: accent),
                 title: Text(p['name'] as String),
                 trailing: TextButton(
                   onPressed: busy
@@ -479,7 +479,7 @@ class _TransferScreenState extends State<TransferScreen> {
                       const SizedBox(height: 8),
                       Text(
                         '${((state['doneBytes'] as num? ?? 0) / 1048576).toStringAsFixed(1)} / ${((state['totalBytes'] as num? ?? 0) / 1048576).toStringAsFixed(1)} MB',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: secondaryText,
                           fontSize: 12,
                         ),
@@ -490,7 +490,7 @@ class _TransferScreenState extends State<TransferScreen> {
                           style: const TextStyle(color: Colors.orangeAccent),
                         ),
                       if (state['state'] == 'complete')
-                        const Text(
+                        Text(
                           'Gotowe. Muzyka działa offline.',
                           style: TextStyle(color: accent),
                         ),
@@ -591,7 +591,7 @@ class _TransferScreenState extends State<TransferScreen> {
           subtitle: Text(
             '${group.first.displayArtist} · ${collectionCount(group.length, 'utwór', 'utwory', 'utworów')}',
           ),
-          secondary: const Icon(Icons.album_outlined, color: accent),
+          secondary: Icon(Icons.album_outlined, color: accent),
           onChanged: busy
               ? null
               : (v) => setState(() {
@@ -630,7 +630,7 @@ class _TransferScreenState extends State<TransferScreen> {
       const SizedBox(height: 16),
       Text(
         'Wybrano ${collectionCount(chosen.length, 'utwór', 'utwory', 'utworów')} · ${(bytes / 1048576).toStringAsFixed(1)} MB',
-        style: const TextStyle(color: secondaryText),
+        style: TextStyle(color: secondaryText),
       ),
       const SizedBox(height: 8),
       FilledButton.icon(
@@ -649,7 +649,7 @@ class _TransferScreenState extends State<TransferScreen> {
         label: Text('Pobierz na telefon'),
       ),
       const SizedBox(height: 8),
-      const Text(
+      Text(
         'Oryginalne pliki, bez konwersji. Każdy plik jest sprawdzany sumą SHA-256.',
         style: TextStyle(color: secondaryText, fontSize: 12, height: 1.5),
       ),

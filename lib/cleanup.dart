@@ -125,7 +125,7 @@ class _CleanupPageState extends State<CleanupPage> {
     }
     final extra = groups.fold(0, (n, g) => n + g.length - 1);
     return [
-      const Text(
+      Text(
         'Ten sam wykonawca, tytuł i długość (do 3 s różnicy). Pierwsza jest najlepsza kopia.',
         style: Txt.meta,
       ),
@@ -179,7 +179,7 @@ class _CleanupPageState extends State<CleanupPage> {
       return [const EmptyState(icon: Icons.check_circle_outline_rounded, text: 'Wszystkie albumy mają nazwę, wykonawcę, okładkę i numery utworów.')];
     }
     return [
-      const Text(
+      Text(
         'Opis i okładka z MusicBrainz. Każdy album zatwierdzasz sam.',
         style: Txt.meta,
       ),

@@ -11,7 +11,6 @@ import 'model.dart';
 import 'widgets.dart';
 
 const _red = Color(0xffff5252);
-const _amber = Color(0xffffb454);
 
 /// "Import": Audio CD and vinyl or tape, inside the normal app layout.
 class IngestView extends StatefulWidget {
@@ -66,9 +65,9 @@ class _IngestViewState extends State<IngestView> {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(Icons.error_outline_rounded, size: 18, color: Color(0xffff8a8a)),
+        Icon(Icons.error_outline_rounded, size: 18, color: dangerText),
         const SizedBox(width: Sp.s),
-        Expanded(child: SelectableText(text, style: const TextStyle(fontSize: 13.5, color: Color(0xffffb4b4)))),
+        Expanded(child: SelectableText(text, style: TextStyle(fontSize: 13.5, color: dangerText))),
       ],
     ),
   );
@@ -78,9 +77,9 @@ class _IngestViewState extends State<IngestView> {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(Icons.warning_amber_rounded, size: 18, color: _amber),
+        Icon(Icons.warning_amber_rounded, size: 18, color: warningText),
         const SizedBox(width: Sp.s),
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 13.5, color: Color(0xffffd59a)))),
+        Expanded(child: Text(text, style: TextStyle(fontSize: 13.5, color: warningText))),
       ],
     ),
   );
@@ -174,7 +173,7 @@ class _IngestViewState extends State<IngestView> {
       width: size,
       height: size,
       child: cover == null
-          ? Container(color: elevated, child: const Icon(Icons.album_outlined, color: secondaryText))
+          ? Container(color: elevated, child: Icon(Icons.album_outlined, color: secondaryText))
           : CoverImage(cover.uri, width: size, height: size),
     ),
   );
@@ -200,7 +199,7 @@ class _IngestViewState extends State<IngestView> {
             alignment: Alignment.center,
             decoration: BoxDecoration(shape: BoxShape.circle, color: on || done ? accent : elevated),
             child: done
-                ? const Icon(Icons.check_rounded, size: 16, color: onAccent)
+                ? Icon(Icons.check_rounded, size: 16, color: onAccent)
                 : Text('${i + 1}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: on ? onAccent : secondaryText)),
           ),
           const SizedBox(width: Sp.s),
@@ -233,7 +232,7 @@ class _IngestViewState extends State<IngestView> {
             children: [
               Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
               const SizedBox(height: Sp.s),
-              Text(text, style: const TextStyle(fontSize: 14, color: secondaryText)),
+              Text(text, style: TextStyle(fontSize: 14, color: secondaryText)),
               if (action != null) ...[const SizedBox(height: Sp.l), action],
             ],
           ),
@@ -276,7 +275,7 @@ class _IngestViewState extends State<IngestView> {
         },
       if (s.error != null) _error(s.error!),
       const SizedBox(height: Sp.xl),
-      const Collapsible(
+      Collapsible(
         title: 'Obsługiwane płyty',
         child: Text(
           'Płyty Audio CD (CD-DA), odczyt cyfrowy bez strat. Płyty ze ścieżkami danych '
@@ -321,7 +320,7 @@ class _IngestViewState extends State<IngestView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Napęd', style: Ctl.label),
+        Text('Napęd', style: Ctl.label),
         const SizedBox(height: Sp.xs),
         ConstrainedBox(constraints: const BoxConstraints(maxWidth: 560), child: _driveRow(idle)),
         const SizedBox(height: Sp.m),
@@ -360,7 +359,7 @@ class _IngestViewState extends State<IngestView> {
               children: [
                 Text('${trackCount(tracks.length)} · ${ingestClock(tracks.fold(0, (a, t) => a + s.trackMs(t)))}', style: const TextStyle(fontSize: 13.5)),
                 if (s.describing)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(top: Sp.s),
                     child: Row(
                       children: [
@@ -390,7 +389,7 @@ class _IngestViewState extends State<IngestView> {
           ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.album_outlined, color: secondaryText),
+            leading: Icon(Icons.album_outlined, color: secondaryText),
             title: Text('${r.artist} · ${r.title}', maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: Text([r.date, r.country, r.label, r.format, r.disambiguation].where((x) => x.isNotEmpty).join(' · '), style: Ctl.label),
             trailing: TextButton(style: Ctl.text, onPressed: idle ? () => unawaited(s.chooseRelease(r)) : null, child: const Text('Wybierz')),
@@ -606,14 +605,14 @@ class _IngestViewState extends State<IngestView> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Expanded(child: input),
-                      const Padding(padding: EdgeInsets.symmetric(horizontal: Sp.xl), child: VerticalDivider(width: 1, color: softBorder)),
+                      Padding(padding: EdgeInsets.symmetric(horizontal: Sp.xl), child: VerticalDivider(width: 1, color: softBorder)),
                       Expanded(child: rec),
                     ],
                   ),
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [input, const Padding(padding: EdgeInsets.symmetric(vertical: Sp.xl), child: Divider(height: 1, color: softBorder)), rec],
+                  children: [input, Padding(padding: EdgeInsets.symmetric(vertical: Sp.xl), child: Divider(height: 1, color: softBorder)), rec],
                 ),
         );
       },
@@ -648,7 +647,7 @@ class _IngestViewState extends State<IngestView> {
             ),
           ),
         const SizedBox(height: Sp.m),
-        const Text('Urządzenie wejściowe', style: Ctl.label),
+        Text('Urządzenie wejściowe', style: Ctl.label),
         const SizedBox(height: Sp.xs),
         if (s.inputs.isEmpty && !s.searching)
           Row(
@@ -686,7 +685,7 @@ class _IngestViewState extends State<IngestView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Częstotliwość nagrania', style: Ctl.label),
+              Text('Częstotliwość nagrania', style: Ctl.label),
               const SizedBox(height: Sp.xs),
               if (rates.length > 1)
                 _dropdown<int>(
@@ -698,11 +697,11 @@ class _IngestViewState extends State<IngestView> {
               else
                 Text(rates.isEmpty ? 'Po wybraniu wejścia' : '${(rates.first / 1000).toString().replaceAll('.', ',')} kHz', style: Ctl.fieldText),
               const SizedBox(height: Sp.m),
-              const Text('Format nagrania', style: Ctl.label),
+              Text('Format nagrania', style: Ctl.label),
               const SizedBox(height: Sp.xs),
               const Text('WAV 24 bit, bez obróbki (obróbka tylko przy eksporcie kopii)', style: Ctl.fieldText),
               const SizedBox(height: Sp.m),
-              const Text('Folder nagrań', style: Ctl.label),
+              Text('Folder nagrań', style: Ctl.label),
               const SizedBox(height: Sp.xs),
               Row(
                 children: [
@@ -713,7 +712,7 @@ class _IngestViewState extends State<IngestView> {
             ],
           ),
         ),
-        const Divider(height: Sp.xl, color: softBorder),
+        Divider(height: Sp.xl, color: softBorder),
         const Text('Poziom wejścia', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         const SizedBox(height: Sp.m),
         _meters(),
@@ -735,7 +734,7 @@ class _IngestViewState extends State<IngestView> {
     Widget meter(String name, double peak) {
       final db = peak > 0 ? 20 * math.log(peak) / math.ln10 : -90.0;
       final fill = live ? ((db + 60) / 60).clamp(0.0, 1.0) : 0.0;
-      final color = db > -1 ? _red : db > -6 ? _amber : accent;
+      final color = db > -1 ? _red : db > -6 ? warningText : accent;
       return Padding(
         padding: const EdgeInsets.only(bottom: Sp.s),
         child: Row(
@@ -778,7 +777,7 @@ class _IngestViewState extends State<IngestView> {
           meter('L', peaks.elementAtOrNull(0) ?? 0),
           meter('R', peaks.elementAtOrNull(1) ?? 0),
         ],
-        if (!live) const Text('Podgląd wyłączony', style: Ctl.label),
+        if (!live) Text('Podgląd wyłączony', style: Ctl.label),
         if (live && clips > 0) _error('Przesterowanie: ${collectionCount(clips, 'próbka', 'próbki', 'próbek')}. Zmniejsz poziom na przedwzmacniaczu lub w Windows.'),
         if (live && dropouts > 0) _warning('Utracone próbki: $dropouts. Zamknij inne programy korzystające z wejścia.'),
       ],
@@ -898,7 +897,7 @@ class _IngestViewState extends State<IngestView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Nagranie', style: Ctl.label),
+          Text('Nagranie', style: Ctl.label),
           const SizedBox(height: Sp.xs),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
@@ -955,7 +954,7 @@ class _IngestViewState extends State<IngestView> {
             Row(
               children: [
                 Expanded(child: _check('Różni wykonawcy (składanka)', s.vinylForm.various, idle ? s.setVarious : null)),
-                const Text('Numer pierwszego utworu', style: Ctl.label),
+                Text('Numer pierwszego utworu', style: Ctl.label),
                 const SizedBox(width: Sp.s),
                 SizedBox(
                   width: 64,
@@ -1004,7 +1003,7 @@ class _IngestViewState extends State<IngestView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Dotyczy tylko plików FLAC i MP3. Oryginalne nagranie WAV zostaje bez zmian.', style: Ctl.label),
+                  Text('Dotyczy tylko plików FLAC i MP3. Oryginalne nagranie WAV zostaje bez zmian.', style: Ctl.label),
                   _check('Usuń trzaski', s.declick, idle ? (v) => setState(() => s.declick = v) : null, sub: 'Krótkie trzaski i pyknięcia z płyty winylowej.'),
                   _check('Filtr brumu 50 Hz', s.hum, idle ? (v) => setState(() => s.hum = v) : null, sub: 'Wycina 50, 100 i 150 Hz z przewodów i uziemienia.'),
                   Row(
@@ -1029,7 +1028,7 @@ class _IngestViewState extends State<IngestView> {
             ),
             _check('Kopia MP3 192 kb/s na telefon', s.mp3, idle ? (v) => setState(() => s.mp3 = v) : null),
             const SizedBox(height: Sp.s),
-            const Text('Każdy utwór trafi do biblioteki jako FLAC z opisem i ReplayGain. Oryginalne nagranie WAV zostaje.', style: Ctl.label),
+            Text('Każdy utwór trafi do biblioteki jako FLAC z opisem i ReplayGain. Oryginalne nagranie WAV zostaje.', style: Ctl.label),
             const SizedBox(height: Sp.m),
             if (s.exporting) ...[
               LinearProgressIndicator(
@@ -1111,7 +1110,7 @@ class _IngestViewState extends State<IngestView> {
             ),
           if (info != null) ...[
             const SizedBox(height: Sp.m),
-            const Text('Zaznacz utwory z tego nagrania (jednej strony):', style: Ctl.label),
+            Text('Zaznacz utwory z tego nagrania (jednej strony):', style: Ctl.label),
             for (var i = 0; i < info.tracks.length; i++)
               _check(
                 '${info.tracks[i].number.isNotEmpty ? '${info.tracks[i].number}  ' : ''}${info.tracks[i].title}',
@@ -1148,7 +1147,7 @@ class _OffsetFieldState extends State<_OffsetField> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Text(
+      Text(
         'Zostaw puste: Mytify użyje wartości zapamiętanej dla napędu albo ustali ją z AccurateRip przy pierwszej płycie, która jest w bazie.',
         style: Ctl.label,
       ),
@@ -1280,14 +1279,14 @@ class _WaveformEditorState extends State<WaveformEditor> {
               label: const Text('Znacznik w kursorze'),
             ),
             const SizedBox(width: Sp.m),
-            const Icon(Icons.zoom_in_rounded, size: 18, color: secondaryText),
+            Icon(Icons.zoom_in_rounded, size: 18, color: secondaryText),
             SizedBox(
               width: 140,
               child: Slider(value: zoom, min: 1, max: 24, onChanged: (v) => setState(() => zoom = v), semanticFormatterCallback: (v) => 'Powiększenie ${v.round()}x'),
             ),
           ],
         ),
-        const Text('Kliknij, aby ustawić kursor. Dwuklik dodaje znacznik, przeciągnij znacznik, aby go przesunąć.', style: Ctl.label),
+        Text('Kliknij, aby ustawić kursor. Dwuklik dodaje znacznik, przeciągnij znacznik, aby go przesunąć.', style: Ctl.label),
         if (s.markers.isNotEmpty) ...[
           const SizedBox(height: Sp.s),
           Wrap(
@@ -1357,7 +1356,7 @@ class _WavePainter extends CustomPainter {
     }
     final cx = cursor / w.durationMs * size.width;
     canvas.drawLine(Offset(cx, 0), Offset(cx, size.height), Paint()
-      ..color = _amber
+      ..color = warningText
       ..strokeWidth = 1.5);
   }
 

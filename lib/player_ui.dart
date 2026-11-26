@@ -164,7 +164,7 @@ class PlayerBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     height: 88,
-    decoration: const BoxDecoration(
+    decoration: BoxDecoration(
       color: background,
       border: Border(top: BorderSide(color: softBorder)),
     ),

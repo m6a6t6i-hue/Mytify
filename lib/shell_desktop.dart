@@ -12,7 +12,7 @@ import 'playlists.dart';
 import 'views.dart';
 import 'widgets.dart';
 
-const sidebarColor = Color(0xff111214);
+Color get sidebarColor => sidebarTone;
 
 /// Windows / wide layout: sidebar, toolbar, content, optional right panel, player bar.
 class DesktopShell extends StatefulWidget {
@@ -199,7 +199,7 @@ class _DesktopShellState extends State<DesktopShell> {
                       },
                     )
                   else
-                    const VerticalDivider(width: 1, color: softBorder),
+                    VerticalDivider(width: 1, color: softBorder),
                   Expanded(
                     child: Column(
                       children: [
@@ -271,7 +271,7 @@ class _ResizeHandle extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       onHorizontalDragUpdate: (d) => onDrag(d.delta.dx),
       onHorizontalDragEnd: (_) => onEnd(),
-      child: const SizedBox(
+      child: SizedBox(
         width: 5,
         child: Center(child: VerticalDivider(width: 1, color: softBorder)),
       ),
@@ -304,10 +304,10 @@ class Toolbar extends StatelessWidget {
                 style: const TextStyle(fontSize: 13.5),
                 decoration: InputDecoration(
                   hintText: 'Szukaj',
-                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: secondaryText),
+                  prefixIcon: Icon(Icons.search_rounded, size: 18, color: secondaryText),
                   prefixIconConstraints: const BoxConstraints(minWidth: 36),
                   suffixIcon: app.query.isEmpty
-                      ? const Padding(
+                      ? Padding(
                           padding: EdgeInsets.only(right: 10, top: 10),
                           child: Text('Ctrl+F', style: TextStyle(fontSize: 11, color: secondaryText)),
                         )
@@ -431,7 +431,7 @@ class Sidebar extends StatelessWidget {
   }
 
   Widget _label(String text, {Widget? trailing}) => collapsed
-      ? const Padding(padding: EdgeInsets.symmetric(vertical: Sp.s), child: Divider(height: 1, indent: 18, endIndent: 18, color: softBorder))
+      ? Padding(padding: EdgeInsets.symmetric(vertical: Sp.s), child: Divider(height: 1, indent: 18, endIndent: 18, color: softBorder))
       : Padding(
           padding: const EdgeInsets.fromLTRB(Sp.xl, Sp.l, Sp.s, Sp.xs),
           child: Row(
@@ -509,7 +509,7 @@ class Sidebar extends StatelessWidget {
               },
             ),
           ),
-          const Divider(height: 1, color: softBorder),
+          Divider(height: 1, color: softBorder),
           const SizedBox(height: Sp.xs),
           if (app.importing && !collapsed) ImportStatus(app: app),
           _item(Icons.folder_open_outlined, Icons.folder_rounded, 'Źródła muzyki', const Nav('sources'), active: _active('sources') || _active('settings', 'sources') || _active('downloads')),
@@ -567,7 +567,7 @@ class _PlaylistItem extends StatelessWidget {
                         style: TextStyle(fontSize: 13.5, color: active ? primaryText : secondaryText, fontWeight: active ? FontWeight.w700 : FontWeight.w500),
                       ),
                     ),
-                    if (pinned) const Icon(Icons.push_pin_rounded, size: 13, color: secondaryText),
+                    if (pinned) Icon(Icons.push_pin_rounded, size: 13, color: secondaryText),
                   ],
                 ],
               ),
@@ -598,7 +598,7 @@ class IngestStatus extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.album_outlined, size: 16, color: accent),
+                Icon(Icons.album_outlined, size: 16, color: accent),
                 const SizedBox(width: Sp.s),
                 const Text('Wykryto płytę. Importować?', style: TextStyle(fontSize: 13)),
                 TextButton(

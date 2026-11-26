@@ -155,7 +155,7 @@ class TrackTableHeader extends StatelessWidget {
       child: Container(
         height: 34,
         padding: const EdgeInsets.symmetric(horizontal: Sp.s),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: softBorder))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: softBorder))),
         child: Row(
           children: [
             SizedBox(width: 36, child: Text(numbered ? '#' : '', textAlign: TextAlign.center, style: Txt.meta)),
@@ -205,7 +205,7 @@ class _Grip extends StatelessWidget {
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
       onHorizontalDragUpdate: (d) => onDrag(d.delta.dx),
-      child: const SizedBox(
+      child: SizedBox(
         width: Sp.m,
         height: 34,
         child: Center(child: SizedBox(width: 1, height: 14, child: ColoredBox(color: softBorder))),

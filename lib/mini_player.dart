@@ -23,8 +23,8 @@ class _FloatingPlayerState extends State<FloatingPlayer> {
 
   void _drag() => unawaited(app.repository.windowAction({'action': 'drag'}));
 
-  Widget _button(IconData icon, String tip, VoidCallback? onTap, {double size = 18, double box = 26, Color color = primaryText}) =>
-      IconAction(icon, tip, onTap, size: size, box: box, color: onTap == null ? secondaryText.withValues(alpha: .5) : color);
+  Widget _button(IconData icon, String tip, VoidCallback? onTap, {double size = 18, double box = 26, Color? color}) =>
+      IconAction(icon, tip, onTap, size: size, box: box, color: onTap == null ? secondaryText.withValues(alpha: .5) : color ?? primaryText);
 
   Widget _play(bool playing, bool enabled, double d) => Tooltip(
     message: playing ? 'Pauza' : 'Odtwarzaj',
@@ -57,7 +57,7 @@ class _FloatingPlayerState extends State<FloatingPlayer> {
           alignment: Alignment.bottomLeft,
           child: Container(
             height: 2,
-            color: const Color(0xff2c2f34),
+            color: elevated,
             alignment: Alignment.centerLeft,
             child: FractionallySizedBox(widthFactor: value.clamp(0.0, 1.0), child: Container(color: accent)),
           ),

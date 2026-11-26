@@ -28,7 +28,7 @@ class MobileShell extends StatelessWidget {
         }
       },
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light.copyWith(
+        value: (palette.light ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light).copyWith(
           statusBarColor: Colors.transparent,
           systemNavigationBarColor: background,
         ),

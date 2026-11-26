@@ -221,7 +221,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
     final busy = saving || status == _Status.connecting;
     final color = switch (status) {
       _Status.ok => accent,
-      _Status.failed => const Color(0xffff8a80),
+      _Status.failed => dangerText,
       _ => secondaryText,
     };
     return SingleChildScrollView(
@@ -285,7 +285,7 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
               quality('Jakość w sieci komórkowej', qualityMobile, (v) => setState(() => qualityMobile = v)),
             ],
             if (server && url.text.trim().startsWith('http://'))
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(bottom: Sp.m),
                 child: Text('Połączenie bez HTTPS nie jest szyfrowane. Używaj go tylko w sieci domowej.', style: Txt.meta),
               ),
@@ -390,7 +390,7 @@ class _FolderPickerState extends State<_FolderPicker> {
                       title: const Text('W górę'),
                       onTap: () => open(path.sublist(0, path.length - 1)),
                     ),
-                  if (folders!.isEmpty) const Padding(padding: EdgeInsets.all(Sp.l), child: Text('Brak podfolderów.', style: Txt.sub)),
+                  if (folders!.isEmpty) Padding(padding: EdgeInsets.all(Sp.l), child: Text('Brak podfolderów.', style: Txt.sub)),
                   for (final f in folders!)
                     ListTile(
                       leading: const Icon(Icons.folder_outlined),

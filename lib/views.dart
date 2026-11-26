@@ -338,7 +338,7 @@ class _Shortcuts extends StatelessWidget {
               width: 56,
               height: 56,
               color: elevated,
-              child: const Icon(Icons.shuffle_rounded, color: accent),
+              child: Icon(Icons.shuffle_rounded, color: accent),
             ),
             'Losowo',
             'Cała biblioteka',
@@ -531,7 +531,7 @@ class TrackRow extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: desktop ? Sp.s : Sp.xs),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0x24ffffff)
+              ? hoverFill
               : hovered && desktop
               ? hoverFill
               : Colors.transparent,
@@ -574,7 +574,7 @@ class TrackRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Text(
             app.selected.contains(t.id) && app.selected.length > 1 ? trackCount(app.selected.length) : t.title,
-            style: const TextStyle(fontSize: 13, color: primaryText),
+            style: TextStyle(fontSize: 13, color: primaryText),
           ),
         ),
       ),
@@ -617,7 +617,7 @@ class TrackListHeader extends StatelessWidget {
     return Container(
       height: 34,
       padding: const EdgeInsets.symmetric(horizontal: Sp.s),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: softBorder))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: softBorder))),
       child: Row(
         children: [
           SizedBox(width: 36, child: Text(numbered ? '#' : '', textAlign: TextAlign.center, style: Txt.meta)),
@@ -852,7 +852,7 @@ class _LibraryPageState extends State<LibraryPage> {
           ),
         ));
         if (list.isEmpty) {
-          slivers.add(const SliverToBoxAdapter(
+          slivers.add(SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(Sp.xl),
               child: Text('Brak pobranych utworów. Wybierz „Pobierz offline” w menu utworu, albumu lub playlisty.', style: Txt.sub, textAlign: TextAlign.center),
@@ -928,7 +928,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         padding: const EdgeInsets.symmetric(vertical: Sp.s),
                         child: Row(
                           children: [
-                            const Icon(Icons.swap_vert_rounded, size: 18, color: secondaryText),
+                            Icon(Icons.swap_vert_rounded, size: 18, color: secondaryText),
                             const SizedBox(width: Sp.xs),
                             Text(options.firstWhere((o) => o.$1 == sortFor(f), orElse: () => options.first).$2, style: Txt.sub),
                           ],
@@ -989,7 +989,7 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _none() => const SliverToBoxAdapter(
+  Widget _none() => SliverToBoxAdapter(
     child: Padding(
       padding: EdgeInsets.all(Sp.xxl),
       child: Center(child: Text('Brak wyników', style: Txt.sub)),
@@ -1098,7 +1098,7 @@ class _LibraryPageState extends State<LibraryPage> {
     'Polubione',
     trackCount(app.index.liked().length),
     () => app.go(const Nav('liked')),
-    trailing: const Padding(
+    trailing: Padding(
       padding: EdgeInsets.only(left: Sp.s),
       child: Icon(Icons.push_pin_rounded, size: 16, color: accent),
     ),
@@ -1113,7 +1113,7 @@ class _LibraryPageState extends State<LibraryPage> {
       () => app.go(Nav('playlist', p.id)),
       onMenu: (at) => unawaited(app.playlistMenu(p, at: at)),
       trailing: app.prefs.pinned('playlist:${p.id}')
-          ? const Padding(padding: EdgeInsets.only(left: Sp.s), child: Icon(Icons.push_pin_rounded, size: 16, color: secondaryText))
+          ? Padding(padding: EdgeInsets.only(left: Sp.s), child: Icon(Icons.push_pin_rounded, size: 16, color: secondaryText))
           : null,
     );
   }
@@ -1133,7 +1133,7 @@ class _LibraryPageState extends State<LibraryPage> {
             a.artist,
             () => app.go(Nav('album', a.key)),
             onMenu: (at) => unawaited(app.albumMenu(a, at: at)),
-            trailing: const Padding(padding: EdgeInsets.only(left: Sp.s), child: Icon(Icons.push_pin_rounded, size: 16, color: secondaryText)),
+            trailing: Padding(padding: EdgeInsets.only(left: Sp.s), child: Icon(Icons.push_pin_rounded, size: 16, color: secondaryText)),
           ),
         ),
       SliverToBoxAdapter(child: SectionHeader('Albumy', padding: const EdgeInsets.fromLTRB(Sp.l, Sp.l, Sp.s, Sp.xs), onMore: () => app.replaceRoute(const Nav('library', 'albums')))),
@@ -1728,7 +1728,7 @@ class SettingsPage extends StatelessWidget {
     // Adding music is one place (sources). Import here means digitizing CD and vinyl.
     if (app.canDigitize && !app.isPhone) ('import', Icons.album_outlined, 'Płyty CD i winyle'),
     ('cleanup', Icons.cleaning_services_outlined, 'Porządki w bibliotece'),
-    if (app.desktopMode) ('look', Icons.tune_rounded, 'Wygląd'),
+    ('look', Icons.palette_outlined, 'Wygląd'),
     if (app.canTransfer && !app.desktopMode) ('phone', Icons.phonelink_rounded, app.isPhone ? 'Przesyłanie muzyki' : 'Połącz telefon'),
     ('about', Icons.info_outline_rounded, 'Informacje'),
   ];
@@ -1762,7 +1762,7 @@ class SettingsPage extends StatelessWidget {
               minTileHeight: 56,
               leading: Icon(icon),
               title: Text(label),
-              trailing: const Icon(Icons.chevron_right_rounded, color: secondaryText),
+              trailing: Icon(Icons.chevron_right_rounded, color: secondaryText),
               onTap: () => open(key),
             ),
         ],
@@ -1795,7 +1795,7 @@ class SettingsPage extends StatelessWidget {
             ],
           ),
         ),
-        const VerticalDivider(width: 1, color: softBorder),
+        VerticalDivider(width: 1, color: softBorder),
         Expanded(
           child: current == 'phone' && app.canTransfer
               ? app.transferScreen()
@@ -1838,33 +1838,42 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _look() => [
-    const Text('Rozmiar okładek w siatce', style: Txt.meta),
-    Slider(
-      value: app.prefs.number('coverSize', 184).clamp(140, 240).toDouble(),
-      min: 140,
-      max: 240,
-      divisions: 10,
-      label: '${app.prefs.number('coverSize', 184).round()}',
-      onChanged: (v) => app.refresh(() => app.prefs.set('coverSize', v)),
+    const SectionTitle('Kolory'),
+    Wrap(
+      spacing: Sp.m,
+      runSpacing: Sp.m,
+      children: [for (final p in palettes) _PaletteSwatch(palette: p, selected: p == palette, onTap: () => app.setPalette(p))],
     ),
-    SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      title: const Text('Kompaktowa tabela utworów', style: TextStyle(fontSize: 14.5)),
-      subtitle: const Text('Niższe wiersze, bez okładek. Kolumny wybierzesz prawym przyciskiem na nagłówku tabeli.', style: Txt.meta),
-      value: compactTable(app.prefs),
-      onChanged: (v) => app.refresh(() => app.prefs.set('density', v ? 'compact' : 'normal')),
-    ),
-    SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      title: const Text('Zwinięty panel boczny', style: TextStyle(fontSize: 14.5)),
-      value: app.prefs.get('sidebarCollapsed', false),
-      onChanged: (v) => app.refresh(() => app.prefs.set('sidebarCollapsed', v)),
-    ),
+    if (app.desktopMode) ...[
+      const SectionTitle('Biblioteka'),
+      Text('Rozmiar okładek w siatce', style: Txt.meta),
+      Slider(
+        value: app.prefs.number('coverSize', 184).clamp(140, 240).toDouble(),
+        min: 140,
+        max: 240,
+        divisions: 10,
+        label: '${app.prefs.number('coverSize', 184).round()}',
+        onChanged: (v) => app.refresh(() => app.prefs.set('coverSize', v)),
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Kompaktowa tabela utworów', style: TextStyle(fontSize: 14.5)),
+        subtitle: Text('Niższe wiersze, bez okładek. Kolumny wybierzesz prawym przyciskiem na nagłówku tabeli.', style: Txt.meta),
+        value: compactTable(app.prefs),
+        onChanged: (v) => app.refresh(() => app.prefs.set('density', v ? 'compact' : 'normal')),
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Zwinięty panel boczny', style: TextStyle(fontSize: 14.5)),
+        value: app.prefs.get('sidebarCollapsed', false),
+        onChanged: (v) => app.refresh(() => app.prefs.set('sidebarCollapsed', v)),
+      ),
+    ],
     const SectionTitle('Wizualizacje'),
     SwitchListTile(
       contentPadding: EdgeInsets.zero,
       title: const Text('Kolory okładki', style: TextStyle(fontSize: 14.5)),
-      subtitle: const Text('Plazma, wstęgi i wir biorą barwy z okładki grającego albumu.', style: Txt.meta),
+      subtitle: Text('Plazma, wstęgi i wir biorą barwy z okładki grającego albumu.', style: Txt.meta),
       value: app.prefs.get<bool>('viz.cover', true),
       onChanged: (v) => app.refresh(() => app.prefs.set('viz.cover', v)),
     ),
@@ -1892,7 +1901,7 @@ class SettingsPage extends StatelessWidget {
       'Strona',
       'kanik.dev',
       icon: Icons.language_rounded,
-      trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: secondaryText),
+      trailing: Icon(Icons.open_in_new_rounded, size: 18, color: secondaryText),
       onTap: () => unawaited(openLink('https://kanik.dev').catchError((_) => app.message('Nie można otworzyć strony.'))),
     ),
     _row('Biblioteka', '${trackCount(app.tracks.length)} · ${albumCount(app.index.albums.length)}', icon: Icons.library_music_outlined),
@@ -1987,16 +1996,16 @@ class SourcesList extends StatelessWidget {
       ],
     ),
     const SizedBox(height: Sp.l),
-    if (app.librarySources.isEmpty) const Text('Nie dodano jeszcze żadnego źródła.', style: Txt.sub),
+    if (app.librarySources.isEmpty) Text('Nie dodano jeszcze żadnego źródła.', style: Txt.sub),
     // The download folder is managed by Mytify itself, not a source to scan or edit.
     for (final source in app.librarySources)
       if (source.kind != 'downloads') _source(source),
     if (app.networkProtocols.isNotEmpty)
       ListTile(
         contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.download_for_offline_outlined, color: secondaryText),
+        leading: Icon(Icons.download_for_offline_outlined, color: secondaryText),
         title: const Text('Pobrane i miejsce'),
-        subtitle: const Text('Kopie offline, kolejka pobierania, zajęte miejsce', style: Txt.meta),
+        subtitle: Text('Kopie offline, kolejka pobierania, zajęte miejsce', style: Txt.meta),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => app.go(const Nav('downloads')),
       ),
@@ -2004,7 +2013,7 @@ class SourcesList extends StatelessWidget {
     if (app.lastImport != null)
       ListTile(
         contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.receipt_long_outlined, color: secondaryText),
+        leading: Icon(Icons.receipt_long_outlined, color: secondaryText),
         title: const Text('Ostatni wynik importu'),
         onTap: () => unawaited(app.showImportReport(app.lastImport!)),
       ),
@@ -2038,7 +2047,7 @@ class SourcesList extends StatelessWidget {
                 : source.network
                 ? (offline ? Icons.portable_wifi_off_rounded : Icons.lan_outlined)
                 : (offline ? Icons.folder_off_outlined : Icons.folder_outlined),
-            color: offline ? const Color(0xffffb454) : secondaryText,
+            color: offline ? warningText : secondaryText,
           ),
           const SizedBox(width: Sp.m),
           Expanded(
@@ -2050,14 +2059,14 @@ class SourcesList extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   [trackCount(source.files), ?problem].join(' · '),
-                  style: Txt.meta.copyWith(color: problem == null ? secondaryText : const Color(0xffffb454)),
+                  style: Txt.meta.copyWith(color: problem == null ? secondaryText : warningText),
                 ),
               ],
             ),
           ),
           PopupMenuButton<String>(
             tooltip: 'Opcje źródła',
-            icon: const Icon(Icons.more_horiz_rounded, color: secondaryText),
+            icon: Icon(Icons.more_horiz_rounded, color: secondaryText),
             enabled: !app.importing,
             onSelected: (v) {
               if (v == 'scan') {
@@ -2075,7 +2084,7 @@ class SourcesList extends StatelessWidget {
               if (source.network) const PopupMenuItem(value: 'edit', height: 36, child: Text('Edytuj połączenie')),
               if (source.kind == 'folder') const PopupMenuItem(value: 'relink', height: 36, child: Text('Wskaż folder ponownie')),
               const PopupMenuDivider(),
-              const PopupMenuItem(value: 'forget', height: 36, child: Text('Odłącz źródło', style: TextStyle(color: Color(0xffff6b6b)))),
+              PopupMenuItem(value: 'forget', height: 36, child: Text('Odłącz źródło', style: TextStyle(color: dangerText))),
             ],
           ),
         ],
@@ -2083,4 +2092,68 @@ class SourcesList extends StatelessWidget {
     );
   }
 
+}
+
+/// One colour scheme as a small preview: background, panel, text lines and accent.
+class _PaletteSwatch extends StatelessWidget {
+  final Palette palette;
+  final bool selected;
+  final VoidCallback onTap;
+  const _PaletteSwatch({required this.palette, required this.selected, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    final p = palette;
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: p.name,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(Rad.panel),
+        child: Container(
+          width: 132,
+          padding: const EdgeInsets.all(Sp.s),
+          decoration: BoxDecoration(
+            color: p.background,
+            borderRadius: BorderRadius.circular(Rad.panel),
+            border: Border.all(color: selected ? p.accent : p.softBorder, width: selected ? 2 : 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 44,
+                padding: const EdgeInsets.all(Sp.s),
+                decoration: BoxDecoration(color: p.panel, borderRadius: BorderRadius.circular(Rad.control)),
+                child: Row(
+                  children: [
+                    Container(width: 20, height: 20, decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle)),
+                    const SizedBox(width: Sp.s),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(height: 5, width: 48, color: p.primaryText),
+                          const SizedBox(height: 4),
+                          Container(height: 4, width: 32, color: p.secondaryText),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: Sp.s),
+              Row(
+                children: [
+                  Expanded(child: Text(p.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.primaryText))),
+                  if (selected) Icon(Icons.check_circle_rounded, size: 16, color: p.accent),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

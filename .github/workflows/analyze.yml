@@ -1,0 +1,21 @@
+name: Analyze
+on:
+  push:
+    branches: ['wip-*']
+  workflow_dispatch:
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    env:
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.50.1'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart analyze --format=machine lib test > analyze.txt 2>&1 || true
+      - run: cat analyze.txt

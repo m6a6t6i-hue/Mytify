@@ -2,17 +2,171 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
-// Design tokens shared by Android and Windows. Green marks state, not decoration.
-const accent = Color(0xff00e676);
-const background = Color(0xff0c0d0f);
-const panel = Color(0xff181a1d);
-const elevated = Color(0xff24272b);
-const primaryText = Color(0xfff4f5f6);
-const secondaryText = Color(0xff9b9fa6);
-const softBorder = Color(0xff2b2e33);
-const hoverFill = Color(0x0fffffff);
-const selectedFill = Color(0x1a00e676);
-const onAccent = Color(0xff04140b);
+/// One colour scheme of the whole app. Green marks state, not decoration.
+class Palette {
+  final String id, name;
+  final Brightness brightness;
+  final Color accent, background, panel, elevated, primaryText, secondaryText, softBorder, hoverFill, selectedFill, onAccent;
+
+  /// Error text and its background tint, readable on this background.
+  final Color danger, warning;
+  const Palette({
+    required this.id,
+    required this.name,
+    this.brightness = Brightness.dark,
+    required this.accent,
+    required this.background,
+    required this.panel,
+    required this.elevated,
+    required this.primaryText,
+    required this.secondaryText,
+    required this.softBorder,
+    required this.hoverFill,
+    required this.selectedFill,
+    required this.onAccent,
+    this.danger = const Color(0xffff8a8a),
+    this.warning = const Color(0xffffb454),
+  });
+  bool get light => brightness == Brightness.light;
+}
+
+const palettes = [
+  Palette(
+    id: 'mytify',
+    name: 'Mytify',
+    accent: Color(0xff00e676),
+    background: Color(0xff0c0d0f),
+    panel: Color(0xff181a1d),
+    elevated: Color(0xff24272b),
+    primaryText: Color(0xfff4f5f6),
+    secondaryText: Color(0xff9b9fa6),
+    softBorder: Color(0xff2b2e33),
+    hoverFill: Color(0x0fffffff),
+    selectedFill: Color(0x1a00e676),
+    onAccent: Color(0xff04140b),
+  ),
+  Palette(
+    id: 'oled',
+    name: 'Czerń OLED',
+    accent: Color(0xff00e676),
+    background: Color(0xff000000),
+    panel: Color(0xff0e0f10),
+    elevated: Color(0xff1a1b1d),
+    primaryText: Color(0xfff4f5f6),
+    secondaryText: Color(0xff9b9fa6),
+    softBorder: Color(0xff222325),
+    hoverFill: Color(0x12ffffff),
+    selectedFill: Color(0x1a00e676),
+    onAccent: Color(0xff04140b),
+  ),
+  Palette(
+    id: 'ocean',
+    name: 'Ocean',
+    accent: Color(0xff38bdf8),
+    background: Color(0xff0a0f16),
+    panel: Color(0xff121a24),
+    elevated: Color(0xff1b2633),
+    primaryText: Color(0xfff1f5f9),
+    secondaryText: Color(0xff93a1b3),
+    softBorder: Color(0xff243242),
+    hoverFill: Color(0x0fffffff),
+    selectedFill: Color(0x1f38bdf8),
+    onAccent: Color(0xff04121c),
+  ),
+  Palette(
+    id: 'amethyst',
+    name: 'Ametyst',
+    accent: Color(0xffb388ff),
+    background: Color(0xff0e0c14),
+    panel: Color(0xff18151f),
+    elevated: Color(0xff24202d),
+    primaryText: Color(0xfff5f3f8),
+    secondaryText: Color(0xffa39cb0),
+    softBorder: Color(0xff2e2939),
+    hoverFill: Color(0x0fffffff),
+    selectedFill: Color(0x1fb388ff),
+    onAccent: Color(0xff160a2a),
+  ),
+  Palette(
+    id: 'amber',
+    name: 'Bursztyn',
+    accent: Color(0xffffb454),
+    background: Color(0xff0f0d0a),
+    panel: Color(0xff1b1814),
+    elevated: Color(0xff27231d),
+    primaryText: Color(0xfff7f4ef),
+    secondaryText: Color(0xffaaa093),
+    softBorder: Color(0xff332d25),
+    hoverFill: Color(0x0fffffff),
+    selectedFill: Color(0x1fffb454),
+    onAccent: Color(0xff241504),
+    warning: Color(0xffffd59a),
+  ),
+  Palette(
+    id: 'raspberry',
+    name: 'Malina',
+    accent: Color(0xffff5c8a),
+    background: Color(0xff0f0b0d),
+    panel: Color(0xff1c1619),
+    elevated: Color(0xff282024),
+    primaryText: Color(0xfff8f3f5),
+    secondaryText: Color(0xffaa9aa1),
+    softBorder: Color(0xff34292e),
+    hoverFill: Color(0x0fffffff),
+    selectedFill: Color(0x1fff5c8a),
+    onAccent: Color(0xff2a0612),
+    danger: Color(0xffffb4b4),
+  ),
+  Palette(
+    id: 'light',
+    name: 'Jasny',
+    brightness: Brightness.light,
+    accent: Color(0xff00a152),
+    background: Color(0xfff6f7f8),
+    panel: Color(0xffffffff),
+    elevated: Color(0xffeceef1),
+    primaryText: Color(0xff15171a),
+    secondaryText: Color(0xff5c636c),
+    softBorder: Color(0xffdde1e6),
+    hoverFill: Color(0x0f000000),
+    selectedFill: Color(0x1a00a152),
+    onAccent: Color(0xffffffff),
+    danger: Color(0xffc62828),
+    warning: Color(0xffb26a00),
+  ),
+];
+
+/// Scheme in use. Changed only through the settings, which rebuild the whole app.
+Palette palette = palettes.first;
+
+Palette paletteById(String? id) => palettes.firstWhere((p) => p.id == id, orElse: () => palettes.first);
+
+Color get accent => palette.accent;
+Color get background => palette.background;
+Color get panel => palette.panel;
+Color get elevated => palette.elevated;
+Color get primaryText => palette.primaryText;
+Color get secondaryText => palette.secondaryText;
+Color get softBorder => palette.softBorder;
+Color get hoverFill => palette.hoverFill;
+Color get selectedFill => palette.selectedFill;
+Color get onAccent => palette.onAccent;
+Color get dangerText => palette.danger;
+Color get warningText => palette.warning;
+
+/// Desktop sidebar: a step darker than the background in dark schemes.
+Color get sidebarTone => palette.light ? const Color(0xffeef0f2) : Color.lerp(palette.background, palette.panel, .3)!;
+
+/// Rebuilds and repaints every widget after the scheme changed (const widgets included).
+void rebuildEverything() {
+  void visit(Element e) {
+    e.markNeedsBuild();
+    if (e is RenderObjectElement) e.renderObject.markNeedsPaint();
+    e.visitChildren(visit);
+  }
+
+  WidgetsBinding.instance.rootElement?.visitChildren(visit);
+}
 
 abstract final class Sp {
   static const xs = 4.0, s = 8.0, m = 12.0, l = 16.0, xl = 24.0, xxl = 32.0;
@@ -48,8 +202,8 @@ abstract final class Txt {
   );
   static const item = TextStyle(fontSize: 15, fontWeight: FontWeight.w600);
   static const itemDesktop = TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500);
-  static const sub = TextStyle(fontSize: 13, color: secondaryText);
-  static const meta = TextStyle(fontSize: 12, color: secondaryText);
+  static TextStyle get sub => TextStyle(fontSize: 13, color: secondaryText);
+  static TextStyle get meta => TextStyle(fontSize: 12, color: secondaryText);
 }
 
 String collectionCount(int count, String one, String few, String many) {
@@ -476,6 +630,6 @@ abstract final class Ctl {
     contentPadding: const EdgeInsets.symmetric(horizontal: Sp.m, vertical: 10),
   );
   static const fieldText = TextStyle(fontSize: 13.5);
-  static const label = TextStyle(fontSize: 13, color: secondaryText);
+  static TextStyle get label => TextStyle(fontSize: 13, color: secondaryText);
   static const section = TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -.2);
 }

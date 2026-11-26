@@ -136,7 +136,7 @@ class _EqualizerPanelState extends State<EqualizerPanel> {
           },
         ),
         if (kindOf(selected) == DeviceKind.dlna)
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(bottom: Sp.s),
             child: Text('Odbiornik DLNA sam dekoduje plik, korektor działa tylko przy grze na tym urządzeniu i przez AirPlay.', style: Ctl.label),
           ),

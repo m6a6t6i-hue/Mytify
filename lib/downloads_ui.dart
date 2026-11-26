@@ -207,11 +207,11 @@ class _DownloadsPageState extends State<DownloadsPage> {
             value: d.status['cellular'] == true,
             onChanged: (v) => unawaited(d.cellular(v)),
             title: const Text('Pobieraj przez sieć komórkową'),
-            subtitle: const Text('Domyślnie tylko przez Wi-Fi.', style: Txt.meta),
+            subtitle: Text('Domyślnie tylko przez Wi-Fi.', style: Txt.meta),
           ),
         const SizedBox(height: Sp.l),
         if (items.isEmpty)
-          const Text('Nic nie czeka na pobranie.', style: Txt.sub)
+          Text('Nic nie czeka na pobranie.', style: Txt.sub)
         else ...[
           SectionHeader(d.paused ? 'Wstrzymane' : 'Kolejka'),
           for (final i in items)

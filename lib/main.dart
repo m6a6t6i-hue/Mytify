@@ -35,7 +35,7 @@ void main() {
 }
 
 ThemeData mytifyTheme() => ThemeData(
-  brightness: Brightness.dark,
+  brightness: palette.brightness,
   useMaterial3: true,
   scaffoldBackgroundColor: background,
   canvasColor: background,
@@ -43,7 +43,7 @@ ThemeData mytifyTheme() => ThemeData(
   splashFactory: InkRipple.splashFactory,
   colorScheme: ColorScheme.fromSeed(
     seedColor: accent,
-    brightness: Brightness.dark,
+    brightness: palette.brightness,
   ).copyWith(
     primary: accent,
     onPrimary: onAccent,
@@ -58,18 +58,18 @@ ThemeData mytifyTheme() => ThemeData(
     surfaceContainer: panel,
   ),
   fontFamily: 'Arial',
-  textTheme: const TextTheme(
+  textTheme: TextTheme(
     bodyMedium: TextStyle(color: primaryText, fontSize: 14),
     bodySmall: TextStyle(color: secondaryText, fontSize: 12),
   ),
-  iconTheme: const IconThemeData(color: primaryText, size: 22),
+  iconTheme: IconThemeData(color: primaryText, size: 22),
   tooltipTheme: TooltipThemeData(
     waitDuration: const Duration(milliseconds: 500),
     decoration: BoxDecoration(
       color: elevated,
       borderRadius: BorderRadius.circular(6),
     ),
-    textStyle: const TextStyle(color: primaryText, fontSize: 12),
+    textStyle: TextStyle(color: primaryText, fontSize: 12),
   ),
   navigationBarTheme: NavigationBarThemeData(
     backgroundColor: background,
@@ -90,11 +90,11 @@ ThemeData mytifyTheme() => ThemeData(
       ),
     ),
   ),
-  sliderTheme: const SliderThemeData(
+  sliderTheme: SliderThemeData(
     trackHeight: 3,
     thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
     overlayShape: RoundSliderOverlayShape(overlayRadius: 14),
-    inactiveTrackColor: Color(0x29ffffff),
+    inactiveTrackColor: softBorder,
     activeTrackColor: accent,
     thumbColor: primaryText,
   ),
@@ -111,7 +111,7 @@ ThemeData mytifyTheme() => ThemeData(
     style: OutlinedButton.styleFrom(
       foregroundColor: primaryText,
       textStyle: const TextStyle(fontFamily: 'Arial', fontWeight: FontWeight.w600),
-      side: const BorderSide(color: softBorder),
+      side: BorderSide(color: softBorder),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.control)),
     ),
@@ -123,10 +123,10 @@ ThemeData mytifyTheme() => ThemeData(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.control)),
     ),
   ),
-  bottomSheetTheme: const BottomSheetThemeData(
+  bottomSheetTheme: BottomSheetThemeData(
     backgroundColor: panel,
     surfaceTintColor: Colors.transparent,
-    dragHandleColor: Color(0x55ffffff),
+    dragHandleColor: primaryText.withValues(alpha: .33),
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
@@ -141,21 +141,21 @@ ThemeData mytifyTheme() => ThemeData(
     surfaceTintColor: Colors.transparent,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
   ),
-  appBarTheme: const AppBarTheme(
+  appBarTheme: AppBarTheme(
     backgroundColor: background,
     surfaceTintColor: Colors.transparent,
   ),
   snackBarTheme: SnackBarThemeData(
     behavior: SnackBarBehavior.floating,
     backgroundColor: elevated,
-    contentTextStyle: const TextStyle(color: primaryText),
+    contentTextStyle: TextStyle(color: primaryText),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
   ),
   inputDecorationTheme: InputDecorationTheme(
     filled: true,
     fillColor: elevated,
     isDense: true,
-    hintStyle: const TextStyle(color: secondaryText),
+    hintStyle: TextStyle(color: secondaryText),
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(Rad.control),
@@ -163,26 +163,40 @@ ThemeData mytifyTheme() => ThemeData(
     ),
   ),
   scrollbarTheme: ScrollbarThemeData(
-    thumbColor: WidgetStateProperty.all(const Color(0x40ffffff)),
+    thumbColor: WidgetStateProperty.all(primaryText.withValues(alpha: .25)),
     thickness: WidgetStateProperty.all(6),
     radius: const Radius.circular(3),
   ),
-  listTileTheme: const ListTileThemeData(
+  listTileTheme: ListTileThemeData(
     iconColor: secondaryText,
     textColor: primaryText,
   ),
 );
 
+/// Scheme changes rebuild MaterialApp's theme here and every widget below.
+final appearance = ValueNotifier(0);
+
 class MytifyApp extends StatelessWidget {
   final LibraryRepository? repository;
   const MytifyApp({super.key, this.repository});
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'Mytify',
-    debugShowCheckedModeBanner: false,
-    theme: mytifyTheme(),
-    home: LibraryScreen(repository: repository),
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: appearance,
+    builder: (context, _, home) => MaterialApp(
+      title: 'Mytify',
+      debugShowCheckedModeBanner: false,
+      theme: mytifyTheme(),
+      home: home,
+    ),
+    child: LibraryScreen(repository: repository),
   );
+}
+
+/// Applies a colour scheme now and on the next start.
+void applyPalette(Palette p) {
+  palette = p;
+  appearance.value++;
+  WidgetsBinding.instance.addPostFrameCallback((_) => rebuildEverything());
 }
 
 @immutable
@@ -311,6 +325,8 @@ class LibraryScreenState extends State<LibraryScreen> {
     );
     subscriptions.add(player.stream.snapshot.listen(syncNativeAudio));
     unawaited(prefs.load().then((_) {
+      final p = paletteById(prefs.get<String>('palette', 'mytify'));
+      if (p != palette) applyPalette(p);
       if (mounted) setState(() {});
     }));
     unawaited(player.start());
@@ -1302,6 +1318,11 @@ class LibraryScreenState extends State<LibraryScreen> {
   }
 
   /// Full screen visualization reacting to the music (PC and Android).
+  void setPalette(Palette p) {
+    prefs.set('palette', p.id);
+    applyPalette(p);
+  }
+
   bool visualizerOpen = false;
   Timer? _screensaver;
 

@@ -144,7 +144,7 @@ Future<void> showDevicePicker(LibraryScreenState app, {Offset? at}) {
             shadowColor: Colors.black54,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(Rad.panel),
-              side: const BorderSide(color: softBorder),
+              side: BorderSide(color: softBorder),
             ),
             clipBehavior: Clip.antiAlias,
             child: ConstrainedBox(
@@ -270,7 +270,7 @@ class _DevicePanelState extends State<DevicePanel> {
             ],
           ),
           const SizedBox(height: Sp.s),
-          const Text('Aktualne urządzenie', style: Txt.meta),
+          Text('Aktualne urządzenie', style: Txt.meta),
           _DeviceTile(
             device: current,
             active: true,
@@ -340,7 +340,7 @@ class _DevicePanelState extends State<DevicePanel> {
             ],
           ),
           if (!s.volumeAvailable)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(left: 44),
               child: Text('Głośność ustawisz na odbiorniku', style: Txt.meta),
             ),
@@ -355,18 +355,18 @@ class _DevicePanelState extends State<DevicePanel> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.error_outline_rounded, size: 18, color: Color(0xffff8a8a)),
+                  Icon(Icons.error_outline_rounded, size: 18, color: dangerText),
                   const SizedBox(width: Sp.s),
                   Expanded(child: Text(error, style: const TextStyle(fontSize: 13))),
                 ],
               ),
             ),
           const SizedBox(height: Sp.m),
-          const Divider(height: 1, color: softBorder),
+          Divider(height: 1, color: softBorder),
           const SizedBox(height: Sp.m),
-          const Text('Dostępne urządzenia', style: Txt.meta),
+          Text('Dostępne urządzenia', style: Txt.meta),
           if (!searching && others.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: Sp.m),
               child: Text('Nie znaleziono innych urządzeń w tej sieci', style: Txt.sub),
             ),
@@ -378,7 +378,7 @@ class _DevicePanelState extends State<DevicePanel> {
               onTap: connecting == null ? () => unawaited(out.choose(d.id)) : null,
             ),
           if (searching && others.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: Sp.m),
               child: Text('Szukam urządzeń…', style: Txt.sub),
             ),
@@ -394,10 +394,10 @@ class _DevicePanelState extends State<DevicePanel> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(color: hoverFill, borderRadius: BorderRadius.circular(Rad.control)),
-                      child: const Icon(Icons.bluetooth_audio_rounded, color: primaryText, size: 22),
+                      child: Icon(Icons.bluetooth_audio_rounded, color: primaryText, size: 22),
                     ),
                     const SizedBox(width: Sp.m),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -406,7 +406,7 @@ class _DevicePanelState extends State<DevicePanel> {
                         ],
                       ),
                     ),
-                    const Icon(Icons.chevron_right_rounded, color: secondaryText),
+                    Icon(Icons.chevron_right_rounded, color: secondaryText),
                   ],
                 ),
               ),
@@ -462,7 +462,7 @@ class _DeviceTile extends StatelessWidget {
             if (status == 'Łączenie…')
               const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
             else if (active)
-              const Icon(Icons.check_circle_rounded, color: accent, size: 20),
+              Icon(Icons.check_circle_rounded, color: accent, size: 20),
           ],
         ),
       ),

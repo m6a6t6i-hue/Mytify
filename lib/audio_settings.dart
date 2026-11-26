@@ -130,7 +130,7 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
                 ],
               ),
             ),
-            if (out.connecting != null) const Padding(padding: EdgeInsets.only(left: 200), child: Text('Łączenie…', style: Ctl.label)),
+            if (out.connecting != null) Padding(padding: EdgeInsets.only(left: 200), child: Text('Łączenie…', style: Ctl.label)),
             if (s.pairingRequired)
               _labelled(
                 'PIN AirPlay',
@@ -205,17 +205,17 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
             if (!s.volumeAvailable)
               Padding(
                 padding: EdgeInsets.only(left: narrow ? 0 : 200),
-                child: const Text('Ten odbiornik nie udostępnia głośności. Użyj jego pilota.', style: Ctl.label),
+                child: Text('Ten odbiornik nie udostępnia głośności. Użyj jego pilota.', style: Ctl.label),
               )
             else if (kindOf(selected) == DeviceKind.airplay)
               Padding(
                 padding: EdgeInsets.only(left: narrow ? 0 : 200),
-                child: const Text('Poziom sygnału wysyłanego z Mytify. Głośność odbiornika bez zmian.', style: Ctl.label),
+                child: Text('Poziom sygnału wysyłanego z Mytify. Głośność odbiornika bez zmian.', style: Ctl.label),
               ),
             if (out.error != null)
               Padding(
                 padding: EdgeInsets.only(left: narrow ? 0 : 200, top: Sp.s),
-                child: Text(out.error!, style: const TextStyle(fontSize: 13.5, color: Color(0xffffb4b4))),
+                child: Text(out.error!, style: TextStyle(fontSize: 13.5, color: dangerText)),
               ),
             if (s.equalizer != null) ...[
               const SectionTitle('Barwa dźwięku'),
@@ -259,7 +259,7 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
         ),
         if (active) ...[
           InfoRow('Wyjście', '${o['name'] ?? ''}'),
-          if (o['testSink'] == true) const InfoRow('Uwaga', 'Wyjście testowe, bez dźwięku', color: Color(0xffffb454)),
+          if (o['testSink'] == true) InfoRow('Uwaga', 'Wyjście testowe, bez dźwięku', color: warningText),
           if (kind == DeviceKind.dlna)
             const InfoRow('Dekodowanie', 'Odbiornik DLNA, z oryginalnego pliku')
           else if (android && kind == DeviceKind.local)
@@ -284,8 +284,8 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
         if (!android && s.available) InfoRow('Niedobory bufora', '${s.underrunFrames} próbek od uruchomienia'),
         if (s.error != null) InfoRow('Ostatni błąd', s.error!),
         if (!active) ...[
-          const Divider(height: Sp.l, color: softBorder),
-          const Text('Parametry wyjścia i źródła są widoczne podczas odtwarzania.', style: Ctl.label),
+          Divider(height: Sp.l, color: softBorder),
+          Text('Parametry wyjścia i źródła są widoczne podczas odtwarzania.', style: Ctl.label),
         ],
       ],
     );
@@ -299,7 +299,7 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
         children: [
           Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
           const SizedBox(height: Sp.xs),
-          Text(text, style: const TextStyle(fontSize: 13, color: secondaryText, height: 1.45)),
+          Text(text, style: TextStyle(fontSize: 13, color: secondaryText, height: 1.45)),
         ],
       ),
     );

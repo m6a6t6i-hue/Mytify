@@ -359,7 +359,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
                             ),
                             const Spacer(),
                             if (s.playing && noDataFor > 1.5)
-                              const Padding(
+                              Padding(
                                 padding: EdgeInsets.only(bottom: Sp.m),
                                 child: Text(
                                   'Brak danych o dźwięku z tego wyjścia: obraz nie reaguje na muzykę.',

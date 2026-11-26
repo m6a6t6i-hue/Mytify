@@ -381,7 +381,7 @@ class LikedArt extends StatelessWidget {
     width: size,
     height: size,
     decoration: BoxDecoration(
-      color: const Color(0xff16332a),
+      color: Color.lerp(panel, accent, .18),
       shape: circle ? BoxShape.circle : BoxShape.rectangle,
       borderRadius: circle ? null : BorderRadius.circular(Rad.cover),
     ),
@@ -552,7 +552,7 @@ class _SeekBarState extends State<SeekBar>
           children: [
             Container(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .16),
+                color: primaryText.withValues(alpha: .16),
                 borderRadius: BorderRadius.circular(3),
               ),
             ),
@@ -827,7 +827,7 @@ class _WavePainter extends CustomPainter {
     final x = r + value * math.max(0.0, size.width - 2 * r);
     final line = compact ? 3.0 : 4.0;
     final rest = Paint()
-      ..color = const Color(0xff34373c)
+      ..color = softBorder
       ..strokeWidth = line
       ..strokeCap = StrokeCap.round;
     if (!known) {
@@ -896,7 +896,7 @@ class _WavePainter extends CustomPainter {
     final groove = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = .8
-      ..color = const Color(0xff2c2f34);
+      ..color = elevated;
     for (final f in const [.86, .72, .58]) {
       canvas.drawCircle(c, r * f, groove);
     }
@@ -998,7 +998,7 @@ Future<void> showActions(
                     Icon(
                       e.icon,
                       size: 18,
-                      color: e.destructive ? const Color(0xffff6b6b) : secondaryText,
+                      color: e.destructive ? dangerText : secondaryText,
                     ),
                     const SizedBox(width: Sp.m),
                   ],
@@ -1007,7 +1007,7 @@ Future<void> showActions(
                       e.label,
                       style: TextStyle(
                         fontSize: 13.5,
-                        color: e.destructive ? const Color(0xffff6b6b) : null,
+                        color: e.destructive ? dangerText : null,
                       ),
                     ),
                   ),
@@ -1055,7 +1055,7 @@ Future<void> showActions(
             ),
           for (final e in entries)
             if (e.isDivider)
-              const Divider(height: 12, color: softBorder)
+              Divider(height: 12, color: softBorder)
             else
               ListTile(
                 minTileHeight: 52,
@@ -1065,13 +1065,13 @@ Future<void> showActions(
                     : Icon(
                         e.icon,
                         color: e.destructive
-                            ? const Color(0xffff6b6b)
+                            ? dangerText
                             : secondaryText,
                       ),
                 title: Text(
                   e.label,
                   style: TextStyle(
-                    color: e.destructive ? const Color(0xffff6b6b) : null,
+                    color: e.destructive ? dangerText : null,
                   ),
                 ),
                 trailing: e.children == null
@@ -1232,7 +1232,7 @@ class SectionTitle extends StatelessWidget {
       children: [
         Semantics(header: true, child: Text(text, style: Ctl.section)),
         const SizedBox(width: Sp.m),
-        const Expanded(child: Divider(height: 1, color: softBorder)),
+        Expanded(child: Divider(height: 1, color: softBorder)),
       ],
     ),
   );
@@ -1353,7 +1353,7 @@ class TextTabs extends StatelessWidget {
   const TextTabs({super.key, required this.labels, required this.index, required this.onChanged, this.busy});
   @override
   Widget build(BuildContext context) => DecoratedBox(
-    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: softBorder))),
+    decoration: BoxDecoration(border: Border(bottom: BorderSide(color: softBorder))),
     child: Row(
       children: [
         for (var i = 0; i < labels.length; i++)
@@ -1404,8 +1404,9 @@ class LevelBars extends StatefulWidget {
   final bool playing;
   final int count;
   final double width, height;
-  final Color color;
-  const LevelBars({super.key, required this.playing, this.count = 4, this.width = 16, this.height = 14, this.color = accent});
+  final Color? _color;
+  Color get color => _color ?? accent;
+  const LevelBars({super.key, required this.playing, this.count = 4, this.width = 16, this.height = 14, Color? color}) : _color = color;
   @override
   State<LevelBars> createState() => _LevelBarsState();
 }
