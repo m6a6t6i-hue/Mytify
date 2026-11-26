@@ -42,6 +42,42 @@ class TrackField {
   }
 }
 
+/// Album, artist, tracks, cover and release of one import.
+class IngestForm {
+  final album = TextEditingController(), artist = TextEditingController();
+  List<TrackField> tracks = [];
+  CoverChoice? cover;
+  bool various = false;
+  String releaseId = '', date = '';
+
+  void setTracks(List<String> titles, [List<String> artists = const []]) {
+    for (final c in tracks) {
+      c.dispose();
+    }
+    tracks = [for (var i = 0; i < titles.length; i++) TrackField(titles[i], i < artists.length ? artists[i] : '')];
+  }
+
+  void clear() {
+    album.clear();
+    artist.clear();
+    releaseId = '';
+    date = '';
+    cover = null;
+    various = false;
+  }
+
+  List<String> get titles => [for (final t in tracks) t.title.text];
+  List<String> get artists => [for (final t in tracks) various ? t.artist.text : ''];
+
+  void dispose() {
+    album.dispose();
+    artist.dispose();
+    for (final t in tracks) {
+      t.dispose();
+    }
+  }
+}
+
 /// Recording waveform: min/max pairs and how many frames each point covers.
 class Waveform {
   final int rate, frames, perPoint;
@@ -99,11 +135,12 @@ class IngestState extends ChangeNotifier {
   List<ReleaseCandidate> candidates = [];
   bool describing = false;
 
-  /// Description applied from a release (release id, date, disc, cover hash).
-  String releaseId = '', date = '';
+  /// Disc of a multi-disc release.
   int? disc, discs;
-  CoverChoice? cover;
-  bool variousArtists = false;
+
+  /// Album form of each tab, so a read CD and a recording never mix.
+  final cdForm = IngestForm(), vinylForm = IngestForm();
+  IngestForm get form => tab == 0 ? cdForm : vinylForm;
 
   // Save options.
   bool mp3 = false, eject = false, serial = false;
@@ -118,13 +155,10 @@ class IngestState extends ChangeNotifier {
 
   /// Job started from this view: rip, monitor, record, export.
   String? job;
-  final album = TextEditingController(),
-      artist = TextEditingController(),
-      label = TextEditingController(text: 'Winyl, strona A'),
+  final label = TextEditingController(text: 'Winyl, strona A'),
       discogs = TextEditingController(),
       searchAlbum = TextEditingController(),
       searchArtist = TextEditingController();
-  List<TrackField> tracksForm = [];
 
   // Vinyl split editor.
   List<int> markers = [];
@@ -406,24 +440,12 @@ class IngestState extends ChangeNotifier {
   /// Offset the engine remembers for this drive (from the last read), if any.
   int? get savedOffset => (toc?['offset'] as num?)?.toInt();
 
-  void _setTracks(List<String> titles, [List<String> artists = const []]) {
-    for (final c in tracksForm) {
-      c.dispose();
-    }
-    tracksForm = [for (var i = 0; i < titles.length; i++) TrackField(titles[i], i < artists.length ? artists[i] : '')];
-  }
-
   void _clearDescription() {
-    album.clear();
-    artist.clear();
-    releaseId = '';
-    date = '';
+    cdForm.clear();
     disc = null;
     discs = null;
-    cover = null;
     candidates = [];
     described = null;
-    variousArtists = false;
   }
 
   Future<void> readCd() async {
@@ -438,7 +460,7 @@ class IngestState extends ChangeNotifier {
       final value = Map<String, dynamic>.from(await api('toc', {'drive': drive}) as Map);
       toc = value;
       final n = (value['tracks'] as List).length;
-      _setTracks(List.generate(n, (i) => 'Utwór ${i + 1}'));
+      cdForm.setTracks(List.generate(n, (i) => 'Utwór ${i + 1}'));
       picked = List.filled(n, true);
     } catch (e) {
       cdProblem = readableIngestError(e);
@@ -480,15 +502,15 @@ class IngestState extends ChangeNotifier {
   void _fromCdText(String why) {
     final t = toc?['cdText'];
     if (t is Map && ((t['album'] as String? ?? '').isNotEmpty || (t['titles'] as List? ?? const []).any((x) => '$x'.isNotEmpty))) {
-      album.text = t['album'] as String? ?? '';
-      artist.text = t['artist'] as String? ?? '';
+      cdForm.album.text = t['album'] as String? ?? '';
+      cdForm.artist.text = t['artist'] as String? ?? '';
       final titles = [for (final x in t['titles'] as List) '$x'];
       final artists = [for (final x in t['artists'] as List) '$x'];
-      _setTracks(
-        [for (var i = 0; i < tracksForm.length; i++) i < titles.length && titles[i].isNotEmpty ? titles[i] : 'Utwór ${i + 1}'],
+      cdForm.setTracks(
+        [for (var i = 0; i < cdForm.tracks.length; i++) i < titles.length && titles[i].isNotEmpty ? titles[i] : 'Utwór ${i + 1}'],
         artists,
       );
-      variousArtists = artists.toSet().where((a) => a.isNotEmpty).length > 1;
+      cdForm.various = artists.toSet().where((a) => a.isNotEmpty).length > 1;
       described = '$why Opis z CD-Text zapisanego na płycie.';
     } else {
       described = '$why Wpisz nazwy ręcznie.';
@@ -524,12 +546,12 @@ class IngestState extends ChangeNotifier {
       return;
     }
     final songs = info.tracks.where((t) => t.discNumber == n).toList();
-    album.text = info.release.title;
-    artist.text = info.release.artist;
-    _setTracks([for (final s in songs) s.title], [for (final s in songs) s.artist == info.release.artist ? '' : s.artist]);
-    variousArtists = songs.any((s) => s.artist.isNotEmpty && s.artist != info.release.artist);
-    releaseId = info.release.id;
-    date = info.release.date;
+    cdForm.album.text = info.release.title;
+    cdForm.artist.text = info.release.artist;
+    cdForm.setTracks([for (final s in songs) s.title], [for (final s in songs) s.artist == info.release.artist ? '' : s.artist]);
+    cdForm.various = songs.any((s) => s.artist.isNotEmpty && s.artist != info.release.artist);
+    cdForm.releaseId = info.release.id;
+    cdForm.date = info.release.date;
     final all = info.tracks.map((t) => t.discNumber).toSet();
     disc = all.length > 1 ? n : null;
     discs = all.length > 1 ? all.length : null;
@@ -538,16 +560,16 @@ class IngestState extends ChangeNotifier {
         '${disc != null ? ' · płyta $disc z $discs' : ''}';
     _changed();
     try {
-      cover = await library.downloadCover(r.id);
+      cdForm.cover = await library.downloadCover(r.id);
     } catch (_) {
-      cover = null;
+      cdForm.cover = null;
     }
     _changed();
   }
 
   Future<void> chooseCoverFile() => _act(() async {
     final c = await library.chooseCover();
-    if (c != null) cover = c;
+    if (c != null) form.cover = c;
   });
 
   void pick(int i, bool value) {
@@ -561,7 +583,7 @@ class IngestState extends ChangeNotifier {
   }
 
   void setVarious(bool value) {
-    variousArtists = value;
+    form.various = value;
     _changed();
   }
 
@@ -569,19 +591,19 @@ class IngestState extends ChangeNotifier {
     await _start('rip', 'rip', {
       'drive': drive,
       'discId': toc!['discId'],
-      'album': album.text,
-      'artist': artist.text,
-      'titles': [for (final t in tracksForm) t.title.text],
-      'artists': [for (final t in tracksForm) variousArtists ? t.artist.text : ''],
+      'album': cdForm.album.text,
+      'artist': cdForm.artist.text,
+      'titles': cdForm.titles,
+      'artists': cdForm.artists,
       'tracks': [
         for (var i = 0; i < tracks.length; i++)
           if (picked[i]) tracks[i]['number'],
       ],
-      'date': date,
-      'releaseId': releaseId,
+      'date': cdForm.date,
+      'releaseId': cdForm.releaseId,
       'disc': ?disc,
       'discs': ?discs,
-      'cover': ?cover?.hash,
+      'cover': ?cdForm.cover?.hash,
       'mp3': mp3,
       'eject': eject || serial,
       'offset': manualOffset,
@@ -612,7 +634,7 @@ class IngestState extends ChangeNotifier {
     toc = null;
     cdProblem = null;
     _clearDescription();
-    _setTracks([]);
+    cdForm.setTracks([]);
     picked = [];
     if (!keepOptions) {
       mp3 = false;
@@ -626,7 +648,7 @@ class IngestState extends ChangeNotifier {
   bool get waitingForDisc => serial && job == 'rip' && !running && stage == 'finished';
 
   /// Unambiguous description: the batch may import without asking.
-  bool get readyForBatch => toc != null && !describing && candidates.isEmpty && releaseId.isNotEmpty;
+  bool get readyForBatch => toc != null && !describing && candidates.isEmpty && cdForm.releaseId.isNotEmpty;
 
   // ------------------------------------------------------------- Vinyl, tape
 
@@ -693,8 +715,8 @@ class IngestState extends ChangeNotifier {
   /// One title per track: markers split the recording into markers + 1 tracks.
   void _syncTitles() {
     final n = markers.length + 1;
-    final old = [for (final t in tracksForm) (t.title.text, t.artist.text)];
-    _setTracks(
+    final old = [for (final t in vinylForm.tracks) (t.title.text, t.artist.text)];
+    vinylForm.setTracks(
       [for (var i = 0; i < n; i++) i < old.length ? old[i].$1 : 'Utwór ${i + 1}'],
       [for (var i = 0; i < n; i++) i < old.length ? old[i].$2 : ''],
     );
@@ -758,7 +780,7 @@ class IngestState extends ChangeNotifier {
   Future<void> loadTracklist(ReleaseCandidate r) => _act(() async {
     _useTracklist(await library.releaseDetails(r.id));
     try {
-      cover = await library.downloadCover(r.id);
+      vinylForm.cover = await library.downloadCover(r.id);
     } catch (_) {}
   });
 
@@ -775,10 +797,10 @@ class IngestState extends ChangeNotifier {
   void _useTracklist(ReleaseInfo info) {
     tracklist = info;
     searchResults = [];
-    album.text = info.release.title;
-    artist.text = info.release.artist;
-    releaseId = info.release.id.startsWith('discogs:') ? '' : info.release.id;
-    date = info.release.date;
+    vinylForm.album.text = info.release.title;
+    vinylForm.artist.text = info.release.artist;
+    vinylForm.releaseId = info.release.id.startsWith('discogs:') ? '' : info.release.id;
+    vinylForm.date = info.release.date;
     // Default to the side this recording is labelled with, else the first side.
     final sides = [for (final s in info.tracks) side(s)];
     final named = RegExp(r'strona ([A-Za-z])', caseSensitive: false).firstMatch(label.text)?.group(1)?.toUpperCase();
@@ -805,8 +827,8 @@ class IngestState extends ChangeNotifier {
       final points = (await api('align', {'id': session, 'durations': [for (final s in songs) s.durationMs]}) as List).cast<num>();
       setMarkers([for (final p in points) p.toInt()]);
     }
-    _setTracks([for (final s in songs) s.title], [for (final s in songs) s.artist == info.release.artist ? '' : s.artist]);
-    variousArtists = songs.any((s) => s.artist.isNotEmpty && s.artist != info.release.artist);
+    vinylForm.setTracks([for (final s in songs) s.title], [for (final s in songs) s.artist == info.release.artist ? '' : s.artist]);
+    vinylForm.various = songs.any((s) => s.artist.isNotEmpty && s.artist != info.release.artist);
     final picked = [for (var i = 0; i < info.tracks.length; i++) if (tracklistPicked[i]) i];
     if (picked.isNotEmpty) firstTrack = picked.first + 1;
   });
@@ -814,16 +836,16 @@ class IngestState extends ChangeNotifier {
   Future<void> export() => _act(() async {
     await _start('export', 'export', {
       'id': session,
-      'album': album.text,
-      'artist': artist.text,
+      'album': vinylForm.album.text,
+      'artist': vinylForm.artist.text,
       'markers': markers,
-      'titles': [for (final t in tracksForm) t.title.text],
-      'artists': [for (final t in tracksForm) variousArtists ? t.artist.text : ''],
+      'titles': vinylForm.titles,
+      'artists': vinylForm.artists,
       'firstTrack': firstTrack,
       if (tracklist != null) 'totalTracks': tracklist!.tracks.length,
-      'date': date,
-      'releaseId': releaseId,
-      'cover': ?cover?.hash,
+      'date': vinylForm.date,
+      'releaseId': vinylForm.releaseId,
+      'cover': ?vinylForm.cover?.hash,
       'mp3': mp3,
       'restore': {
         'declick': declick,
@@ -838,12 +860,11 @@ class IngestState extends ChangeNotifier {
     _disposed = true;
     _timer?.cancel();
     _watch?.cancel();
-    for (final c in [album, artist, label, discogs, searchAlbum, searchArtist, firstTrackField]) {
+    for (final c in [label, discogs, searchAlbum, searchArtist, firstTrackField]) {
       c.dispose();
     }
-    for (final t in tracksForm) {
-      t.dispose();
-    }
+    cdForm.dispose();
+    vinylForm.dispose();
     super.dispose();
   }
 }

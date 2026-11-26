@@ -351,7 +351,7 @@ class _IngestViewState extends State<IngestView> {
           InkWell(
             onTap: idle ? () => unawaited(s.chooseCoverFile()) : null,
             borderRadius: BorderRadius.circular(6),
-            child: Tooltip(message: 'Zmień okładkę', child: _cover(s.cover)),
+            child: Tooltip(message: 'Zmień okładkę', child: _cover(s.cdForm.cover)),
           ),
           const SizedBox(width: Sp.l),
           Expanded(
@@ -397,9 +397,9 @@ class _IngestViewState extends State<IngestView> {
           ),
       ],
       const SizedBox(height: Sp.l),
-      _twoFields(_field(s.album, 'Album', enabled: idle), _field(s.artist, 'Wykonawca albumu', enabled: idle)),
+      _twoFields(_field(s.cdForm.album, 'Album', enabled: idle), _field(s.cdForm.artist, 'Wykonawca albumu', enabled: idle)),
       const SizedBox(height: Sp.s),
-      _check('Różni wykonawcy (składanka)', s.variousArtists, idle ? s.setVarious : null),
+      _check('Różni wykonawcy (składanka)', s.cdForm.various, idle ? s.setVarious : null),
       Row(
         children: [
           Checkbox(
@@ -410,7 +410,7 @@ class _IngestViewState extends State<IngestView> {
           Text('Zaznaczone: $chosen z ${tracks.length}', style: Ctl.label),
         ],
       ),
-      for (var i = 0; i < tracks.length && i < s.tracksForm.length; i++)
+      for (var i = 0; i < tracks.length && i < s.cdForm.tracks.length; i++)
         Padding(
           padding: const EdgeInsets.only(bottom: Sp.xs),
           child: Row(
@@ -418,10 +418,10 @@ class _IngestViewState extends State<IngestView> {
               Checkbox(value: s.picked[i], onChanged: idle ? (v) => s.pick(i, v ?? false) : null),
               SizedBox(width: 28, child: Text('${tracks[i]['number'] ?? i + 1}', textAlign: TextAlign.right, style: Ctl.label)),
               const SizedBox(width: Sp.m),
-              Expanded(flex: 3, child: TextField(controller: s.tracksForm[i].title, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field())),
-              if (s.variousArtists) ...[
+              Expanded(flex: 3, child: TextField(controller: s.cdForm.tracks[i].title, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field())),
+              if (s.cdForm.various) ...[
                 const SizedBox(width: Sp.s),
-                Expanded(flex: 2, child: TextField(controller: s.tracksForm[i].artist, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field(hint: 'Wykonawca'))),
+                Expanded(flex: 2, child: TextField(controller: s.cdForm.tracks[i].artist, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field(hint: 'Wykonawca'))),
               ],
               const SizedBox(width: Sp.m),
               SizedBox(width: 52, child: Text(ingestClock(s.trackMs(tracks[i])), textAlign: TextAlign.right, style: Ctl.label)),
@@ -945,16 +945,16 @@ class _IngestViewState extends State<IngestView> {
                 InkWell(
                   onTap: idle ? () => unawaited(s.chooseCoverFile()) : null,
                   borderRadius: BorderRadius.circular(6),
-                  child: Tooltip(message: 'Wybierz okładkę', child: _cover(s.cover, size: 64)),
+                  child: Tooltip(message: 'Wybierz okładkę', child: _cover(s.vinylForm.cover, size: 64)),
                 ),
                 const SizedBox(width: Sp.l),
-                Expanded(child: _twoFields(_field(s.album, 'Album', enabled: idle), _field(s.artist, 'Wykonawca albumu', enabled: idle))),
+                Expanded(child: _twoFields(_field(s.vinylForm.album, 'Album', enabled: idle), _field(s.vinylForm.artist, 'Wykonawca albumu', enabled: idle))),
               ],
             ),
             const SizedBox(height: Sp.s),
             Row(
               children: [
-                Expanded(child: _check('Różni wykonawcy (składanka)', s.variousArtists, idle ? s.setVarious : null)),
+                Expanded(child: _check('Różni wykonawcy (składanka)', s.vinylForm.various, idle ? s.setVarious : null)),
                 const Text('Numer pierwszego utworu', style: Ctl.label),
                 const SizedBox(width: Sp.s),
                 SizedBox(
@@ -972,17 +972,17 @@ class _IngestViewState extends State<IngestView> {
               ],
             ),
             const SizedBox(height: Sp.s),
-            for (var i = 0; i < s.tracksForm.length; i++)
+            for (var i = 0; i < s.vinylForm.tracks.length; i++)
               Padding(
                 padding: const EdgeInsets.only(bottom: Sp.xs),
                 child: Row(
                   children: [
                     SizedBox(width: 28, child: Text('${i + s.firstTrack}.', textAlign: TextAlign.right, style: Ctl.label)),
                     const SizedBox(width: Sp.m),
-                    Expanded(flex: 3, child: TextField(controller: s.tracksForm[i].title, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field())),
-                    if (s.variousArtists) ...[
+                    Expanded(flex: 3, child: TextField(controller: s.vinylForm.tracks[i].title, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field())),
+                    if (s.vinylForm.various) ...[
                       const SizedBox(width: Sp.s),
-                      Expanded(flex: 2, child: TextField(controller: s.tracksForm[i].artist, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field(hint: 'Wykonawca'))),
+                      Expanded(flex: 2, child: TextField(controller: s.vinylForm.tracks[i].artist, enabled: idle, style: Ctl.fieldText, decoration: Ctl.field(hint: 'Wykonawca'))),
                     ],
                     const SizedBox(width: Sp.m),
                     SizedBox(
@@ -1042,7 +1042,7 @@ class _IngestViewState extends State<IngestView> {
             ] else
               FilledButton.icon(
                 style: Ctl.filled,
-                onPressed: idle && s.tracksForm.isNotEmpty ? () => unawaited(s.export()) : null,
+                onPressed: idle && s.vinylForm.tracks.isNotEmpty ? () => unawaited(s.export()) : null,
                 icon: const Icon(Icons.library_add_outlined, size: 18),
                 label: const Text('Dodaj do biblioteki'),
               ),
@@ -1345,10 +1345,15 @@ class _WavePainter extends CustomPainter {
       final x = markers[i] / w.durationMs * size.width;
       marker.color = i == active ? accent : primaryText;
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), marker);
-      canvas.drawCircle(Offset(x, 6), 5, marker);
-      tp.text = TextSpan(text: '${i + 2}', style: const TextStyle(fontSize: 10, color: Colors.black, fontWeight: FontWeight.w700));
+      // Tab with the number of the track that starts here.
+      tp.text = TextSpan(text: '${i + 2}', style: const TextStyle(fontSize: 10.5, color: Colors.black, fontWeight: FontWeight.w700));
       tp.layout();
-      tp.paint(canvas, Offset(x - tp.width / 2, 6 - tp.height / 2));
+      final w = math.max(16.0, tp.width + 8);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(x - w / 2, 0, w, 16), const Radius.circular(4)),
+        Paint()..color = marker.color,
+      );
+      tp.paint(canvas, Offset(x - tp.width / 2, 8 - tp.height / 2));
     }
     final cx = cursor / w.durationMs * size.width;
     canvas.drawLine(Offset(cx, 0), Offset(cx, size.height), Paint()

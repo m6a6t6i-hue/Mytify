@@ -241,7 +241,7 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('Składanka'), findsOneWidget);
     expect(find.textContaining('Opis z MusicBrainz'), findsOneWidget);
-    expect(state.variousArtists, isTrue);
+    expect(state.cdForm.various, isTrue);
     expect(find.text('Anna'), findsOneWidget);
     await t.tap(find.text('Kopia MP3 192 kb/s na telefon'));
     await t.pump();
@@ -342,7 +342,7 @@ void main() {
     await t.tap(find.text('Zaproponuj według ciszy'));
     await t.pumpAndSettle();
     expect(state.markers, [59000, 121000]);
-    expect(state.tracksForm.length, 3);
+    expect(state.vinylForm.tracks.length, 3);
     state.moveMarker(0, 200000);
     expect(state.markers.first, lessThan(121000));
     state.removeMarker(1);
