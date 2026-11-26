@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mytify/logo_art.dart';
 import 'package:mytify/main.dart';
 import 'package:mytify/player_ui.dart';
 import 'package:mytify/radio.dart';
@@ -31,7 +35,33 @@ void main() {
     final quiet = radioTrack({'id': 'radio:a', 'name': 'Jazz FM', 'title': null, 'logo': ''}, (l) => l);
     expect((quiet.title, quiet.artist, quiet.album, quiet.cover), ('Jazz FM', 'Radio', 'Jazz FM', null));
     final song = radioTrack({'id': 'radio:a', 'name': 'Jazz FM', 'title': 'Miles Davis - So What', 'logo': 'https://l/x.png'}, (l) => 'base?u=$l');
-    expect((song.title, song.artist, song.cover), ('So What', 'Miles Davis', 'base?u=https://l/x.png'));
+    expect((song.title, song.artist, song.cover), ('So What', 'Miles Davis', 'base?u=https://l/x.png#station-logo'));
+  });
+
+  test('logo background comes from its edges', () async {
+    Future<ui.Image> image(int Function(int x, int y) rgba) {
+      final px = Uint8List(16 * 16 * 4);
+      for (var y = 0; y < 16; y++) {
+        for (var x = 0; x < 16; x++) {
+          final c = rgba(x, y), i = (y * 16 + x) * 4;
+          px[i] = c >> 24 & 255;
+          px[i + 1] = c >> 16 & 255;
+          px[i + 2] = c >> 8 & 255;
+          px[i + 3] = c & 255;
+        }
+      }
+      final done = Completer<ui.Image>();
+      ui.decodeImageFromPixels(px, 16, 16, ui.PixelFormat.rgba8888, done.complete);
+      return done.future;
+    }
+
+    bool inner(int x, int y) => x > 3 && x < 12 && y > 3 && y < 12;
+    // Orange field with a blue mark: the field colour.
+    expect(await edgeColor(await image((x, y) => inner(x, y) ? 0x2040a0ff : 0xf07820ff)), const Color(0xfff07820));
+    // Dark mark on transparency: a light field; light mark: a dark field.
+    expect(await edgeColor(await image((x, y) => inner(x, y) ? 0x101010ff : 0)), const Color(0xfff2f2f2));
+    expect(await edgeColor(await image((x, y) => inner(x, y) ? 0xf0f0f0ff : 0)), const Color(0xff1b1d20));
+    expect(isLogo(asLogo('https://x/a.png')), isTrue);
   });
 
   setUp(() {

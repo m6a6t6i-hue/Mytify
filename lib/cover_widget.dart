@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'design.dart';
+import 'logo_art.dart';
 
 import 'package:material_ui/material_ui.dart';
 
@@ -32,6 +33,9 @@ class CoverImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final value = uri;
+    if (isLogo(value)) {
+      return LogoArt(value!, width: width, height: height, fallback: CoverImage(null, width: width, height: height));
+    }
     if (value != null) {
       final local = localCover(value, width, height, cacheWidth);
       if (local != null) {

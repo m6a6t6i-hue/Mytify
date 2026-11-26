@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 
 import 'design.dart';
+import 'logo_art.dart';
 import 'l10n.dart';
 import 'main.dart';
 import 'model.dart';
@@ -134,7 +135,7 @@ Track radioTrack(Map<String, dynamic> r, String Function(String logo) logoUri, {
     fileName: '',
     format: r['codec'] as String? ?? '',
     size: 0,
-    cover: logo.isEmpty ? null : logoUri(logo),
+    cover: logo.isEmpty ? null : asLogo(logoUri(logo)),
     // The heart in the player means "favourite station" while on air.
     liked: favorite,
   );
@@ -380,19 +381,7 @@ class StationLogo extends StatelessWidget {
     if (station.logo.isEmpty) return tile;
     return ClipRRect(
       borderRadius: BorderRadius.circular(size * .18),
-      child: Container(
-        width: size,
-        height: size,
-        color: Colors.white,
-        child: Image.network(
-          app.radioLogoUri(station.logo),
-          width: size,
-          height: size,
-          fit: BoxFit.contain,
-          cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).ceil(),
-          errorBuilder: (_, _, _) => tile,
-        ),
-      ),
+      child: LogoArt(app.radioLogoUri(station.logo), width: size, height: size, fill: .8, fallback: tile),
     );
   }
 }

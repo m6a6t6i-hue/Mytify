@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'cover_file_stub.dart' if (dart.library.io) 'cover_file_io.dart';
 import 'cover_widget.dart';
 import 'design.dart';
+import 'logo_art.dart';
 
 /// Dominant, saturated cover colour for ambient backgrounds. Cached per artwork.
 class CoverTint {
@@ -26,7 +27,7 @@ class CoverTint {
         return null;
       }
     }
-    if (uri.startsWith('http')) return NetworkImage(uri);
+    if (uri.startsWith('http')) return NetworkImage(uri.endsWith(logoMark) ? uri.substring(0, uri.length - logoMark.length) : uri);
     return localProvider(uri);
   }
 
