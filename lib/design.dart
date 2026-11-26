@@ -513,6 +513,9 @@ class PlayButton extends StatefulWidget {
 
   /// Waiting for sound (connecting to a station, reaching a NAS): a spinner instead of the icon.
   final bool loading;
+
+  /// Clickable but greyed: its source is not reachable yet (pressing tries to connect).
+  final bool muted;
   final VoidCallback? onPressed;
   final double size;
   const PlayButton({
@@ -520,6 +523,7 @@ class PlayButton extends StatefulWidget {
     required this.playing,
     required this.onPressed,
     this.loading = false,
+    this.muted = false,
     this.size = 58,
   });
   @override
@@ -565,12 +569,12 @@ class _PlayButtonState extends State<PlayButton>
         height: widget.size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: widget.onPressed == null ? elevated : accent,
+          color: widget.onPressed == null || (widget.muted && !widget.loading) ? elevated : accent,
         ),
         child: IconButton(
           tooltip: widget.loading ? tr('Łączenie… (dotknij, aby przerwać)') : widget.playing ? tr('Wstrzymaj') : tr('Odtwórz'),
           onPressed: widget.onPressed,
-          color: onAccent,
+          color: widget.muted && !widget.loading ? secondaryText : onAccent,
           iconSize: widget.size * .5,
           icon: AnimatedSwitcher(
             duration: motion(context, Dur.standard),

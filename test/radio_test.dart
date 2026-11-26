@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mytify/downloads_ui.dart';
 import 'package:mytify/logo_art.dart';
 import 'package:mytify/main.dart';
 import 'package:mytify/model.dart';
@@ -330,10 +331,17 @@ void main() {
     await tester.pumpWidget(MytifyApp(repository: AndroidLibraryRepository()));
     await settle(tester);
     final app = tester.state<LibraryScreenState>(find.byType(LibraryScreen));
-    // The start-up attempt failed (NAS still waking up): the user is told, nothing plays.
+    // The start-up attempt failed (NAS still waking up): one short note, nothing plays.
     expect(probes, 1);
-    expect(find.textContaining('Spróbuję ponownie'), findsOneWidget);
-    expect(app.index.byId['nas1']!.available, isFalse);
+    expect(find.text('Brak połączenia z: NAS'), findsOneWidget);
+    final nas = app.index.byId['nas1']!;
+    expect(nas.available, isFalse);
+    expect(nas.waitsForSource, isTrue);
+    // The album is not greyed out: a muted play button that still works, a red cloud on the track.
+    final album = app.index.albums.firstWhere((a) => a.title == 'Na NAS');
+    expect(album.playableSoon, isTrue);
+    final badge = storageBadge(app, nas)! as Tooltip;
+    expect((badge.child! as Icon).icon, Icons.cloud_off_outlined);
     // Play: connect again (spinner), then the fresh, available track is played.
     await app.playTracks([app.index.byId['nas1']!]);
     await settle(tester);

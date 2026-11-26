@@ -33,6 +33,12 @@ class Track {
 
   /// A complete copy on this device ("Pobrane") / lives on a network source.
   final bool offline, remote;
+
+  /// On a network source that did not answer: not dimmed, playing connects first.
+  bool get waitsForSource => remote && !available && !offline;
+
+  /// Can be played now or after its NAS answers.
+  bool get playableSoon => available || waitsForSource;
   final String metadataSource;
   final String? releaseId;
   final int locationCount;

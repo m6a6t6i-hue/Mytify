@@ -11,6 +11,7 @@ import 'ingest.dart';
 import 'mini_player.dart';
 import 'visualizer.dart';
 import 'intro.dart';
+import 'startup_signal.dart';
 import 'library_index.dart';
 import 'metadata_ui.dart';
 import 'model.dart';
@@ -282,6 +283,13 @@ class LibraryScreenState extends State<LibraryScreen> {
   }
   /// Start animation runs once per app start, never on resume or navigation.
   bool showIntro = introOnStart;
+
+  /// The first reach of the network sources; the intro stays until it ends.
+  bool startupConnecting = true;
+  String? _afterIntro;
+
+  /// Album whose play button was pressed and is still connecting.
+  String? reachingAlbum;
   ImportProgress progress = const ImportProgress(0, 0, '');
   ImportReport? lastImport;
   int playGeneration = 0;
@@ -369,8 +377,17 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (mounted) setState(() {});
     }));
     unawaited(player.start());
-    // NAS shares are reached while the intro plays, so a first tap on a cloud track works.
-    unawaited(loadLibrary().then((_) => connectSources(quietly: true)));
+    // NAS shares are reached while the intro plays (it waits, up to a short limit),
+    // so the app opens with the real state and a first tap on a cloud track works.
+    unawaited(
+      loadLibrary()
+          .then((_) => connectSources(quietly: true, limit: const Duration(seconds: 4)))
+          .catchError((Object _) => false)
+          .whenComplete(() {
+            if (mounted) setState(() => startupConnecting = false);
+            signalStartupDone();
+          }),
+    );
     // PC app: notice an inserted Audio CD and offer to import it.
     if (canDigitize && canFloat) ingest.watchDiscs();
     if (canFloat) {
@@ -521,12 +538,14 @@ class LibraryScreenState extends State<LibraryScreen> {
     for (final t in list) {
       if (t.available && seen.add(t.id)) playable.add(t);
     }
+    // A NAS that still did not answer was already reported by connectSources.
+    final unreached = list.any((t) => t.waitsForSource);
     if (playable.isEmpty) {
-      message(tr('Te pliki są teraz niedostępne. Podłącz źródło muzyki.'));
+      if (!unreached) message(tr('Te pliki są teraz niedostępne. Podłącz źródło muzyki.'));
       return;
     }
     if (start != null && !start.available) {
-      message(tr('Ten plik jest niedostępny. Podłącz źródło lub wskaż folder ponownie.'));
+      if (!start.waitsForSource) message(tr('Ten plik jest niedostępny. Podłącz źródło lub wskaż folder ponownie.'));
       return;
     }
     final first = shuffle
@@ -556,8 +575,14 @@ class LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  Future<void> playAlbum(AlbumGroup album, {bool shuffle = false}) =>
-      playTracks(album.tracks, shuffle: shuffle);
+  Future<void> playAlbum(AlbumGroup album, {bool shuffle = false}) async {
+    setState(() => reachingAlbum = album.key);
+    try {
+      await playTracks(album.tracks, shuffle: shuffle);
+    } finally {
+      if (mounted) setState(() => reachingAlbum = null);
+    }
+  }
 
   Future<void> togglePlay() async {
     final track = queue.current;
@@ -569,7 +594,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     // Tapping the spinning button gives up waiting.
     if (connecting) return audioOperation(() => player.command({'action': 'pause'}));
     if (isRadio(track.id)) return player.state.playing ? audioOperation(player.playOrPause) : starting(() => audioOperation(player.playOrPause));
-    if (!track.available && track.remote && !track.offline) {
+    if (track.waitsForSource) {
       return playTracks(queue.items, start: track);
     }
     if (!track.available) {
@@ -1200,11 +1225,17 @@ class LibraryScreenState extends State<LibraryScreen> {
       final down = [for (final s in librarySources) if (s.network && s.state == 'offline') s.name];
       if (!ok || down.isNotEmpty) {
         final names = down.isEmpty ? tr('źródła sieciowe') : down.join(', ');
-        message(
-          quietly
-              ? tr('Nie udało się połączyć z: {0}. Spróbuję ponownie, gdy włączysz utwór.', [names])
-              : tr('{0} nie odpowiada. Sprawdź, czy NAS jest włączony i w tej samej sieci.', [names]),
-        );
+        if (quietly) {
+          // Start-up: one short note once the app is visible; playing a track retries.
+          final notice = tr('Brak połączenia z: {0}', [names]);
+          if (showIntro) {
+            _afterIntro = notice;
+          } else {
+            message(notice);
+          }
+        } else {
+          message(tr('{0} nie odpowiada. Sprawdź, czy NAS jest włączony i w tej samej sieci.', [names]));
+        }
         return false;
       }
       return true;
@@ -1529,8 +1560,13 @@ class LibraryScreenState extends State<LibraryScreen> {
         children: [
           shell,
           StartupIntro(
-            ready: !loading,
-            onDone: () => setState(() => showIntro = false),
+            ready: !loading && !startupConnecting,
+            onDone: () {
+              setState(() => showIntro = false);
+              final notice = _afterIntro;
+              _afterIntro = null;
+              if (notice != null) message(notice);
+            },
           ),
         ],
       );

@@ -257,5 +257,11 @@ Widget? storageBadge(LibraryScreenState app, Track t, {double size = 14}) {
       child: SizedBox(width: size, height: size, child: const CircularProgressIndicator(strokeWidth: 1.6)),
     );
   }
+  if (t.waitsForSource) {
+    return Tooltip(
+      message: tr('Serwer w sieci nie odpowiada. Włącz utwór, aby połączyć ponownie.'),
+      child: Icon(Icons.cloud_off_outlined, size: size, color: dangerText),
+    );
+  }
   return Tooltip(message: tr('Na serwerze w sieci'), child: Icon(Icons.cloud_outlined, size: size, color: secondaryText));
 }

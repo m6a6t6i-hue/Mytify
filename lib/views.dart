@@ -440,7 +440,7 @@ class TrackRow extends StatelessWidget {
     final desktop = app.desktopMode;
     final current = app.current?.id == t.id;
     final isSelected = selectable && app.selected.contains(t.id);
-    final dim = !t.available;
+    final dim = !t.playableSoon;
     final titleStyle = TextStyle(
       fontSize: desktop ? 14 : 15.5,
       fontWeight: FontWeight.w500,
@@ -1242,13 +1242,15 @@ class AlbumPage extends StatelessWidget {
       children: [
         PlayButton(
           playing: app.playing && app.current?.albumKey == a.key,
+          loading: app.connecting && (app.reachingAlbum ?? app.current?.albumKey) == a.key,
+          muted: !a.available,
           size: desktop ? 48 : 52,
-          onPressed: a.available
+          onPressed: a.playableSoon
               ? () => unawaited(app.current?.albumKey == a.key ? app.togglePlay() : app.playAlbum(a))
               : null,
         ),
         const SizedBox(width: Sp.s),
-        IconAction(Icons.shuffle_rounded, tr('Odtwórz losowo'), a.available ? () => unawaited(app.playAlbum(a, shuffle: true)) : null, box: desktop ? 40 : 48, color: secondaryText),
+        IconAction(Icons.shuffle_rounded, tr('Odtwórz losowo'), a.playableSoon ? () => unawaited(app.playAlbum(a, shuffle: true)) : null, box: desktop ? 40 : 48, color: secondaryText),
         IconAction(
           app.prefs.pinned(pinId) ? Icons.push_pin_rounded : Icons.push_pin_outlined,
           app.prefs.pinned(pinId) ? tr('Odepnij') : tr('Przypnij'),
@@ -1983,7 +1985,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.23.9']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.23.10']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),

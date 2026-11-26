@@ -11,6 +11,7 @@ class AlbumGroup {
   int get addedAt => tracks.fold(0, (m, t) => t.addedAt > m ? t.addedAt : m);
   int get durationMs => tracks.fold(0, (m, t) => m + t.durationMs);
   bool get available => tracks.any((t) => t.available);
+  bool get playableSoon => tracks.any((t) => t.playableSoon);
   bool get singleArtist =>
       tracks.map((t) => albumGroupingPart(t.artist)).toSet().length <= 1;
   List<Track> get playable => tracks.where((t) => t.available).toList();

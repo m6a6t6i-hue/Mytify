@@ -27,16 +27,23 @@
 <script src="mytify_bridge.js"></script>
 <script>
 // Winyl intro: plays once (1000 ms) while Flutter loads. The UI is revealed
-// once both the motion and the first Flutter frame are done; if loading takes
-// longer the final logo simply stays. A click reveals the UI at once.
+// once the motion, the first Flutter frame and the first reach of the NAS
+// (mytifyReady, at most 5 s after the first frame) are done; meanwhile the
+// final logo simply stays. A click reveals the UI at once.
 (function(){
-  var el=document.getElementById('loading'),ready=false;
+  var el=document.getElementById('loading'),ready=false,started=false;
   var t0=document.timeline?document.timeline.currentTime:performance.now();
   function hide(){if(!el)return;el.classList.add('done');var e=el;el=null;setTimeout(function(){e.remove();},300);}
-  window.addEventListener('flutter-first-frame',function(){
-    ready=true;
+  function reveal(){
+    if(!ready||!started)return;
     var now=document.timeline?document.timeline.currentTime:performance.now();
     setTimeout(hide,Math.max(0,1000-(now-t0)));
+  }
+  window.mytifyReady=function(){started=true;reveal();};
+  window.addEventListener('flutter-first-frame',function(){
+    ready=true;
+    setTimeout(function(){started=true;reveal();},5000);
+    reveal();
   });
   el.addEventListener('click',function(){if(ready)hide();});
   setTimeout(function(){
