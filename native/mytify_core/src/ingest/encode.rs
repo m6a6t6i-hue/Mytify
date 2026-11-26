@@ -141,8 +141,11 @@ impl Declick {
 }
 
 pub struct Outputs<'a> {
-    pub flac: &'a Path,
+    /// Lossless copy; None when only MP3 is wanted (recordings of a lossy stream).
+    pub flac: Option<&'a Path>,
     pub mp3: Option<&'a Path>,
+    /// MP3 bitrate in kb/s (192 or 320).
+    pub mp3_kbps: u32,
     pub restore: Restore,
 }
 
@@ -222,7 +225,7 @@ struct Mp3 {
     buffer: Vec<u8>,
 }
 impl Mp3 {
-    fn new(path: &Path, rate: u32, channels: usize) -> Result<Self> {
+    fn new(path: &Path, rate: u32, channels: usize, kbps: u32) -> Result<Self> {
         use mp3lame_encoder::{Bitrate, Builder, Quality};
         let mut b = Builder::new().ok_or_else(|| anyhow!("Koder MP3 niedostępny"))?;
         b.set_num_channels(channels as u8).map_err(|e| anyhow!("MP3: {e:?}"))?;
@@ -230,8 +233,8 @@ impl Mp3 {
         if rate > 48000 {
             b.set_output_sample_rate(std::num::NonZeroU32::new(48000)).map_err(|e| anyhow!("MP3: {e:?}"))?;
         }
-        b.set_brate(Bitrate::Kbps192).map_err(|e| anyhow!("MP3: {e:?}"))?;
-        b.set_quality(Quality::Good).map_err(|e| anyhow!("MP3: {e:?}"))?;
+        b.set_brate(if kbps >= 320 { Bitrate::Kbps320 } else { Bitrate::Kbps192 }).map_err(|e| anyhow!("MP3: {e:?}"))?;
+        b.set_quality(if kbps >= 320 { Quality::Best } else { Quality::Good }).map_err(|e| anyhow!("MP3: {e:?}"))?;
         let encoder = b.build().map_err(|e| anyhow!("MP3: {e:?}"))?;
         let file = OpenOptions::new().write(true).create_new(true).open(path)?;
         Ok(Self { file, encoder, channels, buffer: Vec::new() })
@@ -274,9 +277,15 @@ pub fn encode(input: &Path, start: u64, end: u64, out: &Outputs, cancel: &Atomic
     let bytes = bits / 8;
     let rate = wav.rate;
     let full = (1i64 << (bits - 1)) as f64;
-    let mut flac = Flac::new(out.flac, rate, channels, bits)?;
+    if out.flac.is_none() && out.mp3.is_none() {
+        bail!("Nie wybrano formatu zapisu")
+    }
+    let mut flac = match out.flac {
+        Some(p) => Some(Flac::new(p, rate, channels, bits)?),
+        None => None,
+    };
     let mut mp3 = match out.mp3 {
-        Some(p) => Some(Mp3::new(p, rate, channels)?),
+        Some(p) => Some(Mp3::new(p, rate, channels, out.mp3_kbps)?),
         None => None,
     };
     let mut loudness = Loudness::new(rate, channels);
@@ -329,7 +338,7 @@ pub fn encode(input: &Path, start: u64, end: u64, out: &Outputs, cancel: &Atomic
     // Planar buffers for restoration.
     let mut planar: Vec<Vec<f64>> = vec![Vec::with_capacity(4096); channels];
     let mut emit = |planar: &[Vec<f64>],
-                    flac: &mut Flac,
+                    flac: &mut Option<Flac>,
                     mp3: &mut Option<Mp3>,
                     loudness: &mut Loudness,
                     written: &mut u64|
@@ -351,7 +360,9 @@ pub fn encode(input: &Path, start: u64, end: u64, out: &Outputs, cancel: &Atomic
             }
             loudness.feed(&frame);
         }
-        flac.push(&ints)?;
+        if let Some(f) = flac.as_mut() {
+            f.push(&ints)?;
+        }
         if let Some(m) = mp3.as_mut() {
             m.push(&shorts)?;
         }
@@ -402,7 +413,9 @@ pub fn encode(input: &Path, start: u64, end: u64, out: &Outputs, cancel: &Atomic
         }
         pos += n as u64;
     }
-    flac.finish()?;
+    if let Some(f) = flac {
+        f.finish()?;
+    }
     if let Some(m) = mp3 {
         m.finish()?;
     }
@@ -452,7 +465,7 @@ mod tests {
         let before = std::fs::read(&src).unwrap();
         let flac = d.path().join("a.flac");
         let mp3 = d.path().join("a.mp3");
-        let r = encode(&src, 0, 44100, &Outputs { flac: &flac, mp3: Some(&mp3), restore: Restore::default() }, &AtomicBool::new(false)).unwrap();
+        let r = encode(&src, 0, 44100, &Outputs { flac: Some(&flac), mp3: Some(&mp3), mp3_kbps: 192, restore: Restore::default() }, &AtomicBool::new(false)).unwrap();
         assert_eq!(r.frames, 44100);
         assert_eq!(std::fs::read(&src).unwrap(), before);
         let a = decode(&flac);
@@ -463,13 +476,27 @@ mod tests {
     }
 
     #[test]
+    fn mp3_only_at_320_kbps() {
+        let d = tempfile::tempdir().unwrap();
+        let src = d.path().join("m.wav");
+        sine(&src, 44100, 1.0, false, false);
+        let mp3 = d.path().join("a.mp3");
+        let r = encode(&src, 0, 44100, &Outputs { flac: None, mp3: Some(&mp3), mp3_kbps: 320, restore: Restore::default() }, &AtomicBool::new(false)).unwrap();
+        assert_eq!(r.frames, 44100);
+        // One second at 320 kb/s is about 40 kB (192 kb/s would be about 24 kB).
+        let size = std::fs::metadata(&mp3).unwrap().len();
+        assert!(size > 34_000, "{size}");
+        assert!(encode(&src, 0, 44100, &Outputs { flac: None, mp3: None, mp3_kbps: 320, restore: Restore::default() }, &AtomicBool::new(false)).is_err());
+    }
+
+    #[test]
     fn hum_notch_declick_and_speed() {
         let d = tempfile::tempdir().unwrap();
         let src = d.path().join("m.wav");
         sine(&src, 48000, 2.0, true, true);
         let flac = d.path().join("b.flac");
         let restore = Restore { hum: Some(50.0), declick: true, speed: 1.0 };
-        let r = encode(&src, 0, 96000, &Outputs { flac: &flac, mp3: None, restore }, &AtomicBool::new(false)).unwrap();
+        let r = encode(&src, 0, 96000, &Outputs { flac: Some(&flac), mp3: None, mp3_kbps: 192, restore }, &AtomicBool::new(false)).unwrap();
         assert!(r.clicks >= 8, "{}", r.clicks);
         let out = decode(&flac);
         // After the notch settles, the 50 Hz component is gone: compare 50 Hz energy.
@@ -486,7 +513,7 @@ mod tests {
         assert!(energy(tail, 50.0) < 0.005, "{}", energy(tail, 50.0));
         assert!(energy(tail, 440.0) > 0.1);
         let fast = d.path().join("c.flac");
-        let r = encode(&src, 0, 96000, &Outputs { flac: &fast, mp3: None, restore: Restore { hum: None, declick: false, speed: 1.02 } }, &AtomicBool::new(false)).unwrap();
+        let r = encode(&src, 0, 96000, &Outputs { flac: Some(&fast), mp3: None, mp3_kbps: 192, restore: Restore { hum: None, declick: false, speed: 1.02 } }, &AtomicBool::new(false)).unwrap();
         let expected = (96000.0 / 1.02) as i64;
         assert!((r.frames as i64 - expected).abs() < 300, "{} vs {expected}", r.frames);
     }

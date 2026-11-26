@@ -146,7 +146,7 @@ void main() {
   testWidgets('opening import only lists hardware, it starts nothing', (t) async {
     await open(t);
     final actions = repo.calls.map((c) => c['action']).toSet();
-    expect(actions.difference({'drives', 'inputs', 'sessions', 'state', 'folders'}), isEmpty);
+    expect(actions.difference({'drives', 'inputs', 'apps', 'sessions', 'state', 'folders'}), isEmpty);
     expect(find.text('Gotowe'), findsNothing);
     await close(t);
   });

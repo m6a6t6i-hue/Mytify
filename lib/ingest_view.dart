@@ -48,13 +48,13 @@ class _IngestViewState extends State<IngestView> {
         Text(tr('Płyty CD i winyle'), style: Txt.display),
         const SizedBox(height: Sp.l),
         TextTabs(
-          labels: [tr('Audio CD'), tr('Winyl i kaseta')],
+          labels: [tr('Audio CD'), tr('Winyl i kaseta'), tr('Z aplikacji')],
           index: s.tab,
           onChanged: s.setTab,
-          busy: [s.ripping, s.capturing || s.exporting],
+          busy: [s.ripping, s.capturing || s.exporting, s.capturing || s.exporting],
         ),
         const SizedBox(height: Sp.xl),
-        if (s.tab == 0) ..._cd() else ..._analog(),
+        if (s.tab == 0) ..._cd() else if (s.tab == 1) ..._analog() else ..._fromApp(),
       ],
     ),
   );
@@ -589,11 +589,11 @@ class _IngestViewState extends State<IngestView> {
 
   // -------------------------------------------------------------- Vinyl, tape
 
-  List<Widget> _analog() => [
+  List<Widget> _analog({bool fromApp = false}) => [
     LayoutBuilder(
       builder: (context, box) {
         final wide = box.maxWidth >= 760;
-        final input = _input(), rec = _recording();
+        final input = fromApp ? _appInput() : _input(), rec = _recording(fromApp: fromApp);
         return _panel(
           wide
               ? IntrinsicHeight(
@@ -617,6 +617,124 @@ class _IngestViewState extends State<IngestView> {
     const SizedBox(height: Sp.l),
     _export(),
   ];
+
+  // ------------------------------------------------------------- From an app
+
+  List<Widget> _fromApp() => _analog(fromApp: true);
+
+  Widget _appInput() {
+    final idle = !s.busy && !s.running;
+    final album = s.spotify;
+    final tracks = s.tracklist?.tracks.length ?? 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text(tr('Aplikacja'), style: Ctl.section)),
+            IconAction(Icons.help_outline_rounded, help ? tr('Ukryj pomoc') : tr('Jak nagrać album z aplikacji'), () => setState(() => help = !help), color: secondaryText),
+          ],
+        ),
+        if (help)
+          Container(
+            margin: const EdgeInsets.only(top: Sp.s),
+            padding: const EdgeInsets.all(Sp.m),
+            decoration: BoxDecoration(color: elevated, borderRadius: BorderRadius.circular(Rad.control)),
+            child: Text(
+              tr('Nagrywany jest tylko dźwięk wybranej aplikacji, bez dźwięków systemu i innych programów. Głośność Windows nie ma wpływu, głośność w aplikacji ma.\nW Spotify przed nagraniem: najwyższa jakość dźwięku, wyłączona normalizacja głośności, przenikanie (crossfade) i autoodtwarzanie, głośność w aplikacji 100%.\nNagranie trwa tyle, ile album. Zaczyna się od pierwszego dźwięku, więc najpierw kliknij Nagraj, potem włącz album od pierwszego utworu.'),
+              style: TextStyle(fontSize: 13, height: 1.45),
+            ),
+          ),
+        const SizedBox(height: Sp.m),
+        Text(tr('Program, który gra'), style: Ctl.label),
+        const SizedBox(height: Sp.xs),
+        if (s.apps.isEmpty && !s.searching)
+          Row(
+            children: [
+              Expanded(child: Text(tr('Żaden program nie gra teraz dźwięku. Włącz odtwarzanie w aplikacji i odśwież listę.'), style: TextStyle(fontSize: 13.5))),
+              IconAction(Icons.refresh_rounded, tr('Odśwież listę aplikacji'), () => unawaited(s.refresh()), color: secondaryText),
+            ],
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: _dropdown<String>(
+                  semantics: 'app',
+                  value: s.app,
+                  items: [for (final a in s.apps) (a['id'] as String, a['playing'] == true ? tr('{0} · gra', [a['name']]) : '${a['name']}')],
+                  onChanged: idle ? s.selectApp : null,
+                ),
+              ),
+              const SizedBox(width: Sp.s),
+              s.searching
+                  ? const SizedBox(width: 36, height: 36, child: Padding(padding: EdgeInsets.all(9), child: CircularProgressIndicator(strokeWidth: 2)))
+                  : IconAction(Icons.refresh_rounded, tr('Odśwież listę aplikacji'), idle ? () => unawaited(s.refresh()) : null, color: secondaryText),
+            ],
+          ),
+        const SizedBox(height: Sp.l),
+        Text(tr('Album ze Spotify (link)'), style: Ctl.label),
+        const SizedBox(height: Sp.xs),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: s.spotifyLink,
+                enabled: idle,
+                style: Ctl.fieldText,
+                decoration: Ctl.field(hint: 'https://open.spotify.com/album/…'),
+                onSubmitted: (_) => unawaited(s.loadSpotify()),
+              ),
+            ),
+            const SizedBox(width: Sp.s),
+            OutlinedButton(style: Ctl.outlined, onPressed: idle ? () => unawaited(s.loadSpotify()) : null, child: Text(tr('Wczytaj'))),
+          ],
+        ),
+        if (album != null) ...[
+          const SizedBox(height: Sp.m),
+          Row(
+            children: [
+              _cover(s.vinylForm.cover, size: 56),
+              const SizedBox(width: Sp.m),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${s.vinylForm.artist.text} · ${s.vinylForm.album.text}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    Text(
+                      [
+                        if (s.vinylForm.date.isNotEmpty) s.vinylForm.date.split('-').first,
+                        if (tracks > 0) trackCount(tracks),
+                        if (s.albumMs > 0) ingestClock(s.albumMs),
+                      ].join(' · '),
+                      style: Ctl.label,
+                    ),
+                    if (s.appDescribed != null) Text(s.appDescribed!, style: Ctl.label, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: Sp.s),
+        _check(
+          tr('Po nagraniu podziel, opisz i dodaj do biblioteki'),
+          s.autoSave,
+          idle ? (v) => setState(() => s.autoSave = v) : null,
+          sub: tr('MP3 320 kb/s z tagami i okładką. Bez linku do albumu podział według ciszy, do sprawdzenia przed zapisem.'),
+        ),
+        Divider(height: Sp.xl, color: softBorder),
+        Text(tr('Poziom'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        const SizedBox(height: Sp.m),
+        _meters(),
+        const SizedBox(height: Sp.m),
+        if (s.monitoring)
+          OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: Text(tr('Zakończ podgląd')))
+        else
+          OutlinedButton(style: Ctl.outlined, onPressed: idle && s.app != null ? () => unawaited(s.monitorApp()) : null, child: Text(tr('Sprawdź poziom'))),
+      ],
+    );
+  }
 
   Widget _input() {
     final idle = !s.busy && !s.running;
@@ -778,15 +896,20 @@ class _IngestViewState extends State<IngestView> {
     );
   }
 
-  Widget _recording() {
+  Widget _recording({bool fromApp = false}) {
     final frames = (s.status['frames'] as num? ?? 0).toDouble();
     final hz = (s.status['rate'] as num? ?? s.rate).toDouble();
     final ms = s.recording ? frames * 1000 / (hz > 0 ? hz : s.rate) : 0.0;
     final markers = (s.status['markers'] as List? ?? const []).cast<num>();
     final idle = !s.busy && !s.running;
     final endedBySilence = s.job == 'record' && !s.running && s.status['ended'] == 'silence';
+    final waiting = s.recording && s.step.isNotEmpty;
     final state = s.paused
         ? tr('Pauza, nic nie jest zapisywane')
+        : waiting
+        ? trMessage(s.step)
+        : s.job == 'record' && !s.running && s.status['ended'] == 'length'
+        ? tr('Album nagrany')
         : s.recording
         ? tr('Nagrywanie')
         : s.monitoring
@@ -804,7 +927,10 @@ class _IngestViewState extends State<IngestView> {
         Text(tr('Nagranie'), style: Ctl.section),
         const SizedBox(height: Sp.m),
         _field(s.label, tr('Nazwa nagrania'), enabled: idle || s.monitoring),
-        _check(tr('Zakończ po ciszy na końcu strony'), s.autoStop, idle || s.monitoring ? (v) => setState(() => s.autoStop = v) : null, sub: tr('8 s ciszy po co najmniej 30 s nagrania.')),
+        if (fromApp)
+          Text(tr('Kończy się po długości albumu z linku albo po 8 s ciszy.'), style: Ctl.label)
+        else
+          _check(tr('Zakończ po ciszy na końcu strony'), s.autoStop, idle || s.monitoring ? (v) => setState(() => s.autoStop = v) : null, sub: tr('8 s ciszy po co najmniej 30 s nagrania.')),
         const SizedBox(height: Sp.l),
         Center(
           child: Text(
@@ -860,11 +986,13 @@ class _IngestViewState extends State<IngestView> {
                   children: [
                     FilledButton.icon(
                       style: Ctl.filled,
-                      onPressed: (idle || s.monitoring) && !s.busy && s.input != null ? () => unawaited(s.record()) : null,
+                      onPressed: (idle || s.monitoring) && !s.busy && (fromApp ? s.app != null : s.input != null)
+                          ? () => unawaited(fromApp ? s.recordApp() : s.record())
+                          : null,
                       icon: const Icon(Icons.fiber_manual_record, size: 14, color: Color(0xffff3b30)),
                       label: Text(tr('Nagraj')),
                     ),
-                    if (endedBySilence)
+                    if (endedBySilence && !fromApp)
                       OutlinedButton(style: Ctl.outlined, onPressed: idle && s.input != null ? () => unawaited(s.recordSideB()) : null, child: Text(tr('Nagraj stronę B'))),
                   ],
                 ),
@@ -990,7 +1118,7 @@ class _IngestViewState extends State<IngestView> {
                 ),
               ),
             const SizedBox(height: Sp.m),
-            Collapsible(
+            if (!s.appSession) Collapsible(
               title: tr('Obróbka kopii'),
               card: false,
               trailing: [if (s.declick) 'trzaski', if (s.hum) 'brum', if (s.speed != 0) tr('prędkość {0}{1}%', [s.speed > 0 ? '+' : '', s.speed.toStringAsFixed(1)])].join(', '),
@@ -1020,9 +1148,14 @@ class _IngestViewState extends State<IngestView> {
                 ],
               ),
             ),
-            _check(tr('Kopia MP3 192 kb/s na telefon'), s.mp3, idle ? (v) => setState(() => s.mp3 = v) : null),
+            if (!s.appSession) _check(tr('Kopia MP3 192 kb/s na telefon'), s.mp3, idle ? (v) => setState(() => s.mp3 = v) : null),
             const SizedBox(height: Sp.s),
-            Text(tr('Każdy utwór trafi do biblioteki jako FLAC z opisem i ReplayGain. Oryginalne nagranie WAV zostaje.'), style: Ctl.label),
+            Text(
+              s.appSession
+                  ? tr('Każdy utwór trafi do biblioteki jako MP3 320 kb/s z opisem, okładką i ReplayGain. Oryginalne nagranie WAV zostaje.')
+                  : tr('Każdy utwór trafi do biblioteki jako FLAC z opisem i ReplayGain. Oryginalne nagranie WAV zostaje.'),
+              style: Ctl.label,
+            ),
             const SizedBox(height: Sp.m),
             if (s.exporting) ...[
               LinearProgressIndicator(

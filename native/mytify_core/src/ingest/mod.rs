@@ -1,3 +1,5 @@
+#[cfg(all(windows, feature = "desktop"))]
+mod app_capture;
 #[cfg(windows)]
 mod capture;
 pub mod cd;
@@ -299,6 +301,16 @@ impl Ingest {
                     bail!("Folder nagrań otworzysz w wersji Windows")
                 }
             }
+            "apps" => {
+                #[cfg(all(windows, feature = "desktop"))]
+                {
+                    app_capture::apps()
+                }
+                #[cfg(not(all(windows, feature = "desktop")))]
+                {
+                    Ok(json!([]))
+                }
+            }
             "inputs" => {
                 #[cfg(windows)]
                 {
@@ -381,7 +393,7 @@ impl Ingest {
                             .ok()
                             .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
                             .unwrap_or(json!({}));
-                        out.push(json!({"id":id,"path":path,"partial":path.extension().is_some_and(|s|s=="partial"),"rate":info.as_ref().map(|w|w.rate),"channels":info.as_ref().map(|w|w.channels),"durationMs":info.as_ref().map(|w|w.frames()*1000/w.rate as u64),"label":meta["label"],"markers":meta["markers"]}));
+                        out.push(json!({"id":id,"path":path,"partial":path.extension().is_some_and(|s|s=="partial"),"rate":info.as_ref().map(|w|w.rate),"channels":info.as_ref().map(|w|w.channels),"durationMs":info.as_ref().map(|w|w.frames()*1000/w.rate as u64),"label":meta["label"],"markers":meta["markers"],"app":meta["app"]}));
                     }
                 }
                 out.sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
@@ -456,19 +468,31 @@ impl Ingest {
         let rate = w.rate;
         drop(w);
         let marks: Vec<u64> = serde_json::from_value(v["markers"].clone())?;
-        let bounds = boundaries(&marks, rate, duration)?;
+        let mut bounds = boundaries(&marks, rate, duration)?;
+        // App recordings: the last track ends at its known length, not with what the
+        // app played after the album.
+        if let Some(end) = v["endMs"].as_u64().map(|ms| ms * rate as u64 / 1000) {
+            let n = bounds.len();
+            if n >= 2 && end > bounds[n - 2] + rate as u64 && end < bounds[n - 1] {
+                bounds[n - 1] = end;
+            }
+        }
         let titles: Vec<String> = serde_json::from_value(v["titles"].clone())?;
         if titles.len() != bounds.len() - 1 {
             bail!("Nadaj tytuł każdemu utworowi")
         };
         let artists: Vec<String> = serde_json::from_value(v["artists"].clone()).unwrap_or_default();
         let restore = encode::Restore::from_json(&v["restore"])?;
-        let mp3 = v["mp3"].as_bool().unwrap_or(false);
+        // A recording of a lossy stream (an app) is kept as MP3 only: FLAC would only
+        // make it look lossless.
+        let mp3_only = v["mp3Only"].as_bool().unwrap_or(false);
+        let mp3 = mp3_only || v["mp3"].as_bool().unwrap_or(false);
+        let kbps = if v["mp3Kbps"].as_u64() == Some(320) { 320 } else { 192 };
         // Side B continues the numbering of side A.
         let first = v["firstTrack"].as_u64().unwrap_or(1).clamp(1, 99) as usize;
         let dest = dir.join(format!("export-{}", hex(getrandom_bytes()?)));
         std::fs::create_dir(&dest)?;
-        if mp3 {
+        if mp3 && !mp3_only {
             std::fs::create_dir(dest.join("MP3"))?;
         }
         let cover = self.cover_bytes(v);
@@ -488,14 +512,19 @@ impl Ingest {
                 break;
             }
             let name = format!("{:02}-{}", i + first, safe_name(&titles[i]));
-            let out = dest.join(format!("{name}.flac"));
-            let partial = out.with_extension("flac.partial");
-            let mp3_out = mp3.then(|| dest.join("MP3").join(format!("{name}.mp3")));
+            let out = dest.join(format!("{name}.{}", if mp3_only { "mp3" } else { "flac" }));
+            let partial = out.with_extension(if mp3_only { "mp3.partial" } else { "flac.partial" });
+            let mp3_out = (mp3 && !mp3_only).then(|| dest.join("MP3").join(format!("{name}.mp3")));
             let e = encode::encode(
                 &master,
                 b[0],
                 b[1],
-                &encode::Outputs { flac: &partial, mp3: mp3_out.as_deref(), restore: restore.clone() },
+                &encode::Outputs {
+                    flac: (!mp3_only).then_some(partial.as_path()),
+                    mp3: if mp3_only { Some(partial.as_path()) } else { mp3_out.as_deref() },
+                    mp3_kbps: kbps,
+                    restore: restore.clone(),
+                },
                 &self.signals.stop,
             )?;
             clicks += e.clicks;
@@ -728,7 +757,7 @@ impl Ingest {
                 let out = dest.join("00-Ukryty utwór.flac");
                 let partial = out.with_extension("flac.partial");
                 let mp3_out = mp3.then(|| dest.join("MP3").join("00-Ukryty utwór.mp3"));
-                let e = encode::encode(&temp, 0, samples, &encode::Outputs { flac: &partial, mp3: mp3_out.as_deref(), restore: Default::default() }, &self.signals.stop)?;
+                let e = encode::encode(&temp, 0, samples, &encode::Outputs { flac: Some(&partial), mp3: mp3_out.as_deref(), mp3_kbps: 192, restore: Default::default() }, &self.signals.stop)?;
                 std::fs::rename(&partial, &out)?;
                 made.push((out.clone(), mp3_out, e.loudness));
                 tags.push(TagInfo::from_request(v, "Ukryty utwór", None, 0, n as u32));
@@ -782,7 +811,7 @@ impl Ingest {
             let out = dest.join(format!("{name}.flac"));
             let partial = out.with_extension("flac.partial");
             let mp3_out = mp3.then(|| dest.join("MP3").join(format!("{name}.mp3")));
-            let e = encode::encode(&temp, 0, samples, &encode::Outputs { flac: &partial, mp3: mp3_out.as_deref(), restore: Default::default() }, &self.signals.stop)?;
+            let e = encode::encode(&temp, 0, samples, &encode::Outputs { flac: Some(&partial), mp3: mp3_out.as_deref(), mp3_kbps: 192, restore: Default::default() }, &self.signals.stop)?;
             std::fs::rename(&partial, &out)?;
             std::fs::remove_file(&temp)?;
             made.push((out.clone(), mp3_out, e.loudness));

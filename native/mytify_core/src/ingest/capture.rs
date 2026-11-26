@@ -2,7 +2,13 @@ use super::*;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::Sample;
 use rtrb::{Producer, RingBuffer};
-use std::{sync::atomic::Ordering, time::Duration};
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 struct Packet {
     samples: [f32; 1024],
     len: usize,
@@ -94,7 +100,34 @@ where
         }
     }
 }
+/// What feeds the recording: an input device, or one application's sound (a thread).
+/// Dropping it always stops the source, also on an early error.
+struct Source {
+    stream: Option<cpal::Stream>,
+    app: Option<(std::thread::JoinHandle<Result<()>>, Arc<AtomicBool>)>,
+}
+impl Source {
+    /// Stops the source; an app source reports why it ended early, if it did.
+    fn close(&mut self) -> Option<String> {
+        self.stream.take();
+        let (thread, quit) = self.app.take()?;
+        quit.store(true, Ordering::Release);
+        match thread.join() {
+            Ok(Err(e)) => Some(e.to_string()),
+            _ => None,
+        }
+    }
+}
+impl Drop for Source {
+    fn drop(&mut self) {
+        self.close();
+    }
+}
+
 pub fn run(engine: &Ingest, args: &Value, record: bool) -> Result<()> {
+    if let Some(app) = args["app"].as_str() {
+        return run_app(engine, args, record, &app.to_lowercase());
+    }
     let id = args["id"].as_str().unwrap_or("auto");
     let rate = args["rate"].as_u64().unwrap_or(48000) as u32;
     let d = device(id)?;
@@ -122,38 +155,51 @@ pub fn run(engine: &Ingest, args: &Value, record: bool) -> Result<()> {
         .ok_or_else(|| anyhow!("Wejście nie obsługuje wybranej częstotliwości w mono/stereo"))?
         .with_sample_rate(rate);
     let channels = config.channels();
-    let session = hex(getrandom_bytes()?);
-    let dir = engine.root().join(&session);
-    let partial = dir.join("master.wav.partial");
-    let mut wav = if record {
-        std::fs::create_dir_all(&dir)?;
-        Some(wav::Wav::create(&partial, rate, channels, 24)?)
-    } else {
-        None
-    };
-    {
-        let mut s = engine.state.lock().unwrap();
-        s.session = session;
-        s.rate = rate;
-        s.channels = channels;
-        s.input_format = format!("{:?}", config.sample_format());
-        s.recording = record;
+    let format = format!("{:?}", config.sample_format());
+    let (tx, rx) = RingBuffer::<Packet>::new(256);
+    let stream = device_stream(&d, &config, tx, engine)?;
+    write(engine, args, record, rate, channels, &format, rx, Source { stream: Some(stream), app: None })
+}
+
+#[cfg(feature = "desktop")]
+fn run_app(engine: &Ingest, args: &Value, record: bool, app: &str) -> Result<()> {
+    // Most streaming apps decode at 44.1 kHz; Windows converts if the app uses another rate.
+    let rate = if args["rate"].as_u64() == Some(48000) { 48000 } else { 44100 };
+    let (mut tx, rx) = RingBuffer::<Packet>::new(512);
+    let quit = Arc::new(AtomicBool::new(false));
+    let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel(1);
+    let signals = engine.signals.clone();
+    let (q, id) = (quit.clone(), app.to_string());
+    let thread = std::thread::spawn(move || {
+        super::app_capture::run(&id, rate, q, ready_tx, |data| push(data, 2, &mut tx, &signals))
+    });
+    match ready_rx.recv_timeout(Duration::from_secs(8)) {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => {
+            let _ = thread.join();
+            return Err(e);
+        }
+        Err(_) => {
+            quit.store(true, Ordering::Release);
+            bail!("Windows nie otworzył dźwięku aplikacji.")
+        }
     }
-    if record {
-        std::fs::write(
-            dir.join("session.json"),
-            serde_json::to_vec_pretty(
-                &json!({"label":args["label"],"rate":rate,"channels":channels,"inputFormat":format!("{:?}",config.sample_format()),"containerBits":24,"markers":[]}),
-            )?,
-        )?;
-    }
-    let (mut tx, mut rx) = RingBuffer::<Packet>::new(256);
+    write(engine, args, record, rate, 2, "Aplikacja (32-bit float)", rx, Source { stream: None, app: Some((thread, quit)) })
+}
+
+#[cfg(not(feature = "desktop"))]
+fn run_app(_: &Ingest, _: &Value, _: bool, _: &str) -> Result<()> {
+    bail!("Nagrywanie z aplikacji działa w wersji Windows")
+}
+
+fn device_stream(d: &cpal::Device, config: &cpal::SupportedStreamConfig, mut tx: Producer<Packet>, engine: &Ingest) -> Result<cpal::Stream> {
+    let channels = config.channels();
     let signals = engine.signals.clone();
     let sig = signals.clone();
     let on_error = move |_e| {
         sig.failed.store(true, Ordering::Release);
     };
-    let stream = match config.sample_format() {
+    Ok(match config.sample_format() {
         cpal::SampleFormat::F32 => d.build_input_stream(
             config.config(),
             move |data: &[f32], _| push(data, channels as usize, &mut tx, &signals),
@@ -173,8 +219,49 @@ pub fn run(engine: &Ingest, args: &Value, record: bool) -> Result<()> {
             None,
         )?,
         _ => bail!("Nieobsługiwany format wejścia"),
+    })
+}
+
+/// Writes what the source delivers into the session's master file.
+#[allow(clippy::too_many_arguments)]
+fn write(
+    engine: &Ingest,
+    args: &Value,
+    record: bool,
+    rate: u32,
+    channels: u16,
+    format: &str,
+    mut rx: rtrb::Consumer<Packet>,
+    mut source: Source,
+) -> Result<()> {
+    let session = hex(getrandom_bytes()?);
+    let dir = engine.root().join(&session);
+    let partial = dir.join("master.wav.partial");
+    let mut wav = if record {
+        std::fs::create_dir_all(&dir)?;
+        Some(wav::Wav::create(&partial, rate, channels, 24)?)
+    } else {
+        None
     };
-    stream.play()?;
+    {
+        let mut s = engine.state.lock().unwrap();
+        s.session = session;
+        s.rate = rate;
+        s.channels = channels;
+        s.input_format = format.to_string();
+        s.recording = record;
+    }
+    if record {
+        std::fs::write(
+            dir.join("session.json"),
+            serde_json::to_vec_pretty(
+                &json!({"label":args["label"],"rate":rate,"channels":channels,"inputFormat":format,"app":args["app"],"containerBits":24,"markers":[]}),
+            )?,
+        )?;
+    }
+    if let Some(stream) = &source.stream {
+        stream.play()?;
+    }
     let mut buffer = Vec::with_capacity(3072);
     let mut disk_error = None;
     let mut last_sync = std::time::Instant::now();
@@ -183,11 +270,32 @@ pub fn run(engine: &Ingest, args: &Value, record: bool) -> Result<()> {
     let mut written: u64 = 0;
     let mut quiet_since: Option<u64> = None;
     let mut auto_ended = false;
+    // App recordings start with the first sound (pressing play in the app after
+    // starting here leaves no silence at the front) and may end at the album's length.
+    let mut heard = !(record && args["waitForSound"].as_bool().unwrap_or(false));
+    if !heard {
+        engine.state.lock().unwrap().step = "Czekam na dźwięk z aplikacji. Włącz album od pierwszego utworu.".into();
+    }
+    let max_frames = args["maxMs"].as_u64().filter(|ms| *ms >= 10_000).map(|ms| ms * rate as u64 / 1000);
     while !engine.signals.stop.load(Ordering::Acquire)
         && !engine.signals.failed.load(Ordering::Acquire)
         && !auto_ended
     {
         while let Ok(p) = rx.pop() {
+            if !heard {
+                let peak = p.samples[..p.len].iter().fold(0f32, |m, x| m.max(x.abs()));
+                engine.signals.frames.store(0, Ordering::Release);
+                if peak < 0.001 {
+                    continue;
+                }
+                heard = true;
+                engine.state.lock().unwrap().step.clear();
+            }
+            if max_frames.is_some_and(|m| written >= m) {
+                auto_ended = true;
+                engine.state.lock().unwrap().ended = "length".into();
+                break;
+            }
             if let (Some(limit), true) = (auto_stop, record) {
                 let peak = p.samples[..p.len].iter().fold(0f32, |m, x| m.max(x.abs()));
                 if peak < 0.00316 {
@@ -232,8 +340,11 @@ pub fn run(engine: &Ingest, args: &Value, record: bool) -> Result<()> {
         }
         std::thread::sleep(Duration::from_millis(4));
     }
-    drop(stream);
+    let source_error = source.close();
     while let Ok(p) = rx.pop() {
+        if !heard || auto_ended {
+            break;
+        }
         if disk_error.is_none() {
             if let Some(w) = wav.as_mut() {
                 buffer.clear();
@@ -251,9 +362,17 @@ pub fn run(engine: &Ingest, args: &Value, record: bool) -> Result<()> {
             }
         }
     }
+    if record && !heard {
+        drop(wav);
+        let _ = std::fs::remove_dir_all(&dir);
+        if let Some(e) = source_error {
+            bail!("{e}")
+        }
+        bail!("Z aplikacji nie popłynął żaden dźwięk. Nic nie zapisano.")
+    }
     if let Some(mut w) = wav {
         if disk_error.is_none() {
-            if auto_ended {
+            if auto_ended && engine.state.lock().unwrap().ended != "length" {
                 // Keep one second of the closing silence.
                 if let Some(q) = quiet_since {
                     w.truncate(q + rate as u64)?;
@@ -271,13 +390,16 @@ pub fn run(engine: &Ingest, args: &Value, record: bool) -> Result<()> {
             std::fs::write(
                 dir.join("session.json"),
                 serde_json::to_vec_pretty(
-                    &json!({"label":args["label"],"rate":rate,"channels":channels,"inputFormat":s.input_format,"containerBits":24,"markers":s.markers,"frames":frames,"dropouts":engine.signals.dropped.load(Ordering::Acquire),"clips":engine.signals.clips.load(Ordering::Acquire)}),
+                    &json!({"label":args["label"],"rate":rate,"channels":channels,"inputFormat":s.input_format,"app":args["app"],"containerBits":24,"markers":s.markers,"frames":frames,"dropouts":engine.signals.dropped.load(Ordering::Acquire),"clips":engine.signals.clips.load(Ordering::Acquire)}),
                 )?,
             )?;
         }
     }
     if let Some(e) = disk_error {
         bail!("Błąd zapisu: {e}. Zachowano plik częściowy do odzyskania.")
+    }
+    if let Some(e) = source_error {
+        bail!("{e} Zachowano nagrany fragment.")
     }
     if engine.signals.failed.load(Ordering::Acquire) {
         bail!("Nagranie zatrzymano po błędzie wejścia lub utracie próbek ({}). Zachowano zapisany fragment, bez ukrywania przerwy.",engine.signals.dropped.load(Ordering::Acquire))

@@ -17,6 +17,7 @@ pub mod airplay;
 pub mod network;
 pub mod radio;
 pub mod shop;
+pub mod spotify;
 
 pub mod ingest;
 

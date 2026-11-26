@@ -21,6 +21,6 @@ jobs:
       - run: cat analyze.txt
       - run: flutter test ${WIP_TESTS:-test/radio_test.dart} > tests.txt 2>&1 || true
         env:
-          WIP_TESTS: test/radio_test.dart test/desktop_panels_test.dart test/l10n_test.dart test/audio_player_test.dart
+          WIP_TESTS: test/radio_test.dart test/desktop_panels_test.dart test/l10n_test.dart test/audio_player_test.dart test/ingest_test.dart
       - run: |
           tr '\r' '\n' < tests.txt | grep -vE '^[0-9:]+ \+[0-9]+(: | ~[0-9]+: )(loading|[^-]*$)' | tail -150

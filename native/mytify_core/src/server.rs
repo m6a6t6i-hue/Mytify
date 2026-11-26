@@ -180,6 +180,17 @@ fn encode_tracks(app: &App) -> Result<Value> {
     Ok(serde_json::to_value(tracks)?)
 }
 
+/// Album behind a Spotify link, with its cover stored like any chosen cover.
+fn spotify_album(app: &App, link: &str) -> Result<Value> {
+    let album = crate::spotify::album(link)?;
+    let cover = crate::spotify::cover(&album).and_then(|b| app.metadata.store_cover(&b).ok());
+    let mut out = serde_json::to_value(&album)?;
+    if let Some(hash) = cover {
+        out["cover"] = json!({"hash": hash, "uri": format!("{}/api/artwork/{hash}?token={}", app.origin, app.token)});
+    }
+    Ok(out)
+}
+
 fn start_job(app: &Arc<App>, scan: ScanRequest) -> Result<String> {
     if app
         .busy
@@ -303,7 +314,13 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
             };
         }
         if path == "/api/ingest" && method == Method::Post {
-            let result = read_json(&mut request).and_then(|v| app.ingest.command(v));
+            let result = read_json(&mut request).and_then(|v| {
+                if v["action"] == "spotifyAlbum" {
+                    spotify_album(&app, v["url"].as_str().unwrap_or(""))
+                } else {
+                    app.ingest.command(v)
+                }
+            });
             return match result {
                 Ok(v) => send_json(request, 200, v),
                 Err(e) => send_error(request, 400, e),

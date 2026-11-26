@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mytify/audio_settings.dart';
 import 'package:mytify/ingest.dart';
 import 'package:mytify/main.dart';
+import 'package:mytify/metadata_models.dart';
 import 'package:mytify/mini_player.dart';
 import 'package:mytify/player_ui.dart';
 import 'package:mytify/repository_android.dart';
@@ -33,8 +34,109 @@ class DesktopRepo extends AndroidLibraryRepository implements IngestRepository {
   }
 }
 
+/// A PC with Spotify playing: one app, a Spotify album, a recording that ends.
+class AppRecordingRepo extends DesktopRepo {
+  final requests = <Map<String, dynamic>>[];
+  Map<String, dynamic> state = {'running': false, 'stage': ''};
+  bool recorded = false;
+  static const release = ReleaseCandidate(
+    id: '0e8f1c2a-0000-4000-8000-000000000001',
+    title: 'Album',
+    artist: 'Zespół',
+    date: '2001-02-03',
+    country: 'XW',
+    format: 'Digital Media',
+    label: '',
+    barcode: '',
+    disambiguation: '',
+    trackCount: 2,
+    score: 100,
+  );
+
+  void finishRecording() {
+    recorded = true;
+    state = {'running': false, 'stage': 'finished', 'recording': false, 'session': 's1', 'ended': 'length', 'files': []};
+  }
+
+  @override
+  Future<dynamic> ingest(Map<String, dynamic> request) async {
+    requests.add(request);
+    ingestCalls.add(request['action'] as String);
+    return switch (request['action']) {
+      'apps' => [
+        {'id': 'chrome', 'name': 'Chrome', 'pid': 7, 'playing': false},
+        {'id': 'spotify', 'name': 'Spotify', 'pid': 42, 'playing': true},
+      ],
+      'spotifyAlbum' => {
+        'id': '6dVIqQ8qmQ5GBnJ9shOYGE',
+        'title': 'Album',
+        'artist': 'Zespół',
+        'date': '2001-02-03',
+        'trackCount': 2,
+        'tracks': [
+          {'title': 'Pierwszy - Remastered', 'artist': 'Zespół', 'durationMs': 60000},
+          {'title': 'Drugi', 'artist': 'Zespół', 'durationMs': 90000},
+        ],
+      },
+      'record' => state = {'running': true, 'stage': 'recording', 'recording': true, 'session': 's1', 'step': ''},
+      'export' => state = {'running': true, 'stage': 'exporting'},
+      'state' => state,
+      'sessions' => [
+        if (recorded) {'id': 's1', 'label': 'Zespół · Album', 'durationMs': 165000, 'app': 'spotify', 'markers': []},
+      ],
+      'waveform' => {'rate': 44100, 'frames': 44100 * 165, 'perPoint': 44100, 'peaks': List.filled(330, 0.5)},
+      'align' => [61000],
+      _ => super.ingest(request),
+    };
+  }
+
+  @override
+  Future<List<ReleaseCandidate>> findReleases(String album, String artist) async => [release];
+  @override
+  Future<ReleaseInfo> releaseDetails(String id) async => const ReleaseInfo(release, [
+    ReleaseSong(title: 'Pierwszy', artist: 'Zespół', discNumber: 1, trackNumber: 1, durationMs: 59000),
+    ReleaseSong(title: 'Drugi', artist: 'Zespół', discNumber: 1, trackNumber: 2, durationMs: 91000),
+  ]);
+  @override
+  Future<CoverChoice?> downloadCover(String id) async => null;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('app recording: Spotify link, MusicBrainz names, Spotify lengths, cut and saved as MP3 320', () async {
+    final repo = AppRecordingRepo();
+    final s = IngestState(repository: repo, library: repo, beforeCapture: () async {}, onLibraryChanged: () async {});
+    await s.refresh();
+    expect(s.app, 'spotify');
+    s.spotifyLink.text = 'https://open.spotify.com/album/6dVIqQ8qmQ5GBnJ9shOYGE';
+    await s.loadSpotify();
+    expect(s.error, isNull);
+    expect(s.vinylForm.album.text, 'Album');
+    expect([for (final t in s.tracklist!.tracks) t.title], ['Pierwszy', 'Drugi']);
+    expect(s.vinylForm.releaseId, AppRecordingRepo.release.id);
+    // Lengths are Spotify's: that is what the app plays.
+    expect(s.albumMs, 150000);
+    await s.recordApp();
+    final record = repo.requests.lastWhere((r) => r['action'] == 'record');
+    expect(record['app'], 'spotify');
+    expect(record['waitForSound'], isTrue);
+    expect(record['maxMs'], 165000);
+    repo.finishRecording();
+    await s.poll();
+    for (var i = 0; i < 100 && !repo.requests.any((r) => r['action'] == 'export'); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(repo.requests.firstWhere((r) => r['action'] == 'align')['durations'], [60000, 90000]);
+    final export = repo.requests.lastWhere((r) => r['action'] == 'export');
+    expect(export['mp3Only'], isTrue);
+    expect(export['mp3Kbps'], 320);
+    expect(export['titles'], ['Pierwszy', 'Drugi']);
+    expect(export['markers'], [61000]);
+    expect(export['endMs'], 61000 + 90000 + 1500);
+    expect(export['restore'], {'declick': false, 'speed': 1});
+    s.dispose();
+  });
   const channel = MethodChannel('pl.mytify/library');
   const events = MethodChannel('pl.mytify/import');
   late Map<String, dynamic> audio;
@@ -210,7 +312,7 @@ void main() {
     expect(find.byType(Sidebar), findsOneWidget);
     expect(find.byType(PlayerBar), findsOneWidget);
     expect(find.text('Nie wykryto napędu'), findsOneWidget);
-    expect(repo.ingestCalls.toSet().difference({'drives', 'inputs', 'sessions', 'state', 'folders', 'media'}), isEmpty);
+    expect(repo.ingestCalls.toSet().difference({'drives', 'inputs', 'apps', 'sessions', 'state', 'folders', 'media'}), isEmpty);
     expect(commands.where((c) => c['action'] == 'pause'), isEmpty);
     await finish(tester);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
