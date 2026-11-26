@@ -269,8 +269,8 @@ internal class PhoneShare(
     fun command(v: JSONObject): JSONObject {
         when (v.optString("action", "status")) {
             "status" -> {}
-            "start" -> start(v.optString("host").ifEmpty { null })
-            "renew" -> renew(v.optString("host").ifEmpty { null })
+            "start" -> start(v.text("host"))
+            "renew" -> renew(v.text("host"))
             "stop" -> stop()
             "revoke" ->
                 synchronized(lock) {

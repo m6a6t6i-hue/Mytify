@@ -289,7 +289,8 @@ class MainActivity : FlutterActivity() {
                 }
                 "testSource", "browseSource", "saveSource" -> {
                     val args = JSONObject(call.arguments as String)
-                    val id = args.optString("id").ifEmpty { null }
+                    // A new source comes with "id": null, which optString turns into the text "null".
+                    val id = args.text("id")
                     val config = args.getJSONObject("config")
                     background(r, sourceWorker) {
                         when (call.method) {

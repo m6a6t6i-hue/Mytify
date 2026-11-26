@@ -175,4 +175,15 @@ class SmbTest {
         assertTrue(catalog.track(track).getBoolean("available"))
         catalog.forget(id)
     }
+
+    @Test fun aNewSourceFromTheAppHasNoId() {
+        // The app sends {"id": null} for a new source; it must not become the id "null".
+        assertNull(JSONObject("""{"id":null,"config":{}}""").text("id"))
+        assertNull(JSONObject("""{"id":""}""").text("id"))
+        assertNull(JSONObject("{}").text("id"))
+        assertEquals("abc", JSONObject("""{"id":"abc"}""").text("id"))
+        val id = catalog.saveNetwork(JSONObject("""{"id":null}""").text("id"), config("host" to "192.168.100.105", "share" to "music", "user" to "mytify", "password" to "x"))
+        assertEquals("smb", catalog.sourceList().getJSONObject(0).getString("protocol"))
+        assertEquals(id, catalog.sourceList().getJSONObject(0).getString("id"))
+    }
 }
