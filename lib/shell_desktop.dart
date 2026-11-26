@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'design.dart';
 import 'main.dart';
+import 'radio.dart';
 import 'model.dart';
 import 'player_ui.dart';
 import 'playlists.dart';
@@ -477,6 +478,7 @@ class Sidebar extends StatelessWidget {
                 final nav = <Widget>[
                   _item(Icons.home_outlined, Icons.home_rounded, tr('Start'), Nav.home),
                   _item(Icons.search_rounded, Icons.manage_search_rounded, tr('Szukaj'), Nav.search),
+                  if (app.radio != null) _item(Icons.radio_outlined, Icons.radio_rounded, tr('Radio'), const Nav('radio')),
                   _label(tr('Biblioteka')),
                   _item(Icons.album_outlined, Icons.album_rounded, tr('Albumy'), const Nav('library', 'albums'), active: _active('library', 'albums') || _active('library', 'all') || _active('album')),
                   _item(Icons.person_outline_rounded, Icons.person_rounded, tr('Artyści'), const Nav('library', 'artists'), active: _active('library', 'artists') || _active('artist')),

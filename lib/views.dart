@@ -13,6 +13,7 @@ import 'library_index.dart';
 import 'links.dart';
 import 'main.dart';
 import 'model.dart';
+import 'radio.dart';
 import 'player_ui.dart';
 import 'playlists.dart';
 import 'track_table.dart';
@@ -47,6 +48,7 @@ Widget pageFor(LibraryScreenState app, Nav nav) {
     'downloads' => DownloadsPage(app: app),
     'cleanup' => CleanupPage(app: app),
     'transfer' when app.canTransfer => app.transferScreen(),
+    'radio' when app.radio != null => RadioPage(app: app),
     _ => HomePage(app: app),
   };
 }
@@ -62,6 +64,7 @@ String pageTitle(LibraryScreenState app, Nav nav) => switch (nav.page) {
   'settings' => settingsTitle(nav.arg) ?? tr('Ustawienia'),
   'downloads' => tr('Pobrane'),
   'cleanup' => tr('Porządki'),
+  'radio' => tr('Radio'),
   'sources' => tr('Źródła muzyki'),
   'import' => tr('Płyty CD i winyle'),
   'transfer' => app.isPhone ? tr('Przesyłanie muzyki') : tr('Połącz telefon'),
@@ -1911,7 +1914,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.21']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.22']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),

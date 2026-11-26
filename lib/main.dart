@@ -17,6 +17,7 @@ import 'model.dart';
 import 'player_ui.dart';
 import 'playlists.dart';
 import 'queue.dart';
+import 'radio.dart';
 import 'repository.dart';
 import 'shell_desktop.dart';
 import 'shell_mobile.dart';
@@ -212,7 +213,7 @@ class Nav {
   int get hashCode => Object.hash(page, arg);
   String get key => '$page:${arg ?? ''}';
   static const home = Nav('home'), search = Nav('search');
-  bool get isRoot => page == 'home' || page == 'search' || page == 'library';
+  bool get isRoot => page == 'home' || page == 'search' || page == 'library' || page == 'radio';
 }
 
 class LibraryScreen extends StatefulWidget {
@@ -260,6 +261,9 @@ class LibraryScreenState extends State<LibraryScreen> {
   String? startupError;
   String? _openedTrackId;
   bool loading = true, importing = false, playing = false;
+
+  /// PC: logos of stations come through the core; null on Android (loaded directly).
+  String? radioLogoBase;
   /// Start animation runs once per app start, never on resume or navigation.
   bool showIntro = introOnStart;
   ImportProgress progress = const ImportProgress(0, 0, '');
@@ -280,6 +284,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     [Nav.home],
     [Nav.search],
     [const Nav('library', 'all')],
+    [const Nav('radio')],
   ];
   bool homePlayerVisible = true;
   /// Bumped on every navigation; keys page transitions so rapid toggles never collide.
@@ -321,10 +326,22 @@ class LibraryScreenState extends State<LibraryScreen> {
     );
     subscriptions.add(
       player.stream.error.listen((error) {
-        if (mounted) message(tr('Nie udało się odtworzyć pliku: {0}', [error]));
+        if (!mounted) return;
+        message(
+          isRadio(player.state.currentId)
+              ? tr('Radio: {0}', [trMessage(error)])
+              : tr('Nie udało się odtworzyć pliku: {0}', [error]),
+        );
       }),
     );
     subscriptions.add(player.stream.snapshot.listen(syncNativeAudio));
+    if (repository is RadioRepository) {
+      unawaited(
+        (repository as RadioRepository).radioLogoBase().then((v) {
+          if (mounted && v != null) setState(() => radioLogoBase = v);
+        }).catchError((Object _) {}),
+      );
+    }
     unawaited(prefs.load().then((_) {
       final p = paletteById(prefs.get<String>('palette', 'mytify'));
       final l = prefs.get<String>('lang', 'pl');
@@ -373,7 +390,14 @@ class LibraryScreenState extends State<LibraryScreen> {
   void syncNativeAudio(AudioSnapshot state) {
     if (!mounted) return;
     _account(state);
-    final items = state.queueIds
+    final onAir = state.radio;
+    if (onAir != null) {
+      final title = (onAir['title'] as String?)?.trim();
+      if (title != null && title.isNotEmpty && state.playing) recordHeard(title, onAir['name'] as String? ?? '');
+    }
+    final items = onAir != null
+        ? [radioTrack(onAir, radioLogoUri)]
+        : state.queueIds
         .map((id) => index.byId[id])
         .whereType<Track>()
         .toList();
@@ -384,6 +408,7 @@ class LibraryScreenState extends State<LibraryScreen> {
           items.map((t) => t.id).toList(),
         ) ||
         queue.current?.id != state.currentId ||
+        (onAir != null && (queue.current?.title != items.first.title || queue.current?.cover != items.first.cover)) ||
         queue.shuffled != state.shuffled ||
         queue.repeat != state.repeat ||
         !_audioVolumeInitialized ||
@@ -414,7 +439,8 @@ class LibraryScreenState extends State<LibraryScreen> {
 
   void _account(AudioSnapshot s) {
     final now = DateTime.now();
-    final id = s.currentId;
+    // Stations are not tracks: they do not enter the listening history.
+    final id = isRadio(s.currentId) ? null : s.currentId;
     if (id != _histId) {
       _histId = id;
       _histMs = 0;
@@ -512,6 +538,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (recent != null) return playAlbum(recent);
       return playTracks(tracks);
     }
+    if (isRadio(track.id)) return audioOperation(player.playOrPause);
     if (!track.available) {
       message(tr('Źródło jest niedostępne. Podłącz je i wykonaj skan.'));
       return;
@@ -683,6 +710,15 @@ class LibraryScreenState extends State<LibraryScreen> {
   }
 
   Future<void> toggleLike(Track track) async {
+    if (isRadio(track.id)) {
+      final onAir = onAirText();
+      if (onAir == null || onAir.isEmpty) {
+        message(tr('Stacja nie podaje, co gra. Nie ma czego szukać w bibliotece.'));
+      } else {
+        findInLibrary(onAir);
+      }
+      return;
+    }
     final next = !track.liked;
     setState(() {
       index = LibraryIndex.build([
@@ -877,6 +913,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     MusicPlaylist? playlist,
     List<Track>? within,
   }) {
+    if (isRadio(t.id)) return radioMenu(t);
     final many = selected.length > 1 && selected.contains(t.id) && desktopMode;
     final list = many
         ? selected.map((id) => index.byId[id]).whereType<Track>().toList()
@@ -965,7 +1002,9 @@ class LibraryScreenState extends State<LibraryScreen> {
     ]);
   }
 
-  void showTrackInfo(Track t) => showDialog<void>(
+  void showTrackInfo(Track t) => isRadio(t.id)
+      ? unawaited(radioMenu(t))
+      : showDialog<void>(
     context: context,
     builder: (_) => TrackInfoDialog(track: t, snapshot: player.state),
   );
@@ -1035,7 +1074,7 @@ class LibraryScreenState extends State<LibraryScreen> {
         _forward.clear();
         _route = next;
       } else if (next.isRoot) {
-        final t = switch (next.page) { 'home' => 0, 'search' => 1, _ => 2 };
+        final t = switch (next.page) { 'home' => 0, 'search' => 1, 'radio' => 3, _ => 2 };
         tab = t;
         if (next.page == 'library') {
           _stacks[2] = [next];

@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 
 import 'model.dart';
+import 'radio.dart';
 import 'playlists.dart';
 import 'l10n.dart';
 
@@ -13,7 +14,26 @@ class AndroidLibraryRepository extends LibraryRepository
     implements
         PlaylistRepository,
         TransferRepository,
-        LibraryChangesRepository {
+        LibraryChangesRepository,
+        RadioRepository {
+  Future<dynamic> _radioCall(String action, Map<String, dynamic> body) =>
+      _call('radio', jsonEncode({...body, 'action': action}));
+  @override
+  Future<List<Station>> radioSearch(Map<String, String> query) async => [
+    for (final v in await _radioCall('search', query) as List) ?Station.fromJson(Map<String, dynamic>.from(v as Map)),
+  ];
+  @override
+  Future<String?> radioClick(String id) async => ((await _radioCall('click', {'id': id})) as Map)['url'] as String?;
+  @override
+  Future<Map<String, dynamic>> radioProbe(String url) async => Map<String, dynamic>.from(await _radioCall('probe', {'url': url}) as Map);
+  @override
+  Future<void> radioFavorites(List<Station> stations) async {
+    await _radioCall('favorites', {'stations': [for (final s in stations) s.toJson()]});
+  }
+  @override
+  Future<String?> radioLogoBase() async => null;
+  @override
+  bool get radioHls => true;
   @override
   bool get queueRestore => false;
   @override

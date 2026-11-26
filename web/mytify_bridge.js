@@ -180,6 +180,17 @@
       }
       throw new Error("Nieznana operacja metadanych.");
     },
+    async radio(action, body) {
+      const args = JSON.parse(body || "{}");
+      if (action === "search") return JSON.stringify(await api("/api/radio/search?" + new URLSearchParams(Object.entries(args).map(([k, v]) => [k, String(v)])).toString()));
+      if (action === "click") return JSON.stringify(await api("/api/radio/click", { method: "POST", body: { id: args.id } }));
+      if (action === "probe") return JSON.stringify(await api("/api/radio/probe", { method: "POST", body: { url: args.url } }));
+      if (action === "logoBase") {
+        const s = await session();
+        return JSON.stringify(s.base + "/api/radio/logo?token=" + encodeURIComponent(s.token) + "&u=");
+      }
+      throw new Error("Nieznana operacja radia.");
+    },
     async load() {
       return JSON.stringify(await api("/api/library"));
     },

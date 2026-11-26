@@ -428,6 +428,9 @@ class SeekBar extends StatefulWidget {
   final Duration position, duration;
   final ValueChanged<Duration>? onSeek;
   final bool showTimes, thin, playing, compact, timesBelow;
+
+  /// A live stream: no end and nothing to seek; the bar stays full and shows the levels.
+  final bool live;
   final int seed;
   final Color? color;
   const SeekBar({
@@ -440,6 +443,7 @@ class SeekBar extends StatefulWidget {
     this.playing = false,
     this.compact = false,
     this.timesBelow = true,
+    this.live = false,
     this.seed = 0,
     this.color,
   });
@@ -456,7 +460,7 @@ class _SeekBarState extends State<SeekBar>
   bool reduced = false, resumed = true;
   LevelFeed? _feed;
 
-  bool get _live => !widget.thin && widget.duration > Duration.zero;
+  bool get _live => !widget.thin && (widget.duration > Duration.zero || widget.live);
   VisualizerStyle get _style => widget.compact ? VisualizerStyle.compact : VisualizerStyle.regular;
 
   @override
@@ -538,9 +542,11 @@ class _SeekBarState extends State<SeekBar>
   @override
   Widget build(BuildContext context) {
     final total = widget.duration.inMilliseconds;
-    final known = total > 0;
-    final enabled = known && widget.onSeek != null;
-    final value = !known
+    final known = total > 0 || widget.live;
+    final enabled = total > 0 && !widget.live && widget.onSeek != null;
+    final value = widget.live
+        ? 1.0
+        : !known
         ? 0.0
         : (dragging ?? widget.position.inMilliseconds.clamp(0, total) / total)
               .toDouble();
@@ -589,7 +595,7 @@ class _SeekBarState extends State<SeekBar>
                       value: value,
                       known: known,
                       active: active,
-                      color: enabled ? color : secondaryText,
+                      color: enabled || widget.live ? color : secondaryText,
                       thumb: _thumb,
                       compact: widget.compact,
                       style: _style,
@@ -655,11 +661,20 @@ class _SeekBarState extends State<SeekBar>
       fontFeatures: const [FontFeature.tabularFigures()],
     );
     final left = Text(known ? clock(shown) : '--:--', style: style);
-    final right = Text(
-      known ? clock(total) : '--:--',
-      textAlign: TextAlign.right,
-      style: style,
-    );
+    final Widget right = widget.live
+        ? Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(width: 7, height: 7, decoration: BoxDecoration(color: widget.playing ? dangerText : secondaryText, shape: BoxShape.circle)),
+              const SizedBox(width: 5),
+              Text(tr('NA ŻYWO'), style: style.copyWith(fontWeight: FontWeight.w700, letterSpacing: .6, fontSize: 11)),
+            ],
+          )
+        : Text(
+            known ? clock(total) : '--:--',
+            textAlign: TextAlign.right,
+            style: style,
+          );
     if (widget.timesBelow) {
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -678,7 +693,7 @@ class _SeekBarState extends State<SeekBar>
         const SizedBox(width: Sp.xs),
         Expanded(child: bar),
         const SizedBox(width: Sp.xs),
-        SizedBox(width: 44, child: right),
+        SizedBox(width: widget.live ? 76 : 44, child: right),
       ],
     );
   }

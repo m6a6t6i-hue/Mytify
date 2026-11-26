@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'design.dart';
 import 'main.dart';
+import 'radio.dart';
 import 'player_ui.dart';
 import 'views.dart';
 import 'widgets.dart';
@@ -97,6 +98,7 @@ class MobileShell extends StatelessWidget {
                   NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: tr('Start')),
                   NavigationDestination(icon: Icon(Icons.search_rounded), selectedIcon: Icon(Icons.manage_search_rounded), label: tr('Szukaj')),
                   NavigationDestination(icon: Icon(Icons.library_music_outlined), selectedIcon: Icon(Icons.library_music_rounded), label: tr('Biblioteka')),
+                  if (app.radio != null) NavigationDestination(icon: Icon(Icons.radio_outlined), selectedIcon: Icon(Icons.radio_rounded), label: tr('Radio')),
                 ],
               ),
             ],
@@ -118,7 +120,7 @@ class _Header extends StatelessWidget {
       // Full screen visualization one tap away while something plays.
       if (route.page == 'home' && app.current != null)
         IconAction(Icons.blur_on_rounded, tr('Wizualizacja'), app.openVisualizer, size: 22, box: 48),
-      if (route.page == 'home') DeviceButton(app: app, size: 22),
+      if (route.page == 'home' || route.page == 'radio') DeviceButton(app: app, size: 22),
       if (route.page == 'library')
         Builder(
           builder: (context) => IconAction(Icons.add_rounded, tr('Dodaj źródło'), () => app.showAddMusic(), size: 24, box: 48),

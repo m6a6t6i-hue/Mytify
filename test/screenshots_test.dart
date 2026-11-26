@@ -144,6 +144,19 @@ class ShotRepo extends AndroidLibraryRepository implements IngestRepository {
 /// Fixed spectrum shaped like music (dBFS per band), only for screenshots.
 final shotBands = [for (var i = 0; i < 40; i++) -18.0 - 14 * (i / 40) + 9 * (i % 7 == 2 ? 1 : 0) - 6 * ((i * 5) % 3)];
 
+/// Made-up stations for the radio screens (no real station names or logos).
+final shotStations = [
+  for (final (i, name, tags, codec, rate) in [
+    (1, 'Fala Jazzu', ['jazz', 'smooth jazz'], 'AAC+', 64),
+    (2, 'Miejskie Radio', ['pop', 'news'], 'MP3', 128),
+    (3, 'Nocna Zmiana', ['electronic'], 'MP3', 192),
+    (4, 'Kamień i Blues', ['rock', 'blues'], 'AAC', 96),
+    (5, 'Klasyka Rano', ['classical'], 'MP3', 256),
+  ])
+    {'id': 'radio:shot$i', 'name': name, 'url': 'https://stream.example/$i', 'tags': tags, 'codec': codec, 'bitrate': rate, 'country': 'PL'},
+];
+var shotOnAir = false;
+
 void main() {
   final enabled = Platform.environment['SCREENSHOTS'] == '1';
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -172,6 +185,27 @@ void main() {
           {'id': 'dlna:uuid-1', 'name': 'Salon · Yamaha / MusicCast (DLNA)'},
           {'id': 'airplay:abc', 'name': 'Kuchnia · AirPlay 2'},
         ],
+        'radio' => shotStations,
+        'audioState' || 'audioCommand' when shotOnAir => {
+          'available': true,
+          'playing': true,
+          'completed': false,
+          'buffering': false,
+          'repeat': false,
+          'shuffled': false,
+          'queueIds': ['radio:shot1'],
+          'currentId': 'radio:shot1',
+          'index': 0,
+          'errorSerial': 0,
+          'revision': 1,
+          'underrunFrames': 0,
+          'renderedFrames': 0,
+          'volume': 70,
+          'positionMs': 754000,
+          'durationMs': 0,
+          'selectedDevice': 'auto',
+          'radio': {'id': 'radio:shot1', 'name': 'Fala Jazzu', 'url': 'https://stream.example/1', 'logo': '', 'title': 'Kwartet Północny - Zimowa ballada', 'codec': 'AAC', 'bitrate': 64},
+        },
         'audioState' || 'audioCommand' => {
           'available': true,
           'playing': true,
@@ -252,6 +286,28 @@ void main() {
     lang = 'pl';
     await close(tester);
   }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('radio', (tester) async {
+    await open(tester, const Size(390, 844));
+    await tester.tap(find.text('Radio').last);
+    await shot(tester, 'm10_radio');
+    shotOnAir = true;
+    await settle(tester);
+    await shot(tester, 'm11_radio_playing');
+    await tester.tap(find.text('Zimowa ballada').first);
+    await shot(tester, 'm12_radio_player');
+    shotOnAir = false;
+    await close(tester);
+  }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('radio desktop', (tester) async {
+    shotOnAir = true;
+    await open(tester, const Size(1440, 900));
+    await tester.tap(find.text('Radio').first);
+    await shot(tester, 'd1440_radio');
+    shotOnAir = false;
+    await close(tester);
+  }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('mobile screens', (tester) async {
     await open(tester, const Size(390, 844));

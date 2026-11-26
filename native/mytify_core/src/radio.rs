@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-pub const USER_AGENT: &str = concat!("Mytify/", env!("CARGO_PKG_VERSION"), " (github.com/m6a6t6i-hue/Mytify)");
+pub const USER_AGENT: &str = "Mytify/0.22 (github.com/m6a6t6i-hue/Mytify)";
 /// Used only when the server list itself cannot be fetched.
 const FALLBACK: [&str; 4] = [
     "de1.api.radio-browser.info",

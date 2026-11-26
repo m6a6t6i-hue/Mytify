@@ -8,6 +8,7 @@ import 'design.dart';
 import 'library_index.dart';
 import 'main.dart';
 import 'model.dart';
+import 'radio.dart';
 import 'widgets.dart';
 import 'l10n.dart';
 
@@ -33,6 +34,18 @@ Widget trackSeek(
   bool timesBelow = true,
 }) {
   final t = app.current;
+  if (t != null && isRadio(t.id)) {
+    // On air: elapsed listening time, live levels, a spinning disc you cannot drag.
+    return SeekBar(
+      position: s.position,
+      duration: Duration.zero,
+      live: true,
+      playing: s.playing,
+      seed: t.id.hashCode,
+      compact: compact,
+      timesBelow: timesBelow,
+    );
+  }
   final loaded = s.currentId != null && s.currentId == t?.id;
   final duration = t == null
       ? Duration.zero
@@ -65,6 +78,8 @@ class TransportControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final has = app.current != null;
+    // A station has no queue: skipping, shuffling and repeating mean nothing there.
+    final queue = has && !isRadio(app.current!.id);
     final box = icon + 18;
     // Scales down instead of overflowing on very narrow screens or large text.
     return FittedBox(
@@ -76,7 +91,7 @@ class TransportControls extends StatelessWidget {
           IconAction(
             Icons.shuffle_rounded,
             app.queue.shuffled ? tr('Wyłącz losowanie') : tr('Losowa kolejność'),
-            has ? () => unawaited(app.toggleShuffle()) : null,
+            queue ? () => unawaited(app.toggleShuffle()) : null,
             active: app.queue.shuffled,
             size: icon - 2,
             box: box,
@@ -87,7 +102,7 @@ class TransportControls extends StatelessWidget {
         IconAction(
           Icons.skip_previous_rounded,
           tr('Poprzedni utwór'),
-          has ? () => unawaited(app.previousTrack()) : null,
+          queue ? () => unawaited(app.previousTrack()) : null,
           size: icon + 4,
           box: box,
         ),
@@ -103,7 +118,7 @@ class TransportControls extends StatelessWidget {
         IconAction(
           Icons.skip_next_rounded,
           tr('Następny utwór'),
-          has ? () => unawaited(app.nextTrack()) : null,
+          queue ? () => unawaited(app.nextTrack()) : null,
           size: icon + 4,
           box: box,
         ),
@@ -112,7 +127,7 @@ class TransportControls extends StatelessWidget {
           IconAction(
             Icons.repeat_rounded,
             app.queue.repeat ? tr('Wyłącz powtarzanie') : tr('Powtarzaj kolejkę'),
-            () => unawaited(app.toggleRepeat()),
+            queue ? () => unawaited(app.toggleRepeat()) : null,
             active: app.queue.repeat,
             size: icon - 2,
             box: box,
@@ -214,7 +229,7 @@ class PlayerBar extends StatelessWidget {
                               ),
                               const SizedBox(height: 2),
                               InkWell(
-                                onTap: () => app.go(Nav('artist', LibraryIndex.artistKeyOf(t.displayArtist))),
+                                onTap: () => app.go(isRadio(t.id) ? const Nav('radio') : Nav('artist', LibraryIndex.artistKeyOf(t.displayArtist))),
                                 child: Text(
                                   t.displayArtist,
                                   maxLines: 1,
@@ -443,7 +458,7 @@ class NowPlayingPanel extends StatelessWidget {
                       Text(t.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Txt.title),
                       const SizedBox(height: Sp.xs),
                       InkWell(
-                        onTap: () => app.go(Nav('artist', LibraryIndex.artistKeyOf(t.displayArtist))),
+                        onTap: () => app.go(isRadio(t.id) ? const Nav('radio') : Nav('artist', LibraryIndex.artistKeyOf(t.displayArtist))),
                         child: Text(t.displayArtist, style: Txt.sub),
                       ),
                       if (album != null && t.album.isNotEmpty)
@@ -1043,7 +1058,7 @@ class MiniPlayer extends StatelessWidget {
                     app: app,
                     builder: (context, s) => Padding(
                       padding: const EdgeInsets.symmetric(horizontal: Sp.s),
-                      child: SeekBar(position: s.currentId == app.current?.id ? s.position : Duration.zero, duration: s.currentId == app.current?.id && s.duration > Duration.zero ? s.duration : Duration(milliseconds: app.current?.durationMs ?? 0), showTimes: false, thin: true),
+                      child: SeekBar(position: s.currentId == app.current?.id ? s.position : Duration.zero, duration: s.currentId == app.current?.id && s.duration > Duration.zero ? s.duration : Duration(milliseconds: app.current?.durationMs ?? 0), showTimes: false, thin: true, live: isRadio(app.current?.id)),
                     ),
                   ),
                   const SizedBox(height: 2),

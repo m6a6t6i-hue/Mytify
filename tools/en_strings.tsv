@@ -828,3 +828,45 @@ Prism Club	Prism Club
 Stroboskop	Strobe
 Retro Amiga	Retro Amiga
 Pulsujące wiązki światła jako dodatkowa scena. Nie pojawia się, gdy system ogranicza animacje.	Pulsing light beams as an extra scene. Not shown when the system reduces animations.
+Adres stacji musi zaczynać się od http:// lub https://	The station address must start with http:// or https://
+Adres strumienia lub listy .pls / .m3u	Stream address or a .pls / .m3u playlist
+Brak stacji.	No stations.
+Dodaj do ulubionych stacji	Add to favourite stations
+Dodaj i słuchaj	Add and listen
+Dodaj stację	Add station
+Dodaj stację z adresu	Add a station from an address
+Dodano do ulubionych stacji	Added to favourite stations
+Dotknij serca przy stacji, żeby mieć ją tutaj i w Android Auto.	Tap the heart next to a station to keep it here and in Android Auto.
+HLS, na PC jeszcze niedostępna	HLS, not available on PC yet
+Katalog stacji: radio-browser.info (społecznościowy, bez reklam).	Station directory: radio-browser.info (community run, no ads).
+NA ŻYWO	LIVE
+Nazwa (opcjonalnie)	Name (optional)
+Popularne stacje	Popular stations
+Popularne w Polsce	Popular in Poland
+Radio	Radio
+Radio: {0}	Radio: {0}
+Sprawdzam…	Checking…
+Stacja nie podaje, co gra. Nie ma czego szukać w bibliotece.	The station does not say what is playing, so there is nothing to look for in the library.
+Szukaj stacji	Search stations
+Szukaj w bibliotece	Search the library
+Słyszane w radiu	Heard on the radio
+Ta stacja nadaje w formacie HLS, który na PC jeszcze nie jest obsługiwany.	This station broadcasts in HLS, which the PC player does not support yet.
+Ulubione stacje	Favourite stations
+Usunięto z ulubionych stacji	Removed from favourite stations
+Usuń z ulubionych stacji	Remove from favourite stations
+Wszystkie stacje	All stations
+Wyniki: {0}	Results: {0}
+Wiadomości	News
+Rozmowy	Talk
+Hip-hop	Hip-hop
+Pod tym adresem jest strona internetowa, a nie strumień radia.	This address is a web page, not a radio stream.
+Stacja nie przesyła dźwięku.	The station sends no audio.
+Stacja zakończyła nadawanie.	The station stopped broadcasting.
+Nie udało się połączyć ze stacją: {0}	Could not connect to the station: {0}
+Nie można połączyć się ze stacją: {0}	Cannot connect to the station: {0}
+Stacja odpowiedziała błędem HTTP {0}.	The station answered with HTTP error {0}.
+Lista stacji nie zawiera adresu strumienia.	The playlist contains no stream address.
+Nieznany format strumienia ({0}).	Unknown stream format ({0}).
+Katalog stacji radiowych nie odpowiada. Sprawdź internet: {0}	The radio directory is not responding. Check your internet connection: {0}
+Strumień AAC jest uszkodzony.	The AAC stream is damaged.
+Nie można odtworzyć stacji ({0}). Sprawdź internet lub wybierz inną stację.	Cannot play the station ({0}). Check your internet connection or pick another station.

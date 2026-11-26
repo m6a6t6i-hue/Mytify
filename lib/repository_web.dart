@@ -8,6 +8,7 @@ import 'dart:js_interop';
 import 'model.dart';
 import 'ingest.dart';
 import 'l10n.dart';
+import 'radio.dart';
 
 @JS('mytifyBridge.load')
 external JSPromise<JSString> _load();
@@ -53,11 +54,31 @@ external JSPromise<JSString> _transfer(JSString body);
 @JS('mytifyBridge.network')
 external JSPromise<JSString> _network(JSString action, JSString body);
 
+@JS('mytifyBridge.radio')
+external JSPromise<JSString> _radio(JSString action, JSString body);
+
 @JS('mytifyBridge.ingest')
 external JSPromise<JSString> _ingest(JSString body);
 
 class WebLibraryRepository extends LibraryRepository
-    implements IngestRepository, PlaylistRepository, TransferRepository {
+    implements IngestRepository, PlaylistRepository, TransferRepository, RadioRepository {
+  Future<dynamic> _radioCall(String action, Map<String, dynamic> body) async =>
+      jsonDecode((await _radio(action.toJS, jsonEncode(body).toJS).toDart).toDart);
+  @override
+  Future<List<Station>> radioSearch(Map<String, String> query) async => [
+    for (final v in await _radioCall('search', query) as List) ?Station.fromJson(Map<String, dynamic>.from(v as Map)),
+  ];
+  @override
+  Future<String?> radioClick(String id) async => ((await _radioCall('click', {'id': id})) as Map)['url'] as String?;
+  @override
+  Future<Map<String, dynamic>> radioProbe(String url) async => Map<String, dynamic>.from(await _radioCall('probe', {'url': url}) as Map);
+  @override
+  Future<void> radioFavorites(List<Station> stations) async {}
+  String? _logoBase;
+  @override
+  Future<String?> radioLogoBase() async => _logoBase ??= await _radioCall('logoBase', {}) as String;
+  @override
+  bool get radioHls => false;
   Future<dynamic> _net(String action, [Object? body]) async =>
       jsonDecode((await _network(action.toJS, (body is String ? body : jsonEncode(body)).toJS).toDart).toDart);
   @override

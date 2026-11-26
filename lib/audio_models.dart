@@ -23,6 +23,10 @@ class AudioSnapshot {
 
   /// {enabled, gains[10]} when this platform has the equalizer.
   final Map<String, dynamic>? equalizer;
+
+  /// The station on air: {id, name, url, logo, title, station, codec, bitrate, reconnecting}.
+  /// `title` is only what the station itself reports.
+  final Map<String, dynamic>? radio;
   final String selectedDevice;
   const AudioSnapshot({
     this.volumeAvailable = true,
@@ -47,6 +51,7 @@ class AudioSnapshot {
     this.source,
     this.output,
     this.equalizer,
+    this.radio,
     this.selectedDevice = 'auto',
   });
   factory AudioSnapshot.fromJson(Map<String, dynamic> j) => AudioSnapshot(
@@ -72,6 +77,7 @@ class AudioSnapshot {
     source: j['source'] as Map<String, dynamic>?,
     output: j['output'] as Map<String, dynamic>?,
     equalizer: j['equalizer'] as Map<String, dynamic>?,
+    radio: j['radio'] is Map ? Map<String, dynamic>.from(j['radio'] as Map) : null,
     selectedDevice: j['selectedDevice'] as String,
   );
 }
