@@ -41,25 +41,31 @@ class LevelSink(sink: AudioSink) : ForwardingAudioSink(sink) {
     @Volatile private var playedUs = Long.MIN_VALUE
     @Volatile private var playedAt = 0L
 
-    private fun reset() {
+    private fun clearLevels() {
         head = 0
         chunks = 0
         lastUs = Long.MIN_VALUE
         playedUs = Long.MIN_VALUE
     }
 
-    override fun configure(inputFormat: Format, specifiedBufferSize: Int, outputChannels: IntArray?) {
+    override fun configure(audioSinkConfig: AudioSink.AudioSinkConfig) {
+        val inputFormat: Format = audioSinkConfig.format
         synchronized(lock) {
             encoding = inputFormat.pcmEncoding
             channels = max(1, inputFormat.channelCount)
             rate = max(1, inputFormat.sampleRate)
-            reset()
+            clearLevels()
         }
-        super.configure(inputFormat, specifiedBufferSize, outputChannels)
+        super.configure(audioSinkConfig)
+    }
+
+    override fun reset() {
+        synchronized(lock) { clearLevels() }
+        super.reset()
     }
 
     override fun flush() {
-        synchronized(lock) { reset() }
+        synchronized(lock) { clearLevels() }
         super.flush()
     }
 

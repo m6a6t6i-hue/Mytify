@@ -73,7 +73,8 @@ class VisualizerScreen extends StatefulWidget {
 }
 
 class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  static Future<ui.FragmentProgram?>? _program;
+  /// Loaded once per app run; a failed load falls back to the simple painter.
+  static ui.FragmentProgram? _program;
   ui.FragmentShader? shader;
   late final ticker = createTicker(_tick);
   StreamSubscription<Object?>? _player;
@@ -93,10 +94,16 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _program ??= ui.FragmentProgram.fromAsset('shaders/visualizer.frag').then<ui.FragmentProgram?>((p) => p).catchError((_) => null);
-    unawaited(_program!.then((p) {
-      if (mounted && p != null) setState(() => shader = p.fragmentShader());
-    }));
+    if (_program != null) {
+      shader = _program!.fragmentShader();
+    } else {
+      unawaited(
+        ui.FragmentProgram.fromAsset('shaders/visualizer.frag').then((p) {
+          _program = p;
+          if (mounted) setState(() => shader = p.fragmentShader());
+        }, onError: (Object _) {}),
+      );
+    }
     _player = app.player.stream.snapshot.listen((_) => _sync());
     if (phone) {
       unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky));
@@ -231,7 +238,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
             final v = d.primaryVelocity ?? 0;
             if (v.abs() > 300) _scene(v < 0 ? 1 : -1);
           },
-          child: ColoredBox(
+          child: Material(
             color: Colors.black,
             child: Stack(
               fit: StackFit.expand,
@@ -291,35 +298,45 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
     );
   }
 
-  Widget _bottom(Track? t, bool playing) => Container(
-    constraints: const BoxConstraints(maxWidth: 720),
-    padding: const EdgeInsets.all(Sp.m),
-    decoration: BoxDecoration(
-      color: Colors.black.withValues(alpha: .45),
-      borderRadius: BorderRadius.circular(Rad.panel),
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          children: [
-            if (t != null) Artwork(t.cover, size: 44, radius: 6),
-            const SizedBox(width: Sp.m),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(t?.title ?? 'Wybierz utwór', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                  if (t != null) Text(t.displayArtist, maxLines: 1, overflow: TextOverflow.ellipsis, style: Txt.meta),
-                ],
-              ),
+  Widget _bottom(Track? t, bool playing) => LayoutBuilder(
+    builder: (context, box) {
+      final narrow = box.maxWidth < 560;
+      final info = Row(
+        children: [
+          if (t != null) Artwork(t.cover, size: 44, radius: 6),
+          const SizedBox(width: Sp.m),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t?.title ?? 'Wybierz utwór', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                if (t != null) Text(t.displayArtist, maxLines: 1, overflow: TextOverflow.ellipsis, style: Txt.meta),
+              ],
             ),
-            TransportControls(app: app, play: 44, icon: 22, gap: Sp.xs),
+          ),
+          if (!narrow) TransportControls(app: app, play: 44, icon: 22, gap: Sp.xs),
+        ],
+      );
+      return Container(
+        constraints: const BoxConstraints(maxWidth: 720),
+        padding: const EdgeInsets.all(Sp.m),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: .45),
+          borderRadius: BorderRadius.circular(Rad.panel),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            info,
+            if (narrow) ...[
+              const SizedBox(height: Sp.s),
+              TransportControls(app: app, play: 52, icon: 24, gap: Sp.s),
+            ],
+            PlayerListener(app: app, builder: (context, s) => trackSeek(app, s, compact: true, timesBelow: false)),
           ],
         ),
-        PlayerListener(app: app, builder: (context, s) => trackSeek(app, s, compact: true, timesBelow: false)),
-      ],
-    ),
+      );
+    },
   );
 }
 

@@ -55,13 +55,14 @@ vec3 tint(float x) {
 }
 
 vec3 plasma(vec2 uv, float t) {
-  float warp = 1.5 + uBass * 1.6;
-  vec2 q = vec2(fbm(uv * 1.5 + vec2(0.0, t * 0.11)), fbm(uv * 1.5 + vec2(5.2, -t * 0.09)));
-  vec2 r = vec2(fbm(uv * 1.3 + warp * q + vec2(1.7, 9.2) + t * 0.13),
-                fbm(uv * 1.3 + warp * q + vec2(8.3, 2.8) - t * 0.10));
-  float f = fbm(uv * 1.1 + (1.7 + uMid) * r);
+  // Large, slow folds: low frequencies and few contour lines keep it calm.
+  float warp = 1.2 + uBass * 1.4;
+  vec2 q = vec2(fbm(uv * 0.9 + vec2(0.0, t * 0.08)), fbm(uv * 0.9 + vec2(5.2, -t * 0.07)));
+  vec2 r = vec2(fbm(uv * 0.8 + warp * q + vec2(1.7, 9.2) + t * 0.10),
+                fbm(uv * 0.8 + warp * q + vec2(8.3, 2.8) - t * 0.08));
+  float f = fbm(uv * 0.7 + (1.4 + uMid) * r);
   // Glowing contour lines of the warped field.
-  float x = f * 7.0;
+  float x = f * 4.5;
   float d = abs(fract(x) - 0.5);
   float sharp = 260.0 + uHigh * 380.0;
   float line = exp(-d * d * sharp);
