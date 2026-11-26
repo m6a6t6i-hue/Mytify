@@ -103,6 +103,7 @@ class HomePage extends StatelessWidget {
         .whereType<AlbumGroup>()
         .toList();
     final card = desktop ? 188.0 : 148.0;
+    final stations = app.radio == null ? const <Station>[] : app.recentStations.take(12).toList();
     final sections = <Widget>[
       if (desktop && app.current != null) _ContinueHero(app: app),
       if (!desktop && app.current != null) HomePlayer(app: app),
@@ -110,6 +111,18 @@ class HomePage extends StatelessWidget {
       if (recentAlbums.isNotEmpty) ...[
         SectionHeader(tr('Ostatnio słuchane'), padding: _hp(desktop)),
         _albumShelf(app, recentAlbums, card),
+      ],
+      if (stations.isNotEmpty) ...[
+        SectionHeader(tr('Ostatnio słuchane stacje'), padding: _hp(desktop), onMore: () => app.go(const Nav('radio'))),
+        Shelf(
+          itemCount: stations.length,
+          height: card + 14,
+          textHeight: cardText,
+          itemWidth: card,
+          padding: EdgeInsets.symmetric(horizontal: desktop ? Sp.l : Sp.s),
+          gap: 0,
+          itemBuilder: (context, i) => stationCard(app, stations[i], card),
+        ),
       ],
       SectionHeader(
         tr('Ostatnio dodane'),
@@ -1914,7 +1927,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.22']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.22.1']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),

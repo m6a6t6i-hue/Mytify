@@ -846,7 +846,6 @@ Popularne w Polsce	Popular in Poland
 Radio	Radio
 Radio: {0}	Radio: {0}
 Sprawdzam…	Checking…
-Stacja nie podaje, co gra. Nie ma czego szukać w bibliotece.	The station does not say what is playing, so there is nothing to look for in the library.
 Szukaj stacji	Search stations
 Szukaj w bibliotece	Search the library
 Słyszane w radiu	Heard on the radio
@@ -870,3 +869,4 @@ Nieznany format strumienia ({0}).	Unknown stream format ({0}).
 Katalog stacji radiowych nie odpowiada. Sprawdź internet: {0}	The radio directory is not responding. Check your internet connection: {0}
 Strumień AAC jest uszkodzony.	The AAC stream is damaged.
 Nie można odtworzyć stacji ({0}). Sprawdź internet lub wybierz inną stację.	Cannot play the station ({0}). Check your internet connection or pick another station.
+Ostatnio słuchane stacje	Recently played stations

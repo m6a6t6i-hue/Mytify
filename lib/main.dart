@@ -396,7 +396,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (title != null && title.isNotEmpty && state.playing) recordHeard(title, onAir['name'] as String? ?? '');
     }
     final items = onAir != null
-        ? [radioTrack(onAir, radioLogoUri)]
+        ? [radioTrack(onAir, radioLogoUri, favorite: isFavoriteStation(onAir['id'] as String? ?? ''))]
         : state.queueIds
         .map((id) => index.byId[id])
         .whereType<Track>()
@@ -408,7 +408,7 @@ class LibraryScreenState extends State<LibraryScreen> {
           items.map((t) => t.id).toList(),
         ) ||
         queue.current?.id != state.currentId ||
-        (onAir != null && (queue.current?.title != items.first.title || queue.current?.cover != items.first.cover)) ||
+        (onAir != null && (queue.current?.title != items.first.title || queue.current?.cover != items.first.cover || queue.current?.liked != items.first.liked)) ||
         queue.shuffled != state.shuffled ||
         queue.repeat != state.repeat ||
         !_audioVolumeInitialized ||
@@ -711,12 +711,8 @@ class LibraryScreenState extends State<LibraryScreen> {
 
   Future<void> toggleLike(Track track) async {
     if (isRadio(track.id)) {
-      final onAir = onAirText();
-      if (onAir == null || onAir.isEmpty) {
-        message(tr('Stacja nie podaje, co gra. Nie ma czego szukać w bibliotece.'));
-      } else {
-        findInLibrary(onAir);
-      }
+      final s = stationFor(track.id);
+      if (s != null) await toggleFavoriteStation(s);
       return;
     }
     final next = !track.liked;

@@ -124,7 +124,10 @@ void main() {
     await settle(tester);
     final play = commands.lastWhere((c) => c['action'] == 'radio');
     expect(play['id'], 'radio:jazz');
-    expect(play['url'], 'https://jazz.example/live?fresh');
+    // Sound starts from the known address; the directory click runs alongside.
+    expect(play['url'], 'https://jazz.example/live');
+    expect(radioCalls.any((c) => c['action'] == 'click' && c['id'] == 'radio:jazz'), isTrue);
+    expect(app.recentStations.first.id, 'radio:jazz');
     expect(app.current?.id, 'radio:jazz');
     expect(app.current?.title, 'Jazz Radio');
 
@@ -140,7 +143,7 @@ void main() {
     expect(find.descendant(of: mini, matching: find.text('So What')), findsOneWidget);
     expect(tester.widget<SeekBar>(find.descendant(of: mini, matching: find.byType(SeekBar))).live, isTrue);
 
-    // Skipping means nothing on air; the heart searches the library for the song.
+    // Skipping means nothing on air; the heart makes the station a favourite.
     await app.nextTrack();
     app.openNowPlaying();
     await settle(tester);
@@ -150,12 +153,15 @@ void main() {
     expect(skip.onPressed, isNull);
     await tester.tap(find.descendant(of: screen, matching: find.byType(LikeButton)));
     await settle(tester);
+    expect(app.isFavoriteStation('radio:jazz'), isTrue);
+    expect(app.current?.liked, isTrue);
+    // What the station announced can be looked up in the library.
+    app.findInLibrary(app.onAirText()!);
+    await settle(tester);
     expect(app.route, Nav.search);
     expect(app.searchText.text, 'Miles Davis So What');
 
     // Favourites are kept and handed to Android Auto.
-    await app.toggleFavoriteStation(app.stationFor('radio:jazz')!);
-    expect(app.isFavoriteStation('radio:jazz'), isTrue);
     final fav = radioCalls.lastWhere((c) => c['action'] == 'favorites');
     expect((fav['stations'] as List).single['id'], 'radio:jazz');
     expect(tester.takeException(), isNull);

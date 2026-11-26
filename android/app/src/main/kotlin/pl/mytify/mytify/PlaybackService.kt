@@ -80,6 +80,8 @@ class PlaybackService : MediaLibraryService() {
     @Volatile private var radioStation: String? = null
     @Volatile private var radioBitrate = 0
     private var lastTitle: String? = null
+    private var radioRetries = 0
+    private var radioRetryId: String? = null
 
     private fun onAir(p: Player) = p.currentMediaItem?.mediaId?.startsWith("radio:") == true
 
@@ -167,6 +169,13 @@ class PlaybackService : MediaLibraryService() {
             .setMediaSourceFactory(
                 androidx.media3.exoplayer.source.DefaultMediaSourceFactory(RoutingDataSource.Factory(this))
             )
+            // A second of audio is enough to start: stations then begin almost at once
+            // (default 2.5 s). Files fill the buffer immediately either way.
+            .setLoadControl(
+                androidx.media3.exoplayer.DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(30_000, 50_000, 1_000, 3_000)
+                    .build()
+            )
             .build()
             .apply {
             setAudioAttributes(
@@ -200,6 +209,24 @@ class PlaybackService : MediaLibraryService() {
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
+                        // Stations drop connections and hand out short-lived addresses:
+                        // ask the directory for the current address and try again twice
+                        // before telling the user.
+                        val id = currentMediaItem?.mediaId
+                        if (id != null && onAir(this@apply) && radioRetries < 2) {
+                            radioRetries++
+                            val player = this@apply
+                            Thread {
+                                val item = runCatching { carCallback.library.playableStation(id) }.getOrNull()
+                                handler.post {
+                                    if (player.currentMediaItem?.mediaId != id) return@post
+                                    if (item != null) player.setMediaItem(item)
+                                    player.prepare()
+                                    player.play()
+                                }
+                            }.start()
+                            return
+                        }
                         errorMessage =
                             if (onAir(this@apply))
                                 Lang.t("Nie można odtworzyć stacji ({0}). Sprawdź internet lub wybierz inną stację.").replace("{0}", error.errorCodeName)
@@ -210,6 +237,8 @@ class PlaybackService : MediaLibraryService() {
                     }
 
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        if (mediaItem?.mediaId != radioRetryId) radioRetries = 0
+                        radioRetryId = mediaItem?.mediaId
                         radioTitle = null
                         radioStation = null
                         radioBitrate = 0
@@ -226,6 +255,7 @@ class PlaybackService : MediaLibraryService() {
                     }
 
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        if (isPlaying) radioRetries = 0
                         revision++
                         save()
                         Widget.update(this@PlaybackService)

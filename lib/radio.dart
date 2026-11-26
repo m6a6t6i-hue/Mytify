@@ -121,7 +121,7 @@ const radioGenres = [
 
 /// The station as a "track" for the shared player UI: title and artist come only from
 /// what the station reports, otherwise the station's own name.
-Track radioTrack(Map<String, dynamic> r, String Function(String logo) logoUri) {
+Track radioTrack(Map<String, dynamic> r, String Function(String logo) logoUri, {bool favorite = false}) {
   final name = (r['name'] as String?)?.trim().isNotEmpty == true ? r['name'] as String : (r['station'] as String? ?? tr('Radio'));
   final onAir = splitOnAir(r['title'] as String?);
   final logo = r['logo'] as String? ?? '';
@@ -135,6 +135,8 @@ Track radioTrack(Map<String, dynamic> r, String Function(String logo) logoUri) {
     format: r['codec'] as String? ?? '',
     size: 0,
     cover: logo.isEmpty ? null : logoUri(logo),
+    // The heart in the player means "favourite station" while on air.
+    liked: favorite,
   );
 }
 
@@ -161,6 +163,7 @@ extension RadioActions on LibraryScreenState {
     list.removeWhere((x) => x.id == s.id);
     if (!had) list.insert(0, s);
     refresh(() => prefs.set('radio.favorites', [for (final x in list) x.toJson()]));
+    syncNativeAudio(player.state);
     message(had ? tr('Usunięto z ulubionych stacji') : tr('Dodano do ulubionych stacji'));
     try {
       await radio?.radioFavorites(list);
@@ -189,19 +192,14 @@ extension RadioActions on LibraryScreenState {
     }
     final recent = recentStations..removeWhere((x) => x.id == s.id);
     refresh(() => prefs.set('radio.recent', [for (final x in [s, ...recent].take(20)) x.toJson()]));
-    var url = s.url;
-    if (!s.id.startsWith('radio:u')) {
-      try {
-        url = await repo.radioClick(s.id) ?? s.url;
-      } catch (_) {
-        /* the directory is only counting the listen; the saved address still plays */
-      }
-    }
+    // Play at once from the known address. The directory only counts the listen,
+    // so that call must not delay the sound (it can take seconds).
+    if (!s.id.startsWith('radio:u')) unawaited(repo.radioClick(s.id).then((_) {}, onError: (Object _) {}));
     await audioOperation(
       () => player.command({
         'action': 'radio',
         'id': s.id,
-        'url': url,
+        'url': s.url,
         'name': s.displayName,
         'logo': s.logo,
         'codec': s.codec,
@@ -224,7 +222,7 @@ extension RadioActions on LibraryScreenState {
     prefs.set('radio.heard', list.take(50).toList());
   }
 
-  /// The heart on air does not like anything: it looks for the song in the library.
+  /// Looks for a song a station announced in the user's own library.
   void findInLibrary(String text) {
     final onAir = splitOnAir(text);
     final q = onAir == null ? text : [?onAir.$1, onAir.$2].join(' ');
@@ -552,6 +550,7 @@ class _RadioPageState extends State<RadioPage> {
     final pad = EdgeInsets.symmetric(horizontal: desktop ? Sp.xl : Sp.l);
     final favorites = app.favoriteStations;
     final heard = app.heardOnRadio.take(8).toList();
+    final recent = app.recentStations.where((s) => !app.isFavoriteStation(s.id)).take(6).toList();
     final children = <Widget>[
       if (desktop) Padding(padding: const EdgeInsets.fromLTRB(Sp.xl, Sp.xl, Sp.xl, Sp.s), child: Text(tr('Radio'), style: Txt.display)),
       Padding(
@@ -621,6 +620,10 @@ class _RadioPageState extends State<RadioPage> {
           )
         else
           for (final s in favorites) _row(s),
+        if (recent.isNotEmpty) ...[
+          _header(tr('Ostatnio słuchane')),
+          for (final s in recent) _row(s),
+        ],
         if (heard.isNotEmpty) ...[
           _header(tr('Słyszane w radiu')),
           for (final h in heard)
@@ -648,4 +651,19 @@ class _RadioPageState extends State<RadioPage> {
     ];
     return ListView(padding: const EdgeInsets.only(bottom: Sp.xl), children: children);
   }
+}
+
+/// Square station tile for shelves (Home: recently played stations).
+Widget stationCard(LibraryScreenState app, Station s, double size) {
+  final onAir = app.player.state.radio?['id'] == s.id;
+  return CollectionCard(
+    cover: null,
+    placeholder: StationLogo(app: app, station: s, size: size - Sp.l),
+    title: s.displayName,
+    subtitle: s.details.isEmpty ? tr('Radio') : s.details,
+    size: size,
+    current: onAir,
+    playing: onAir && app.playing,
+    onOpen: () => unawaited(onAir ? app.togglePlay() : app.playStation(s)),
+  );
 }

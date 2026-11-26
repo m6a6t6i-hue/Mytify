@@ -365,7 +365,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
                           children: [
                             Row(
                               children: [
-                                Image.asset('assets/mytify-icon.png', width: 22, height: 22),
+                                Image.asset('assets/mytify-badge.png', width: 22, height: 22),
                                 const SizedBox(width: Sp.s),
                                 const Text('Mytify', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                                 const Spacer(),
