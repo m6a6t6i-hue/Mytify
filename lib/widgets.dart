@@ -712,6 +712,9 @@ class VisualizerStyle {
   /// Loudness range shown, in dB below the running peak of the music.
   final double range;
 
+  /// Opacity of the fine dotted line under quiet bars (0 = none).
+  final double dotOpacity;
+
   const VisualizerStyle({
     required this.barWidth,
     required this.step,
@@ -723,6 +726,7 @@ class VisualizerStyle {
     this.decay = const Duration(milliseconds: 380),
     this.fade = const Duration(milliseconds: 200),
     this.range = 36,
+    this.dotOpacity = .42,
   });
 
   // 80% of the previous 2.8 / 2.2 px bars.
@@ -742,6 +746,9 @@ class _EqMotion extends ChangeNotifier {
   /// Running peak in dB, so quiet and loud recordings both fill the bar.
   double peak = -40;
 
+  /// Running peak per band, so quiet high frequencies still move.
+  List<double> bandPeak = const [];
+
   void changed() => notifyListeners();
 
   void step(double dt, bool playing, List<double>? bands, VisualizerStyle style) {
@@ -752,14 +759,23 @@ class _EqMotion extends ChangeNotifier {
     spin = (spin + (playing ? dt : -dt) / .45).clamp(0.0, 1.0);
     angle += dt * 3.49 * spin * spin * (3 - 2 * spin);
     if (bands != null && bands.isNotEmpty) {
-      if (levels.length != bands.length) levels = List.filled(bands.length, 0.0);
+      if (levels.length != bands.length) {
+        levels = List.filled(bands.length, 0.0);
+        bandPeak = List.filled(bands.length, -60.0);
+      }
       final loudest = bands.reduce((a, b) => a > b ? a : b);
       peak = loudest > peak ? loudest : math.max(-40.0, peak - dt * 4);
       final floor = peak - style.range;
       final rise = 1 - math.exp(-dt * 1e6 / style.attack.inMicroseconds);
       final fall = dt * 1e6 / style.decay.inMicroseconds;
       for (var i = 0; i < bands.length; i++) {
-        final x = ((bands[i] - floor) / style.range).clamp(0.0, 1.0);
+        // Half the height follows the whole mix, half the band's own recent peak,
+        // capped 30 dB below the mix so hiss is not blown up into bars.
+        final own = bands[i] > bandPeak[i] ? bands[i] : math.max(peak - 30, bandPeak[i] - dt * 3);
+        bandPeak[i] = own;
+        final global = ((bands[i] - floor) / style.range).clamp(0.0, 1.0);
+        final local = ((bands[i] - (own - 24)) / 24).clamp(0.0, 1.0);
+        final x = global * .55 + local * .45;
         final target = math.pow(x, 1.6).toDouble();
         final cur = levels[i];
         levels[i] = target > cur ? cur + (target - cur) * rise : math.max(target, cur - fall);
@@ -839,14 +855,24 @@ class _WavePainter extends CustomPainter {
       }
       if (amp > 0) {
         final edge = math.min(style.edgeFade * size.width, end / 2);
+        // Short fade towards the record so the bars reach it.
+        final near = math.min(edge * .3, end / 4);
         final paint = Paint()
           ..strokeWidth = style.barWidth
           ..strokeCap = StrokeCap.round;
+        final dot = Paint()..color = color.withValues(alpha: color.a * style.dotOpacity * amp);
         final tip = style.tipFade / 2;
         for (var bx = style.barWidth / 2 + 1; bx <= end; bx += style.step) {
           final h = style.maxHeight * eq.at(bx / end) * amp;
-          if (h < 1) continue;
-          final alpha = style.opacity * _smooth(edge, bx) * _smooth(edge, end - bx);
+          final fadeIn = _smooth(edge, bx);
+          if (h < 3) {
+            // Quiet band: a fine dotted line keeps the bar continuous up to the record.
+            if (style.dotOpacity > 0 && fadeIn > .05) {
+              canvas.drawCircle(Offset(bx, cy), style.barWidth * .42 * fadeIn, dot);
+            }
+            if (h < 1) continue;
+          }
+          final alpha = style.opacity * fadeIn * _smooth(near, end - bx);
           if (alpha < .02) continue;
           final solid = color.withValues(alpha: color.a * alpha);
           final clear = color.withValues(alpha: 0);

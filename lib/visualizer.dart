@@ -21,6 +21,7 @@ const visualizerScenes = ['Plazma', 'Wstęgi', 'Wir', 'Retro'];
 class AudioFeatures {
   double bass = 0, mid = 0, high = 0, energy = 0, beat = 0;
   double _peak = -40, _slowBass = 0, _sinceBeat = 1;
+  List<double> _bandPeak = const [];
   bool live = false;
 
   static double _avg(List<double> v, int from, int to) {
@@ -38,16 +39,25 @@ class AudioFeatures {
       final b = bands!;
       final loudest = b.reduce((a, c) => a > c ? a : c);
       _peak = loudest > _peak ? loudest : math.max(-40.0, _peak - dt * 4);
-      const range = 36.0;
+      if (_bandPeak.length != b.length) _bandPeak = List.filled(b.length, -60.0);
+      const range = 28.0;
       final floor = _peak - range;
-      final norm = [for (final v in b) ((v - floor) / range).clamp(0.0, 1.0)];
+      // Mix of the whole-song level and each band's own recent peak, then lifted,
+      // so quiet passages and thin high frequencies still move the picture.
+      final norm = <double>[];
+      for (var i = 0; i < b.length; i++) {
+        _bandPeak[i] = b[i] > _bandPeak[i] ? b[i] : math.max(_peak - 30, _bandPeak[i] - dt * 3);
+        final global = ((b[i] - floor) / range).clamp(0.0, 1.0);
+        final local = ((b[i] - (_bandPeak[i] - 20)) / 20).clamp(0.0, 1.0);
+        norm.add(math.pow(global * .5 + local * .5, .75).toDouble());
+      }
       final n = norm.length;
       tb = _avg(norm, 0, n * 8 ~/ 40);
       tm = _avg(norm, n * 8 ~/ 40, n * 24 ~/ 40);
       th = _avg(norm, n * 24 ~/ 40, n);
     }
     double follow(double cur, double target) {
-      final rate = target > cur ? 1 - math.exp(-dt / .05) : 1 - math.exp(-dt / .35);
+      final rate = target > cur ? 1 - math.exp(-dt / .025) : 1 - math.exp(-dt / .2);
       return cur + (target - cur) * rate;
     }
 
@@ -55,13 +65,13 @@ class AudioFeatures {
     mid = follow(mid, tm);
     high = follow(high, th);
     energy = follow(energy, (tb * .5 + tm * .35 + th * .15));
-    _slowBass += (bass - _slowBass) * (1 - math.exp(-dt / .6));
+    _slowBass += (bass - _slowBass) * (1 - math.exp(-dt / .5));
     _sinceBeat += dt;
-    if (live && bass - _slowBass > .12 && _sinceBeat > .28) {
+    if (live && bass - _slowBass > .07 && _sinceBeat > .22) {
       beat = 1;
       _sinceBeat = 0;
     }
-    beat *= math.exp(-dt / .22);
+    beat *= math.exp(-dt / .18);
   }
 }
 
@@ -152,7 +162,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
     features.step(dt, bands);
     noDataFor = bands == null ? noDataFor + dt : 0;
     // Louder music moves the scene faster. Without data only a slow, even drift.
-    final speed = features.live ? .18 + .9 * features.energy : (app.player.state.playing ? .05 : 0.0);
+    final speed = features.live ? .15 + 1.6 * features.energy + .8 * features.beat : (app.player.state.playing ? .05 : 0.0);
     sceneTime += dt * (_reduced ? speed * .25 : speed);
     time.value = sceneTime;
     if (!app.player.state.playing && features.energy <= .01 && features.beat <= .01) ticker.stop();

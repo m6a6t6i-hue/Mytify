@@ -56,19 +56,19 @@ vec3 tint(float x) {
 
 vec3 plasma(vec2 uv, float t) {
   // Large, slow folds: low frequencies and few contour lines keep it calm.
-  float warp = 1.2 + uBass * 1.4;
+  float warp = 1.1 + uBass * 3.2 + uBeat * 1.2;
   vec2 q = vec2(fbm(uv * 0.9 + vec2(0.0, t * 0.08)), fbm(uv * 0.9 + vec2(5.2, -t * 0.07)));
   vec2 r = vec2(fbm(uv * 0.8 + warp * q + vec2(1.7, 9.2) + t * 0.10),
                 fbm(uv * 0.8 + warp * q + vec2(8.3, 2.8) - t * 0.08));
-  float f = fbm(uv * 0.7 + (1.4 + uMid) * r);
+  float f = fbm(uv * 0.7 + (1.3 + uMid * 2.2) * r);
   // Glowing contour lines of the warped field.
   float x = f * 4.5;
   float d = abs(fract(x) - 0.5);
-  float sharp = 260.0 + uHigh * 380.0;
+  float sharp = 320.0 - uHigh * 200.0;
   float line = exp(-d * d * sharp);
   float halo = exp(-d * 9.0) * 0.22;
   vec3 col = DEEP + tint(f * 1.3 - 0.15) * 0.10 * (0.6 + uEnergy);
-  col += tint(length(r) * 0.9) * (line * (0.55 + 0.9 * uEnergy) + halo);
+  col += tint(length(r) * 0.9 + uMid * 0.3) * (line * (0.35 + 1.6 * uEnergy + uBeat * 0.8) + halo * (0.6 + uEnergy * 1.5));
   // Small rings where the field folds, brighter on beats.
   float ring = exp(-pow(abs(length(q - 0.5) - 0.08), 2.0) * 3000.0);
   col += GREEN * ring * (0.15 + uBeat * 0.6);
@@ -80,17 +80,17 @@ vec3 ribbons(vec2 uv, float t) {
   for (int i = 0; i < 6; i++) {
     float fi = float(i);
     float band = fi < 2.0 ? uBass : (fi < 4.0 ? uMid : uHigh);
-    float amp = 0.06 + 0.20 * band;
+    float amp = 0.04 + 0.38 * band;
     float y = 0.13 * sin(uv.x * (1.3 + fi * 0.33) + t * (0.45 + fi * 0.11) + fi * 1.3)
             + amp * sin(uv.x * (2.6 + fi * 0.45) - t * (0.7 + 0.09 * fi))
             + 0.08 * (fbm(vec2(uv.x * 1.1 + fi * 3.1, t * 0.18)) - 0.5)
             + (fi - 2.5) * 0.045;
     float d = abs(uv.y - y);
-    float core = exp(-d * d * (5200.0 - band * 2500.0));
+    float core = exp(-d * d * (5200.0 - band * 3500.0));
     float halo = exp(-d * 22.0) * 0.28;
     // Ribbons fade at the screen edges instead of ending abruptly.
     float edge = smoothstep(1.05, 0.25, abs(uv.x));
-    col += mix(TEAL, PURPLE, fi / 5.0) * (core * 0.95 + halo) * (0.45 + 0.9 * band) * edge;
+    col += mix(TEAL, PURPLE, fi / 5.0) * (core * 0.95 + halo) * (0.3 + 1.5 * band + uBeat * 0.5) * edge;
   }
   return col;
 }
@@ -98,12 +98,12 @@ vec3 ribbons(vec2 uv, float t) {
 vec3 vortex(vec2 uv, float t) {
   float r = length(uv) + 1e-4;
   float a = atan(uv.y, uv.x);
-  float twist = 4.5 + uBass * 3.0;
+  float twist = 4.0 + uBass * 6.0 + uBeat * 2.0;
   float s = a * 5.0 + log(r) * twist - t * 1.6 + (fbm(uv * 2.5 + t * 0.15) - 0.5) * 2.2;
   float arms = exp(-abs(sin(s)) * (7.0 - uHigh * 3.0));
   float fade = smoothstep(0.02, 0.18, r) * smoothstep(1.25, 0.25, r);
-  vec3 col = DEEP + mix(PURPLE, TEAL, smoothstep(0.1, 0.8, r)) * arms * fade * (0.45 + 0.9 * uEnergy);
-  col += GREEN * exp(-r * (9.0 - uBass * 4.0)) * (0.35 + uBass * 0.9 + uBeat * 0.5);
+  vec3 col = DEEP + mix(PURPLE, TEAL, smoothstep(0.1, 0.8, r)) * arms * fade * (0.3 + 1.6 * uEnergy + uBeat * 0.6);
+  col += GREEN * exp(-r * (10.0 - uBass * 6.0)) * (0.25 + uBass * 1.4 + uBeat * 0.9);
   return col;
 }
 
@@ -113,11 +113,11 @@ vec3 retro(vec2 uv, float t) {
   float v = sin(p.x * 2.2 + t);
   v += sin(2.0 * (p.x * sin(t * 0.5) + p.y * cos(t * 0.33)) + t);
   vec2 c = p + vec2(1.5 * sin(t * 0.2), 1.5 * cos(t * 0.33));
-  v += sin(sqrt(4.0 * dot(c, c) + 1.0) * (1.0 + uBass) + t);
-  v *= 1.0 + uMid * 0.6;
-  float hue = t * 0.15 + uBeat * 0.4;
+  v += sin(sqrt(4.0 * dot(c, c) + 1.0) * (1.0 + uBass * 2.5) + t);
+  v *= 1.0 + uMid * 1.2;
+  float hue = t * 0.15 + uBeat * 0.8;
   vec3 col = 0.5 + 0.5 * vec3(sin(v * 3.1416 + hue), sin(v * 3.1416 + hue + 2.094), sin(v * 3.1416 + hue + 4.188));
-  return col * (0.35 + 0.65 * uEnergy);
+  return col * (0.25 + 1.1 * uEnergy + uBeat * 0.3);
 }
 
 void main() {
@@ -135,7 +135,7 @@ void main() {
     col = retro(uv, t);
   }
   // Beat flash and vignette.
-  col *= 1.0 + uBeat * 0.18;
+  col *= 1.0 + uBeat * 0.35;
   vec2 v = frag / uSize - 0.5;
   col *= 1.0 - dot(v, v) * 1.1;
   fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
