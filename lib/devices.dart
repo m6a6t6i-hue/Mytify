@@ -383,18 +383,33 @@ class _DevicePanelState extends State<DevicePanel> {
               child: Text('Szukam urządzeń…', style: Txt.sub),
             ),
           if (app.isPhone)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(color: elevated, borderRadius: BorderRadius.circular(Rad.control)),
-                child: const Icon(Icons.bluetooth_audio_rounded, color: primaryText),
-              ),
-              title: const Text('Bluetooth i słuchawki'),
-              subtitle: const Text('Systemowy wybór wyjścia', style: Txt.meta),
-              trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: secondaryText),
+            InkWell(
               onTap: connecting == null ? () => unawaited(_openSystemOutputs()) : null,
+              borderRadius: BorderRadius.circular(Rad.control),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: Sp.xs),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(color: hoverFill, borderRadius: BorderRadius.circular(Rad.control)),
+                      child: const Icon(Icons.bluetooth_audio_rounded, color: primaryText, size: 22),
+                    ),
+                    const SizedBox(width: Sp.m),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Bluetooth i słuchawki', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                          Text('Wybór wyjścia Androida', style: Txt.meta),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: secondaryText),
+                  ],
+                ),
+              ),
             ),
         ],
       );
