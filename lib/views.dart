@@ -63,7 +63,7 @@ String pageTitle(LibraryScreenState app, Nav nav) => switch (nav.page) {
   'cleanup' => 'Porządki',
   'sources' => 'Źródła muzyki',
   'import' => 'Płyty CD i winyle',
-  'transfer' => app.isPhone ? 'Z komputera' : 'Połącz telefon',
+  'transfer' => app.isPhone ? 'Przesyłanie muzyki' : 'Połącz telefon',
   _ => 'Start',
 };
 
@@ -1729,7 +1729,7 @@ class SettingsPage extends StatelessWidget {
     if (app.canDigitize && !app.isPhone) ('import', Icons.album_outlined, 'Płyty CD i winyle'),
     ('cleanup', Icons.cleaning_services_outlined, 'Porządki w bibliotece'),
     if (app.desktopMode) ('look', Icons.tune_rounded, 'Wygląd'),
-    if (app.canTransfer && !app.desktopMode) ('phone', Icons.phonelink_rounded, app.isPhone ? 'Z komputera' : 'Połącz telefon'),
+    if (app.canTransfer && !app.desktopMode) ('phone', Icons.phonelink_rounded, app.isPhone ? 'Przesyłanie muzyki' : 'Połącz telefon'),
     ('about', Icons.info_outline_rounded, 'Informacje'),
   ];
 

@@ -23,9 +23,25 @@ class TransferFake implements TransferRepository {
               'peers': [],
               'addresses': ['192.168.1.3'],
             };
+  Map<String, dynamic> shared = {'enabled': false, 'peers': [], 'addresses': ['192.168.1.7']};
   @override
   Future<dynamic> transfer(Map<String, dynamic> request) async {
     calls.add(request);
+    if (request['action'] == 'share') {
+      final r = request['request'] as Map;
+      if (r['action'] == 'start') {
+        shared = {
+          'enabled': true,
+          'port': 47480,
+          'qr': base64Encode(File('test/fixtures/cover.png').readAsBytesSync()),
+          'pairUri': 'mytify://pair?v=1&host=192.168.1.7',
+          'addresses': ['192.168.1.7'],
+          'peers': [],
+        };
+      }
+      if (r['action'] == 'stop') shared = {'enabled': false, 'peers': [], 'addresses': ['192.168.1.7']};
+      return shared;
+    }
     switch (request['action']) {
       case 'start':
         state = {
@@ -126,7 +142,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Pokaż muzykę z PC'));
+    await tester.tap(find.text('Pokaż muzykę'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Moja płyta'));
     await tester.tap(find.text('Moja płyta'));
@@ -174,4 +190,28 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  testWidgets('Phone shares its own music with another phone and stops when leaving', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repo = TransferFake(true);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: TransferScreen(repository: repo, onLibraryChanged: () {}))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Udostępnij'));
+    await tester.pumpAndSettle();
+    expect(find.text('Udostępnij telefonowi'), findsOneWidget);
+    await tester.tap(find.text('Włącz parowanie'));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Kod QR do sparowania'), findsOneWidget);
+    expect(repo.calls.where((c) => c['action'] == 'share' && (c['request'] as Map)['action'] == 'start'), hasLength(1));
+    // Receiving side commands never reach the share server.
+    expect(repo.calls.where((c) => c['action'] == 'start'), isEmpty);
+    await tester.tap(find.text('Odbierz'));
+    await tester.pumpAndSettle();
+    expect(repo.calls.where((c) => c['action'] == 'share' && (c['request'] as Map)['action'] == 'stop'), hasLength(1));
+    expect(find.text('Pokaż muzykę'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

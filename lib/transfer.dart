@@ -36,8 +36,33 @@ class _TransferScreenState extends State<TransferScreen> {
   final selected = <String>{}, playlists = <String>{};
   final link = TextEditingController();
   bool busy = false, polling = false, wasDownloading = false;
+
+  /// Phone only: this phone shares its own music with another phone.
+  bool sharing = false;
   Timer? timer;
   bool get receiver => widget.repository.receivesTransfers;
+
+  /// Shows the sharing side: the PC always, a phone in "Udostępnij".
+  bool get sender => !receiver || sharing;
+
+  Future<dynamic> _call(Map<String, dynamic> request) => receiver && sharing
+      ? widget.repository.transfer({'action': 'share', 'request': request})
+      : widget.repository.transfer(request);
+
+  void _mode(bool share) {
+    if (share == sharing || busy) return;
+    // Leaving the sharing side closes the phone's server.
+    if (sharing) unawaited(_call({'action': 'stop'}).catchError((Object _) => null));
+    setState(() {
+      sharing = share;
+      state = {};
+      qr = null;
+      qrText = null;
+      error = null;
+      if (share) peer = null;
+    });
+    unawaited(refresh());
+  }
   @override
   void initState() {
     super.initState();
@@ -48,6 +73,7 @@ class _TransferScreenState extends State<TransferScreen> {
   @override
   void dispose() {
     timer?.cancel();
+    if (sharing) unawaited(_call({'action': 'stop'}).catchError((Object _) => null));
     link.dispose();
     super.dispose();
   }
@@ -66,7 +92,7 @@ class _TransferScreenState extends State<TransferScreen> {
         qr = q == null ? null : base64Decode(q);
       }
       final peers = (state['peers'] as List?) ?? [];
-      if (peer == null && peers.isNotEmpty) peer = peers.last['id'] as String;
+      if (!sender && peer == null && peers.isNotEmpty) peer = peers.last['id'] as String;
     });
   }
 
@@ -74,7 +100,7 @@ class _TransferScreenState extends State<TransferScreen> {
     if (polling || busy) return;
     polling = true;
     try {
-      accept(await widget.repository.transfer({'action': 'status'}));
+      accept(await _call({'action': 'status'}));
     } catch (e) {
       if (mounted) setState(() => error = '$e');
     } finally {
@@ -92,7 +118,7 @@ class _TransferScreenState extends State<TransferScreen> {
       error = null;
     });
     try {
-      final value = await widget.repository.transfer(request);
+      final value = await _call(request);
       if (status) accept(value);
     } catch (e) {
       if (mounted) setState(() => error = '$e');
@@ -185,7 +211,7 @@ class _TransferScreenState extends State<TransferScreen> {
       builder: (c) => AlertDialog(
         title: const Text('Usunąć kopie z telefonu?'),
         content: const Text(
-          'Usuniemy pliki pobrane z tego PC. Oryginały na komputerze i muzyka z innych źródeł pozostaną.',
+          'Usuniemy pliki pobrane z tego urządzenia. Oryginały i muzyka z innych źródeł zostaną.',
         ),
         actions: [
           TextButton(
@@ -214,7 +240,7 @@ class _TransferScreenState extends State<TransferScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            receiver ? 'Muzyka z PC' : 'Połącz telefon',
+            !receiver ? 'Połącz telefon' : sharing ? 'Udostępnij telefonowi' : 'Z komputera lub telefonu',
             style: const TextStyle(
               fontSize: 30,
               fontWeight: FontWeight.w800,
@@ -223,11 +249,25 @@ class _TransferScreenState extends State<TransferScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            receiver
-                ? 'Zeskanuj kod z Mytify na komputerze i wybierz albumy. Pobrane utwory działają bez PC i Wi-Fi.'
-                : 'Na telefonie: Ustawienia, potem Z komputera. Oba urządzenia muszą być w tej samej sieci.',
+            !receiver
+                ? 'Na telefonie: Ustawienia, potem Z komputera lub telefonu. Oba urządzenia muszą być w tej samej sieci.'
+                : sharing
+                ? 'Na drugim telefonie: Ustawienia, potem Z komputera lub telefonu, Skanuj kod. Udostępniasz muzykę zapisaną w tym telefonie, dopóki ten ekran jest otwarty.'
+                : 'Zeskanuj kod Mytify z komputera albo z drugiego telefonu i wybierz albumy. Pobrane utwory działają bez sieci.',
             style: const TextStyle(color: secondaryText, height: 1.5),
           ),
+          if (receiver) ...[
+            const SizedBox(height: 16),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, icon: Icon(Icons.download_rounded), label: Text('Odbierz')),
+                ButtonSegment(value: true, icon: Icon(Icons.upload_rounded), label: Text('Udostępnij')),
+              ],
+              selected: {sharing},
+              showSelectedIcon: false,
+              onSelectionChanged: busy ? null : (v) => _mode(v.first),
+            ),
+          ],
           const SizedBox(height: 22),
           if (busy) const LinearProgressIndicator(),
           if (error != null)
@@ -238,7 +278,7 @@ class _TransferScreenState extends State<TransferScreen> {
                 style: const TextStyle(color: Colors.orangeAccent),
               ),
             ),
-          if (!receiver) ...[
+          if (sender) ...[
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -279,8 +319,8 @@ class _TransferScreenState extends State<TransferScreen> {
                                     ?.queryParameters['host']
                               : state['addresses'][0])
                           as String?,
-                  decoration: const InputDecoration(
-                    labelText: 'Adres PC w Twojej sieci',
+                  decoration: InputDecoration(
+                    labelText: receiver ? 'Adres telefonu w Twojej sieci' : 'Adres PC w Twojej sieci',
                   ),
                   items: [
                     for (final a in state['addresses'] as List)
@@ -299,7 +339,7 @@ class _TransferScreenState extends State<TransferScreen> {
                       borderRadius: BorderRadius.circular(18),
                       child: Image.memory(
                         qr!,
-                        semanticLabel: 'Kod QR do sparowania telefonu',
+                        semanticLabel: 'Kod QR do sparowania',
                       ),
                     ),
                   ),
@@ -324,14 +364,15 @@ class _TransferScreenState extends State<TransferScreen> {
                   icon: const Icon(Icons.copy_rounded),
                   label: const Text('Kopiuj dane parowania'),
                 ),
-              Text(
-                'Transfer: port ${state['port']}. Jeśli Windows zapyta o dostęp do sieci, zezwól dla sieci prywatnej.',
-                style: const TextStyle(color: secondaryText, fontSize: 12),
-              ),
+              if (!receiver)
+                Text(
+                  'Transfer: port ${state['port']}. Jeśli Windows zapyta o dostęp do sieci, zezwól dla sieci prywatnej.',
+                  style: const TextStyle(color: secondaryText, fontSize: 12),
+                ),
             ],
             const SizedBox(height: 24),
-            const Text(
-              'Sparowane telefony',
+            Text(
+              receiver ? 'Telefony z dostępem' : 'Sparowane telefony',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
             for (final p in peers)
@@ -350,7 +391,7 @@ class _TransferScreenState extends State<TransferScreen> {
             FilledButton.icon(
               onPressed: busy ? null : scan,
               icon: const Icon(Icons.qr_code_scanner_rounded),
-              label: const Text('Skanuj kod z PC'),
+              label: const Text('Skanuj kod'),
             ),
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
@@ -360,12 +401,12 @@ class _TransferScreenState extends State<TransferScreen> {
                   controller: link,
                   maxLines: 3,
                   decoration: const InputDecoration(
-                    labelText: 'Dane skopiowane z Mytify na PC',
+                    labelText: 'Dane skopiowane z drugiego urządzenia',
                   ),
                 ),
                 TextButton(
                   onPressed: busy ? null : () => pair(link.text),
-                  child: const Text('Połącz z komputerem'),
+                  child: const Text('Połącz'),
                 ),
               ],
             ),
@@ -375,7 +416,7 @@ class _TransferScreenState extends State<TransferScreen> {
                 isExpanded: true,
                 key: ValueKey(peer),
                 initialValue: peers.any((p) => p['id'] == peer) ? peer : null,
-                decoration: const InputDecoration(labelText: 'Twój komputer'),
+                decoration: const InputDecoration(labelText: 'Urządzenie'),
                 items: [
                   for (final p in peers)
                     DropdownMenuItem(
@@ -401,11 +442,11 @@ class _TransferScreenState extends State<TransferScreen> {
               OutlinedButton.icon(
                 onPressed: busy ? null : load,
                 icon: const Icon(Icons.library_music_outlined),
-                label: const Text('Pokaż muzykę z PC'),
+                label: const Text('Pokaż muzykę'),
               ),
               TextButton(
                 onPressed: busy ? null : deleteCopies,
-                child: const Text('Usuń kopie z tego PC z telefonu'),
+                child: const Text('Usuń z telefonu kopie z tego urządzenia'),
               ),
             ],
             if (state['state'] != 'idle' && state['state'] != null) ...[
@@ -511,14 +552,14 @@ class _TransferScreenState extends State<TransferScreen> {
     return [
       const SizedBox(height: 24),
       Text(
-        'Albumy na PC · ${groups.length}',
+        'Albumy · ${groups.length}',
         style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
       ),
       if (tracks.isEmpty)
         const Padding(
           padding: EdgeInsets.all(20),
           child: Text(
-            'Na PC nie ma dostępnych plików. Dodaj muzykę lub podłącz źródło.',
+            'Na tym urządzeniu nie ma plików do pobrania.',
           ),
         ),
       TextButton(
