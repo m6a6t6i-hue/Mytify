@@ -41,6 +41,7 @@ pub struct App {
     pub jobs: Mutex<HashMap<String, Job>>,
     pub cancellation: Mutex<HashMap<String, Arc<AtomicBool>>>,
     pub busy: AtomicBool,
+    pub radio: crate::radio::Directory,
 }
 pub struct RunningServer {
     pub app: Arc<App>,
@@ -88,6 +89,7 @@ pub fn start_with_audio(
         jobs: Mutex::new(HashMap::new()),
         cancellation: Mutex::new(HashMap::new()),
         busy: AtomicBool::new(false),
+        radio: crate::radio::Directory::new(),
     });
     app.downloads.start();
     if !test {
@@ -326,6 +328,40 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
         if path == "/api/player/levels" && method == Method::Get {
             return send_json(request, 200, json!({ "bands": app.player.levels() }));
         }
+        if path == "/api/radio/search" && method == Method::Get {
+            let query: HashMap<_, _> = parsed.query_pairs().into_owned().collect();
+            return match app.radio.search(&query) {
+                Ok(v) => send_json(request, 200, serde_json::to_value(v)?),
+                Err(e) => send_error(request, 502, format!("{e:#}")),
+            };
+        }
+        if path == "/api/radio/click" && method == Method::Post {
+            let id = read_json(&mut request)?["id"].as_str().unwrap_or("").to_string();
+            // Counting a listen is a courtesy to the directory; playback never waits on it failing.
+            let url = app.radio.click(&id).unwrap_or(None);
+            return send_json(request, 200, json!({ "url": url }));
+        }
+        if path == "/api/radio/probe" && method == Method::Post {
+            let url = read_json(&mut request)?["url"].as_str().unwrap_or("").trim().to_string();
+            return match crate::radio::probe(&url) {
+                Ok(v) => send_json(request, 200, serde_json::to_value(v)?),
+                Err(e) => send_error(request, 400, format!("{e:#}")),
+            };
+        }
+        if path == "/api/radio/logo" && method == Method::Get {
+            let url = parsed.query_pairs().find(|(k, _)| k == "u").map(|(_, v)| v.into_owned()).unwrap_or_default();
+            return match app.radio.logo(&url) {
+                Ok((kind, bytes)) => {
+                    let mut headers = common_headers(&kind);
+                    headers.retain(|h| !h.field.equiv("Cache-Control"));
+                    headers.push(Header::from_bytes("Cache-Control", "private, max-age=86400").unwrap());
+                    let len = bytes.len();
+                    request.respond(Response::new(StatusCode(200), headers, Cursor::new(bytes.to_vec()), Some(len), None))?;
+                    Ok(())
+                }
+                Err(e) => send_error(request, 404, e),
+            };
+        }
         if path == "/api/player/devices" && method == Method::Get {
             return match app.player.devices() {
                 Ok(mut v) => {
@@ -361,7 +397,19 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
                     let was_remote = app.network.active();
                     app.network.deselect();
                     app.player.command(serde_json::from_value(v)?)?;
-                    if was_remote {
+                    if was_remote && old["radio"].is_object() {
+                        let r = &old["radio"];
+                        let text = |k: &str| r[k].as_str().unwrap_or("").to_string();
+                        app.player.command(crate::audio::Action::Radio {
+                            id: text("id"),
+                            url: text("url"),
+                            name: text("name"),
+                            logo: text("logo"),
+                        })?;
+                        if old["playing"] != true {
+                            app.player.command(crate::audio::Action::Pause)?;
+                        }
+                    } else if was_remote {
                         if let (Ok(ids), Some(i)) = (
                             serde_json::from_value::<Vec<String>>(old["queueIds"].clone()),
                             old["index"].as_u64(),

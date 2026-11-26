@@ -8,6 +8,7 @@ WebView2 SDK: WEBVIEW2_SDK_LICENSE.txt
 Symphonia unmodified MPL-2.0 corresponding sources: third_party/symphonia-source.
 LAME MP3 encoder (CD and vinyl MP3 copies, Windows), LGPL-2.0, built from unmodified sources by the mp3lame-sys crate: https://lame.sourceforge.io
 souvlaki (Windows media keys), MIT: https://github.com/Sinono3/souvlaki
+fdk-aac (AAC and HE-AAC radio decoding, Windows), Fraunhofer FDK AAC Codec Library license, unmodified sources built by the fdk-aac-sys crate (MIT binding): full notice in FDK_AAC_NOTICE.txt. The license grants no patent rights; see that file.
 
 Build-only JavaScript tool esbuild, MIT:
 

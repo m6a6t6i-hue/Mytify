@@ -387,6 +387,8 @@ struct Remote {
     revision: u64,
     token: String,
     allowed: HashSet<String>,
+    /// A station sent to the receiver: {id, url, name, logo}.
+    radio: Option<Value>,
 }
 type Control = Arc<dyn Fn(&Target, &str, &[(&str, String)], bool) -> Result<String> + Send + Sync>;
 pub struct Network {
@@ -470,7 +472,10 @@ impl Network {
     pub fn state(&self, local: Value) -> Value {
         let d = self.data.lock().unwrap();
         if let Some(t) = &d.target {
-            json!({"available":true,"playing":d.playing,"completed":false,"buffering":false,"queueIds":d.ids,"currentId":d.ids.get(d.index),"index":d.index,"positionMs":d.position,"durationMs":d.duration,"volume":d.volume,"volumeAvailable":d.volume_known,"repeat":d.repeat,"shuffled":d.shuffled,"selectedDevice":t.id,"source":null,"output":{"name":t.name,"backend":"DLNA · oryginalny plik","sampleRate":0,"sampleFormat":"Format pliku","channels":2,"testSink":false},"error":d.error,"errorSerial":d.serial,"revision":d.revision,"underrunFrames":0,"renderedFrames":0})
+            let radio = d.radio.as_ref().map(|r| json!({"id":r["id"],"name":r["name"],"url":r["url"],"logo":r["logo"],"title":null,"station":null,"codec":"","bitrate":0,"reconnecting":false}));
+            let mut v = json!({"available":true,"playing":d.playing,"completed":false,"buffering":false,"queueIds":d.ids,"currentId":d.ids.get(d.index),"index":d.index,"positionMs":d.position,"durationMs":d.duration,"volume":d.volume,"volumeAvailable":d.volume_known,"repeat":d.repeat,"shuffled":d.shuffled,"selectedDevice":t.id,"source":null,"output":{"name":t.name,"backend":"DLNA · oryginalny plik","sampleRate":0,"sampleFormat":"Format pliku","channels":2,"testSink":false},"error":d.error,"errorSerial":d.serial,"revision":d.revision,"underrunFrames":0,"renderedFrames":0});
+            v["radio"] = radio.unwrap_or(Value::Null);
+            v
         } else {
             let mut v = local;
             if v["selectedDevice"]
@@ -522,6 +527,9 @@ impl Network {
             ..Default::default()
         };
         let has_queue = !d.ids.is_empty();
+        if local["radio"].is_object() {
+            d.radio = Some(local["radio"].clone());
+        }
         drop(d);
         if has_queue {
             self.load_current(
@@ -531,7 +539,35 @@ impl Network {
         }
         Ok(())
     }
+    /// The receiver fetches the station itself; playlists are opened here first.
+    fn load_radio(&self, play: bool) -> Result<()> {
+        let (t, r) = {
+            let d = self.data.lock().unwrap();
+            (
+                d.target.clone().ok_or_else(|| anyhow!("Brak odbiornika"))?,
+                d.radio.clone().ok_or_else(|| anyhow!("Brak stacji"))?,
+            )
+        };
+        let url = crate::radio::resolve_playlist(r["url"].as_str().unwrap_or(""))?;
+        let name = r["name"].as_str().unwrap_or("");
+        let didl = format!("<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\"><item id=\"radio\" parentID=\"0\" restricted=\"1\"><dc:title>{}</dc:title><upnp:class>object.item.audioItem.audioBroadcast</upnp:class><res protocolInfo=\"http-get:*:*:*\">{}</res></item></DIDL-Lite>", escape(name), escape(&url));
+        {
+            let mut d = self.data.lock().unwrap();
+            d.allowed.clear();
+            d.seen_playing = false;
+            d.duration = 0;
+            d.position = 0;
+        }
+        self.soap(&t, "SetAVTransportURI", &[("CurrentURI", url), ("CurrentURIMetaData", didl)], false)?;
+        if play {
+            self.soap(&t, "Play", &[("Speed", "1".into())], false)?;
+        }
+        Ok(())
+    }
     fn load_current(&self, play: bool, pos: u64) -> Result<()> {
+        if self.data.lock().unwrap().radio.is_some() {
+            return self.load_radio(play);
+        }
         let (t, id, token) = {
             let d = self.data.lock().unwrap();
             (
@@ -604,7 +640,24 @@ impl Network {
             .clone()
             .ok_or_else(|| anyhow!("Brak odbiornika"))?;
         let result = (|| {
-            match v["action"].as_str().unwrap_or("") {
+            let action = v["action"].as_str().unwrap_or("");
+            if self.data.lock().unwrap().radio.is_some() && matches!(action, "seek" | "next" | "previous" | "jump" | "shuffle") {
+                return Ok(());
+            }
+            match action {
+                "radio" => {
+                    let text = |k: &str| v[k].as_str().unwrap_or("").to_string();
+                    let (id, url) = (text("id"), text("url"));
+                    if !id.starts_with("radio:") || !(url.starts_with("http://") || url.starts_with("https://")) {
+                        bail!("Nieprawidłowa stacja")
+                    }
+                    let mut d = self.data.lock().unwrap();
+                    d.radio = Some(json!({"id":id,"url":url,"name":text("name"),"logo":text("logo")}));
+                    d.ids = vec![id];
+                    d.index = 0;
+                    drop(d);
+                    self.load_radio(true)?;
+                }
                 "load" => {
                     let ids: Vec<String> = serde_json::from_value(v["ids"].clone())?;
                     let i = v["index"].as_u64().unwrap_or(0) as usize;
@@ -617,6 +670,7 @@ impl Network {
                     let mut d = self.data.lock().unwrap();
                     d.ids = ids;
                     d.index = i;
+                    d.radio = None;
                     drop(d);
                     self.load_current(true, 0)?;
                 }
@@ -635,6 +689,7 @@ impl Network {
                     self.soap(&t, "Stop", &[], false)?;
                     let mut d = self.data.lock().unwrap();
                     d.ids.clear();
+                    d.radio = None;
                     d.allowed.clear();
                     d.playing = false;
                 }
@@ -934,6 +989,40 @@ mod tests {
 #[cfg(test)]
 mod receiver_integration {
     use super::*;
+    #[test]
+    fn stations_go_to_the_receiver_as_they_are() {
+        let sent = Arc::new(Mutex::new(Vec::<(String, String)>::new()));
+        let control: Control = {
+            let sent = sent.clone();
+            Arc::new(move |_, action, args, _| {
+                let uri = args.iter().find(|(k, _)| *k == "CurrentURI").map(|a| a.1.clone()).unwrap_or_default();
+                sent.lock().unwrap().push((action.to_owned(), uri));
+                Ok(String::new())
+            })
+        };
+        let temp = tempfile::tempdir().unwrap();
+        let catalog = Arc::new(Catalog::open(temp.path().join("catalog")).unwrap());
+        let network = Network::with_control(catalog, control).unwrap();
+        let t = Target { id: "dlna:fake".into(), name: "R".into(), host: "127.0.0.1".into(), port: 7000, kind: "dlna".into(), ..Default::default() };
+        let radio = json!({"id":"radio:abc","url":"https://s.example/live.aac","name":"Jazz & Co","logo":""});
+        network
+            .select(t, &json!({"queueIds":["radio:abc"],"index":0,"positionMs":0,"playing":true,"radio":radio}))
+            .unwrap();
+        assert!(sent.lock().unwrap().contains(&("SetAVTransportURI".into(), "https://s.example/live.aac".into())));
+        assert!(sent.lock().unwrap().iter().any(|a| a.0 == "Play"));
+        let state = network.state(json!({}));
+        assert_eq!(state["radio"]["id"], "radio:abc");
+        assert_eq!(state["durationMs"], 0);
+        sent.lock().unwrap().clear();
+        network.command(&json!({"action":"seek","positionMs":5000})).unwrap();
+        network.command(&json!({"action":"next"})).unwrap();
+        assert!(sent.lock().unwrap().is_empty());
+        network.command(&json!({"action":"radio","id":"radio:def","url":"http://other.example/mp3","name":"B"})).unwrap();
+        assert!(sent.lock().unwrap().contains(&("SetAVTransportURI".into(), "http://other.example/mp3".into())));
+        assert!(network.command(&json!({"action":"radio","id":"x","url":"http://a"})).is_err());
+        network.command(&json!({"action":"stop"})).unwrap();
+        assert!(network.state(json!({}))["radio"].is_null());
+    }
     #[test]
     fn receiver_selection_preserves_volume_and_streams_exact_range() {
         let actions = Arc::new(Mutex::new(Vec::new()));

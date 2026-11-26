@@ -15,6 +15,7 @@ pub mod audio;
 
 pub mod airplay;
 pub mod network;
+pub mod radio;
 
 pub mod ingest;
 

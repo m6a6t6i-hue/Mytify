@@ -61,13 +61,19 @@ fn on_media_key(app: &App, event: MediaControlEvent) {
 pub fn watch(app: Arc<App>, proxy: EventLoopProxy<Value>) {
     std::thread::spawn(move || {
         let mut last: Option<(Option<String>, bool)> = None;
+        let mut last_title: Option<String> = None;
         let mut since = 0u32;
         loop {
             std::thread::sleep(Duration::from_millis(400));
             let s = app.player.state();
             let key = (s.current_id.clone(), s.playing);
             since += 1;
-            let changed_track = last.as_ref().map(|l| &l.0) != Some(&s.current_id);
+            // A station changes its title without changing the "track".
+            let title = s.radio.as_ref().and_then(|r| r.title.clone());
+            let changed_track = last.as_ref().map(|l| &l.0) != Some(&s.current_id) || title != last_title;
+            if changed_track {
+                since = 12;
+            }
             if last.as_ref() == Some(&key) && since < 12 {
                 continue;
             }
@@ -80,7 +86,16 @@ pub fn watch(app: Arc<App>, proxy: EventLoopProxy<Value>) {
                 "durationMs": s.duration_ms,
                 "meta": changed_track,
             });
-            if changed_track {
+            if let (true, Some(r)) = (changed_track, &s.radio) {
+                // What the station says is on air, if it says anything; otherwise just its name.
+                let (artist, song) = match r.title.as_deref().and_then(|t| t.split_once(" - ")) {
+                    Some((a, b)) => (a.trim().to_string(), b.trim().to_string()),
+                    None => (r.name.clone(), r.title.clone().unwrap_or_else(|| r.name.clone())),
+                };
+                v["title"] = json!(song);
+                v["artist"] = json!(artist);
+                v["album"] = json!(r.name);
+            } else if changed_track {
                 if let Some(t) = s.current_id.as_deref().and_then(|id| app.catalog.track(id).ok().flatten()) {
                     v["title"] = json!(t.title);
                     v["artist"] = json!(if t.artist.is_empty() { t.album_artist } else { t.artist });
@@ -91,6 +106,7 @@ pub fn watch(app: Arc<App>, proxy: EventLoopProxy<Value>) {
                 }
             }
             last = Some(key);
+            last_title = title;
             if proxy.send_event(v).is_err() {
                 return;
             }

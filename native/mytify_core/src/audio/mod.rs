@@ -2,6 +2,7 @@ pub mod decoder;
 pub mod eq;
 mod output;
 pub mod render;
+pub(crate) mod live;
 mod sequence;
 pub mod spectrum;
 use crate::catalog::{getrandom_bytes, Catalog};
@@ -47,6 +48,29 @@ struct Data {
     error_serial: u64,
     revision: u64,
     equalizer: eq::Equalizer,
+    radio: Option<RadioNow>,
+}
+#[derive(Clone)]
+struct RadioNow {
+    id: String,
+    name: String,
+    url: String,
+    logo: String,
+    meta: Arc<Mutex<crate::radio::LiveMeta>>,
+}
+/// The station playing now. `title` is what the station reports (ICY), never guessed.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RadioState {
+    pub id: String,
+    pub name: String,
+    pub url: String,
+    pub logo: String,
+    pub title: Option<String>,
+    pub station: Option<String>,
+    pub codec: String,
+    pub bitrate: u32,
+    pub reconnecting: bool,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -72,6 +96,7 @@ pub struct State {
     pub rendered_frames: u64,
     pub revision: u64,
     pub equalizer: eq::Equalizer,
+    pub radio: Option<RadioState>,
 }
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "action", rename_all = "camelCase", deny_unknown_fields)]
@@ -114,6 +139,14 @@ pub enum Action {
     Equalizer {
         enabled: bool,
         gains: Vec<f32>,
+    },
+    /// A live station: `id` is "radio:" plus the directory id or a hash of the address.
+    Radio {
+        id: String,
+        url: String,
+        name: String,
+        #[serde(default)]
+        logo: String,
     },
 }
 fn persist_settings(root: &std::path::Path, io: &Mutex<()>, settings: &Settings) -> Result<()> {
@@ -253,6 +286,20 @@ impl Player {
             rendered_frames: self.signals.rendered_frames.load(Ordering::Relaxed),
             revision: data.revision,
             equalizer: data.equalizer.clone(),
+            radio: data.radio.as_ref().map(|r| {
+                let m = r.meta.lock().unwrap();
+                RadioState {
+                    id: r.id.clone(),
+                    name: r.name.clone(),
+                    url: r.url.clone(),
+                    logo: r.logo.clone(),
+                    title: m.title.clone(),
+                    station: m.station.clone(),
+                    codec: m.codec.clone(),
+                    bitrate: m.bitrate,
+                    reconnecting: m.reconnecting,
+                }
+            }),
         }
     }
     pub fn devices(&self) -> Result<Vec<output::Device>> {
@@ -281,6 +328,15 @@ impl Player {
             }
             Action::Device { id } if id.is_empty() || id.len() > 4096 => {
                 bail!("Nieprawidłowe urządzenie.")
+            }
+            Action::Radio { id, url, name, logo } => {
+                let http = |u: &str| u.starts_with("http://") || u.starts_with("https://");
+                if !id.starts_with("radio:") || id.len() > 100 || name.chars().count() > 300 {
+                    bail!("Nieprawidłowa stacja.")
+                }
+                if !http(url) || url.len() > 2048 || (!logo.is_empty() && (!http(logo) || logo.len() > 2048)) {
+                    bail!("Nieprawidłowy adres stacji.")
+                }
             }
             _ => {}
         }
@@ -312,6 +368,8 @@ struct Worker {
     dirty: bool,
     last_save: Instant,
     settings_io: Arc<Mutex<()>>,
+    live: Option<live::Live>,
+    live_position: u64,
 }
 impl Worker {
     fn new(
@@ -342,6 +400,8 @@ impl Worker {
             dirty: false,
             last_save: Instant::now(),
             settings_io,
+            live: None,
+            live_position: 0,
         }
     }
     fn error(&self, error: impl ToString) {
@@ -410,8 +470,63 @@ impl Worker {
             self.reset(current, ms);
         }
     }
+    fn radio(&self) -> Option<RadioNow> {
+        self.data.lock().unwrap().radio.clone()
+    }
+    /// Connects again from now: a live stream has nothing to resume or seek.
+    /// Clears the output for the station without touching the file player.
+    fn idle_radio(&mut self) {
+        self.live = None;
+        self.reset(0, 0);
+        self.terminal_sent = true;
+        self.ended = true;
+    }
+    fn start_live(&mut self) {
+        self.idle_radio();
+        self.live_position = 0;
+        if let Some(r) = self.radio() {
+            *r.meta.lock().unwrap() = crate::radio::LiveMeta::default();
+            self.live = Some(live::Live::start(r.url, self.rate, r.meta));
+        }
+    }
+    fn end_radio(&mut self) {
+        self.live = None;
+        self.data.lock().unwrap().radio = None;
+    }
     fn apply(&mut self, action: Action) -> Result<()> {
+        if self.radio().is_some()
+            && matches!(
+                action,
+                Action::Seek { .. } | Action::Next | Action::Previous | Action::Jump { .. } | Action::Shuffle { .. }
+            )
+        {
+            return Ok(());
+        }
         match action {
+            Action::Radio { id, url, name, logo } => {
+                self.ensure_output()?;
+                {
+                    let mut data = self.data.lock().unwrap();
+                    data.ids = vec![id.clone()];
+                    data.order = vec![0];
+                    data.infos = vec![SourceInfo::default()];
+                    data.shuffled = false;
+                    data.error = None;
+                    data.revision += 1;
+                    data.radio = Some(RadioNow {
+                        id,
+                        name,
+                        url,
+                        logo,
+                        meta: Default::default(),
+                    });
+                }
+                self.cursor = 0;
+                self.source = None;
+                self.terminal_sent = true;
+                self.start_live();
+                self.signals.paused.store(false, Ordering::Release);
+            }
             Action::Restore {
                 ids,
                 index,
@@ -425,6 +540,7 @@ impl Worker {
                 }
             }
             Action::Load { ids, index } => {
+                self.end_radio();
                 let tracks = self.catalog.tracks()?;
                 let by_id: std::collections::HashMap<_, _> =
                     tracks.into_iter().map(|t| (t.id.clone(), t)).collect();
@@ -451,6 +567,13 @@ impl Worker {
                 self.reset(index, 0);
                 self.signals.paused.store(false, Ordering::Release);
             }
+            Action::Play if self.radio().is_some() => {
+                self.ensure_output()?;
+                if self.live.is_none() {
+                    self.start_live();
+                }
+                self.signals.paused.store(false, Ordering::Release);
+            }
             Action::Play => {
                 let previous_position = self.current_position();
                 self.ensure_output()?;
@@ -469,8 +592,13 @@ impl Worker {
             }
             Action::Pause => {
                 self.signals.paused.store(true, Ordering::Release);
+                if self.radio().is_some() {
+                    // Radio is live: resuming later starts from what airs then.
+                    self.idle_radio();
+                }
             }
             Action::Stop => {
+                self.end_radio();
                 self.signals.paused.store(true, Ordering::Release);
                 self.signals.ready.store(false, Ordering::Release);
                 self.signals.epoch.fetch_add(1, Ordering::AcqRel);
@@ -572,7 +700,7 @@ impl Worker {
             }
             Action::Repeat { value } => {
                 self.data.lock().unwrap().repeat = value;
-                if !self.signals.completed.load(Ordering::Acquire) {
+                if self.radio().is_none() && !self.signals.completed.load(Ordering::Acquire) {
                     self.restart_current(self.current_position());
                 }
             }
@@ -617,14 +745,57 @@ impl Worker {
                     data.error = None;
                     data.revision += 1;
                 }
-                self.restart_current(position);
+                if self.radio().is_some() {
+                    self.idle_radio();
+                    if !paused {
+                        self.start_live();
+                    }
+                } else {
+                    self.restart_current(position);
+                }
                 self.signals.paused.store(paused, Ordering::Release);
                 self.dirty = true;
             }
         }
         Ok(())
     }
+    fn produce_live(&mut self) -> Result<bool> {
+        let Some(live) = &self.live else {
+            return Ok(false);
+        };
+        if let Some(e) = live.failed() {
+            self.live = None;
+            self.signals.paused.store(true, Ordering::Release);
+            self.error(e);
+            return Ok(false);
+        }
+        let Some(feeder) = self.feeder.as_mut() else {
+            return Ok(false);
+        };
+        let available = live.buffered();
+        // Half a second in hand before the first sound, so the start does not stutter.
+        if available == 0 || (feeder.pushed == 0 && available < self.rate as usize / 2) {
+            return Ok(false);
+        }
+        let Some(mut block) = feeder.take() else {
+            return Ok(false);
+        };
+        block.len = live.take(&mut block.samples);
+        block.terminal = false;
+        block.epoch = self.signals.epoch.load(Ordering::Acquire);
+        block.track = 0;
+        block.start = self.live_position;
+        self.live_position += block.len as u64;
+        feeder.send(block);
+        if feeder.pushed * BLOCK >= self.rate as usize / 2 {
+            self.signals.ready.store(true, Ordering::Release);
+        }
+        Ok(true)
+    }
     fn produce(&mut self) -> Result<bool> {
+        if self.live.is_some() {
+            return self.produce_live();
+        }
         if self.terminal_sent || self.feeder.is_none() {
             return Ok(false);
         }
@@ -725,6 +896,7 @@ impl Worker {
                 );
                 self.output = None;
                 self.feeder = None;
+                self.live = None;
                 self.source = None;
                 self.pending_frame = None;
                 self.ended = true;

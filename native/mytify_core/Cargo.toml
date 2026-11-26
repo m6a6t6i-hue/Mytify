@@ -50,6 +50,7 @@ symphonia = { version = "0.5.5", features = ["all"] }
 rubato = "0.16.2"
 rtrb = "0.3"
 mp3lame-encoder = "0.2"
+fdk-aac = "0.8"
 
 [target.'cfg(windows)'.dependencies]
 cpal = "0.18.2"
