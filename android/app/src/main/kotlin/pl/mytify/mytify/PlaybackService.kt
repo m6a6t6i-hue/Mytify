@@ -486,7 +486,7 @@ class PlaybackService : MediaLibraryService() {
             "available" to true,
             "playing" to p.isPlaying,
             "completed" to (p.playbackState == Player.STATE_ENDED),
-            "buffering" to (p.playbackState == Player.STATE_BUFFERING),
+            "buffering" to (p.playbackState == Player.STATE_BUFFERING && p.playWhenReady),
             "repeat" to (p.repeatMode == Player.REPEAT_MODE_ALL),
             "shuffled" to p.shuffleModeEnabled,
             "queueIds" to

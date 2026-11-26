@@ -109,6 +109,7 @@ class TransportControls extends StatelessWidget {
         SizedBox(width: gap),
         PlayButton(
           playing: app.playing,
+          loading: app.connecting,
           size: play,
           onPressed: has || app.tracks.isNotEmpty
               ? () => unawaited(app.togglePlay())
@@ -1043,11 +1044,13 @@ class MiniPlayer extends StatelessWidget {
                             icon: AnimatedSwitcher(
                               duration: motion(context, Dur.standard),
                               transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
-                              child: Icon(
-                                app.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                                key: ValueKey(app.playing),
-                                size: 30,
-                              ),
+                              child: app.connecting
+                                  ? const SizedBox(key: ValueKey('loading'), width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5))
+                                  : Icon(
+                                      app.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                      key: ValueKey(app.playing),
+                                      size: 30,
+                                    ),
                             ),
                           ),
                         ],

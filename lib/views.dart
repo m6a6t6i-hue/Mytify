@@ -283,7 +283,7 @@ class _ContinueHero extends StatelessWidget {
                       const SizedBox(height: Sp.l),
                       Row(
                         children: [
-                          PlayButton(playing: app.playing, size: 48, onPressed: () => unawaited(app.togglePlay())),
+                          PlayButton(playing: app.playing, loading: app.connecting, size: 48, onPressed: () => unawaited(app.togglePlay())),
                           const SizedBox(width: Sp.m),
                           if (album != null && album.tracks.length > 1)
                             TextButton(
@@ -1944,7 +1944,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.23.4']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.23.5']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),

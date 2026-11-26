@@ -17,7 +17,7 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: dart analyze --format=machine lib test > analyze.txt 2>&1 || true
+      - run: flutter analyze --no-pub > analyze.txt 2>&1 || true
       - run: cat analyze.txt
       - run: flutter test ${WIP_TESTS:-test/radio_test.dart} > tests.txt 2>&1 || true
         env:

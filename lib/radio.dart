@@ -210,8 +210,9 @@ extension RadioActions on LibraryScreenState {
     // Play at once from the known address. The directory only counts the listen,
     // so that call must not delay the sound (it can take seconds).
     if (!s.id.startsWith('radio:u')) unawaited(repo.radioClick(s.id).then((_) {}, onError: (Object _) {}));
-    await audioOperation(
-      () => player.command({
+    await starting(
+      () => audioOperation(
+        () => player.command({
         'action': 'radio',
         'id': s.id,
         'url': s.url,
@@ -222,6 +223,7 @@ extension RadioActions on LibraryScreenState {
         'hls': s.hls,
         'stations': [for (final x in stations) x.toJson()],
       }),
+      ),
     );
   }
 
@@ -527,7 +529,10 @@ class _RadioPageState extends State<RadioPage> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (onAir) LevelBars(playing: app.playing, width: 16, height: 14),
+            if (onAir && app.connecting)
+              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+            else if (onAir)
+              LevelBars(playing: app.playing, width: 16, height: 14),
             IconAction(
               fav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
               fav ? tr('Usuń z ulubionych stacji') : tr('Dodaj do ulubionych stacji'),

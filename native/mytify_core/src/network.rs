@@ -484,7 +484,7 @@ impl Network {
             {
                 let a = air().lock().unwrap();
                 v["pairingRequired"] = json!(a.0 == 2);
-                v["buffering"] = json!(a.0 == 0);
+                v["buffering"] = json!(a.0 == 0 && v["playing"] == true);
                 if a.0 == 3 {
                     v["error"] = json!(a.1);
                 }

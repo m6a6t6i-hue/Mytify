@@ -38,7 +38,9 @@ class _FloatingPlayerState extends State<FloatingPlayer> {
         child: SizedBox(
           width: d,
           height: d,
-          child: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded, size: d * .62, color: enabled ? onAccent : secondaryText),
+          child: app.connecting
+              ? Padding(padding: EdgeInsets.all(d * .26), child: CircularProgressIndicator(strokeWidth: 2, color: onAccent))
+              : Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded, size: d * .62, color: enabled ? onAccent : secondaryText),
         ),
       ),
     ),

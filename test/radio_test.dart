@@ -169,6 +169,17 @@ void main() {
     expect(app.current?.id, 'radio:jazz');
     expect(app.current?.title, 'Jazz Radio');
 
+    // Waiting for the station: the play button spins until sound comes, then is a button again.
+    final mini0 = find.byType(MiniPlayer);
+    audio = {...audio, 'playing': false, 'buffering': true};
+    await settle(tester);
+    expect(app.connecting, isTrue);
+    expect(find.descendant(of: mini0, matching: find.byType(CircularProgressIndicator)), findsOneWidget);
+    audio = {...audio, 'playing': true, 'buffering': false};
+    await settle(tester);
+    expect(app.connecting, isFalse);
+    expect(find.descendant(of: mini0, matching: find.byType(CircularProgressIndicator)), findsNothing);
+
     // The station names the song: the player shows it and remembers it as heard.
     audio = {
       ...audio,

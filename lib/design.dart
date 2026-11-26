@@ -510,12 +510,16 @@ class _MotionTileState extends State<MotionTile> {
 /// Primary play control with a real play/pause morph and press feedback.
 class PlayButton extends StatefulWidget {
   final bool playing;
+
+  /// Waiting for sound (connecting to a station, reaching a NAS): a spinner instead of the icon.
+  final bool loading;
   final VoidCallback? onPressed;
   final double size;
   const PlayButton({
     super.key,
     required this.playing,
     required this.onPressed,
+    this.loading = false,
     this.size = 58,
   });
   @override
@@ -564,13 +568,24 @@ class _PlayButtonState extends State<PlayButton>
           color: widget.onPressed == null ? elevated : accent,
         ),
         child: IconButton(
-          tooltip: widget.playing ? tr('Wstrzymaj') : tr('Odtwórz'),
+          tooltip: widget.loading ? tr('Łączenie… (dotknij, aby przerwać)') : widget.playing ? tr('Wstrzymaj') : tr('Odtwórz'),
           onPressed: widget.onPressed,
           color: onAccent,
           iconSize: widget.size * .5,
-          icon: AnimatedIcon(
-            icon: AnimatedIcons.play_pause,
-            progress: CurvedAnimation(parent: controller, curve: Curves.easeInOutCubic),
+          icon: AnimatedSwitcher(
+            duration: motion(context, Dur.standard),
+            child: widget.loading
+                ? SizedBox(
+                    key: const ValueKey('loading'),
+                    width: widget.size * .42,
+                    height: widget.size * .42,
+                    child: CircularProgressIndicator(strokeWidth: math.max(2.0, widget.size * .05), color: onAccent),
+                  )
+                : AnimatedIcon(
+                    key: const ValueKey('icon'),
+                    icon: AnimatedIcons.play_pause,
+                    progress: CurvedAnimation(parent: controller, curve: Curves.easeInOutCubic),
+                  ),
           ),
         ),
       ),

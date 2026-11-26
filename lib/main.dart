@@ -264,6 +264,22 @@ class LibraryScreenState extends State<LibraryScreen> {
 
   /// PC: logos of stations come through the core; null on Android (loaded directly).
   String? radioLogoBase;
+
+  // Waiting for sound: a start command still in flight (a station's address being
+  // opened, a NAS file being reached) or the engine still filling its buffer.
+  int _starting = 0;
+  bool _buffering = false;
+  bool get connecting => _starting > 0 || _buffering;
+
+  /// Runs a command that should end in sound; the play buttons spin meanwhile.
+  Future<void> starting(Future<void> Function() op) async {
+    if (mounted) setState(() => _starting++);
+    try {
+      await op();
+    } finally {
+      if (mounted) setState(() => _starting--);
+    }
+  }
   /// Start animation runs once per app start, never on resume or navigation.
   bool showIntro = introOnStart;
   ImportProgress progress = const ImportProgress(0, 0, '');
@@ -389,6 +405,7 @@ class LibraryScreenState extends State<LibraryScreen> {
 
   void syncNativeAudio(AudioSnapshot state) {
     if (!mounted) return;
+    if (state.buffering != _buffering) setState(() => _buffering = state.buffering);
     _account(state);
     final onAir = state.radio;
     if (onAir != null) {
@@ -512,6 +529,17 @@ class LibraryScreenState extends State<LibraryScreen> {
         : (start ?? playable.first);
     final generation = ++playGeneration;
     try {
+      await starting(() => _openTracks(playable, first, shuffle));
+      if (mounted && generation == playGeneration) _openedTrackId = first.id;
+    } catch (e) {
+      if (mounted && generation == playGeneration) {
+        message(tr('Nie można uruchomić odtwarzania: {0}', [e]));
+      }
+    }
+  }
+
+  Future<void> _openTracks(List<Track> playable, Track first, bool shuffle) async {
+    {
       final ids = playable.map((t) => t.id).toList();
       if (listEquals(ids, player.state.queueIds) && !shuffle) {
         await player.jump(first.id);
@@ -520,11 +548,6 @@ class LibraryScreenState extends State<LibraryScreen> {
         await player.openQueue(ids, ids.indexOf(first.id));
       }
       if (shuffle) await player.shuffle(true);
-      if (mounted && generation == playGeneration) _openedTrackId = first.id;
-    } catch (e) {
-      if (mounted && generation == playGeneration) {
-        message(tr('Nie można uruchomić odtwarzania: {0}', [e]));
-      }
     }
   }
 
@@ -538,7 +561,9 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (recent != null) return playAlbum(recent);
       return playTracks(tracks);
     }
-    if (isRadio(track.id)) return audioOperation(player.playOrPause);
+    // Tapping the spinning button gives up waiting.
+    if (connecting) return audioOperation(() => player.command({'action': 'pause'}));
+    if (isRadio(track.id)) return player.state.playing ? audioOperation(player.playOrPause) : starting(() => audioOperation(player.playOrPause));
     if (!track.available) {
       message(tr('Źródło jest niedostępne. Podłącz je i wykonaj skan.'));
       return;
@@ -546,11 +571,12 @@ class LibraryScreenState extends State<LibraryScreen> {
     if (_openedTrackId != track.id || player.state.currentId == null) {
       return playTracks(queue.items, start: track);
     }
-    await audioOperation(player.playOrPause);
+    if (player.state.playing) return audioOperation(player.playOrPause);
+    await starting(() => audioOperation(player.playOrPause));
   }
 
-  Future<void> nextTrack() => audioOperation(player.next);
-  Future<void> previousTrack() => audioOperation(player.previous);
+  Future<void> nextTrack() => starting(() => audioOperation(player.next));
+  Future<void> previousTrack() => starting(() => audioOperation(player.previous));
   Future<void> toggleShuffle() =>
       audioOperation(() => player.shuffle(!queue.shuffled));
   Future<void> toggleRepeat() =>
@@ -658,7 +684,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     await _rearrange(ids);
   }
 
-  Future<void> jumpTo(String id) => audioOperation(() => player.jump(id));
+  Future<void> jumpTo(String id) => starting(() => audioOperation(() => player.jump(id)));
 
   // ---------------------------------------------------------------- library
 
