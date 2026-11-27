@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 
+import 'artist_photos_ui.dart';
 import 'design.dart';
 import 'library_index.dart';
 import 'main.dart';
@@ -100,6 +101,7 @@ class _CleanupPageState extends State<CleanupPage> {
   Widget build(BuildContext context) {
     final desktop = app.desktopMode;
     final duplicates = findDuplicates(app.tracks);
+    final photos = app.repository is ArtistPhotoRepository;
     final albums = [
       for (final a in app.index.albums)
         if (!skipped.contains(a.key) && albumIssues(a).isNotEmpty) a,
@@ -110,12 +112,21 @@ class _CleanupPageState extends State<CleanupPage> {
       children: [
         if (desktop) ...[Text(tr('Porządki w bibliotece'), style: Txt.display), const SizedBox(height: Sp.l)],
         TextTabs(
-          labels: [tr('Duplikaty ({0})', [duplicates.length]), tr('Albumy z brakami ({0})', [albums.length])],
+          labels: [
+            tr('Duplikaty ({0})', [duplicates.length]),
+            tr('Albumy z brakami ({0})', [albums.length]),
+            if (photos) tr('Zdjęcia wykonawców ({0})', [artistsWithoutPhoto(app)]),
+          ],
           index: tab,
           onChanged: (v) => setState(() => tab = v),
         ),
         const SizedBox(height: Sp.l),
-        if (tab == 0) ..._duplicates(duplicates) else ..._albums(albums),
+        if (tab == 0)
+          ..._duplicates(duplicates)
+        else if (tab == 1)
+          ..._albums(albums)
+        else if (photos)
+          ArtistPhotosPanel(app: app),
       ],
     );
   }

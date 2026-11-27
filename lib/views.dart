@@ -240,7 +240,7 @@ Widget _playlistCard(LibraryScreenState app, MusicPlaylist p, double size) {
 }
 
 Widget _artistCard(LibraryScreenState app, ArtistGroup a, double size) => CollectionCard(
-  cover: a.art?.cover,
+  cover: app.artistPhoto(a),
   title: a.name,
   subtitle: a.albums.isEmpty ? trackCount(a.tracks.length) : albumCount(a.albums.length),
   size: size,
@@ -809,7 +809,7 @@ class _LibraryPageState extends State<LibraryPage> {
             : SliverList.builder(
                 itemCount: list.length,
                 itemBuilder: (context, i) => _listTile(
-                  Artwork(list[i].art?.cover, size: 52, circle: true),
+                  Artwork(app.artistPhoto(list[i]), size: 52, circle: true),
                   list[i].name,
                   albumCount(list[i].albums.length),
                   () => app.go(Nav('artist', list[i].key)),
@@ -1404,13 +1404,13 @@ class ArtistPage extends StatelessWidget {
       key: PageStorageKey('artist:$artistKey'),
       children: [
         AmbientBackdrop(
-          cover: a.art?.cover,
+          cover: app.artistPhoto(a),
           strength: .5,
           child: Padding(
             padding: EdgeInsets.fromLTRB(desktop ? Sp.xl : Sp.l, desktop ? Sp.xl : Sp.s, Sp.l, Sp.l),
             child: Row(
               children: [
-                Artwork(a.art?.cover, size: desktop ? 160 : 112, circle: true),
+                Artwork(app.artistPhoto(a), size: desktop ? 160 : 112, circle: true),
                 const SizedBox(width: Sp.l),
                 Expanded(
                   child: Column(
@@ -1685,7 +1685,7 @@ class _SearchPageState extends State<SearchPage> {
     Widget? best;
     final exactArtist = artists.where((a) => searchKey(a.name) == searchKey(q)).firstOrNull;
     if (exactArtist != null) {
-      best = _best(exactArtist.art?.cover, exactArtist.name, tr('Artysta'), () { _remember(); app.go(Nav('artist', exactArtist.key)); }, circle: true);
+      best = _best(app.artistPhoto(exactArtist), exactArtist.name, tr('Artysta'), () { _remember(); app.go(Nav('artist', exactArtist.key)); }, circle: true);
     } else if (albums.isNotEmpty) {
       final a = albums.first;
       best = _best(a.art.cover, a.title, tr('Album · {0}', [a.artist]), () { _remember(); app.go(Nav('album', a.key)); }, onPlay: () => unawaited(app.playAlbum(a)));
@@ -1986,7 +1986,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.25.1']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.26.0']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mytify/audio_settings.dart';
 import 'package:mytify/ingest.dart';
+import 'package:mytify/artist_photos_ui.dart';
 import 'package:mytify/main.dart';
 import 'package:mytify/metadata_models.dart';
 import 'package:mytify/mini_player.dart';
@@ -129,6 +130,8 @@ void main() {
     expect(plainAlbumTitle('Abbey Road - Remastered 2019'), 'Abbey Road');
     expect(plainAlbumTitle('Help!'), 'Help!');
     expect(sameName(' Amorphis\u00a0'), sameName('amorphis'));
+    expect(soloArtist('Amorphis'), isTrue);
+    expect(soloArtist('Amorphis, Hellscore'), isFalse);
     await s.recordApp();
     final record = repo.requests.lastWhere((r) => r['action'] == 'record');
     expect(record['app'], 'spotify');

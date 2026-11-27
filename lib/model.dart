@@ -191,6 +191,18 @@ abstract class SourceProbe {
   Future<void> probeSources();
 }
 
+/// Artist photos (PC): from a photo folder, artist folders next to the music, or
+/// downloaded. Keys are [LibraryIndex.artistKeyOf] of the artist name.
+abstract class ArtistPhotoRepository {
+  Future<Map<String, String>> artistPhotos();
+  Future<Map<String, dynamic>> artistPhotoStatus();
+  Future<Map<String, dynamic>> refreshArtistPhotos({bool download = false, List<String>? only});
+  Future<void> cancelArtistPhotos();
+  Future<String?> artistPhotoFolder();
+  Future<void> setArtistPhotoFolder(String? path);
+  Future<String?> pickArtistPhotoFolder();
+}
+
 abstract class LibraryRepository {
   String get storageDescription;
   Future<List<Track>> load();

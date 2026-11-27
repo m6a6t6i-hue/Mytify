@@ -144,11 +144,15 @@ class IngestState extends ChangeNotifier {
   /// Called after files were added to the library.
   final Future<void> Function() onLibraryChanged;
 
+  /// Called with the album artist after an import (to fetch their photo).
+  final Future<void> Function(List<String> artists)? onImported;
+
   IngestState({
     required this.repository,
     required this.library,
     required this.beforeCapture,
     required this.onLibraryChanged,
+    this.onImported,
   });
 
   int tab = 0;
@@ -748,6 +752,13 @@ class IngestState extends ChangeNotifier {
     }
     if ((job == 'rip' || job == 'export') && (status['files'] as List? ?? const []).isNotEmpty) {
       await onLibraryChanged();
+      final f = job == 'rip' ? cdForm : vinylForm;
+      final artists = {
+        if (!f.various && f.artist.text.trim().isNotEmpty) f.artist.text.trim(),
+        for (final a in f.artists) if (a.trim().isNotEmpty) a.trim(),
+      }.toList();
+      final imported = onImported;
+      if (imported != null && artists.isNotEmpty) unawaited(imported(artists));
     }
     // Side B continues the numbering of side A; an app album is complete in one go.
     if (job == 'export' && !appSession) firstTrack += (status['files'] as List? ?? const []).length;

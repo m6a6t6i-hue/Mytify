@@ -55,6 +55,9 @@ external JSPromise<JSString> _transfer(JSString body);
 @JS('mytifyBridge.network')
 external JSPromise<JSString> _network(JSString action, JSString body);
 
+@JS('mytifyBridge.artists')
+external JSPromise<JSString> _artists(JSString action, JSString body);
+
 @JS('mytifyBridge.shop')
 external JSPromise<JSString> _shop(JSString query, JSString country);
 
@@ -65,7 +68,29 @@ external JSPromise<JSString> _radio(JSString action, JSString body);
 external JSPromise<JSString> _ingest(JSString body);
 
 class WebLibraryRepository extends LibraryRepository
-    implements IngestRepository, PlaylistRepository, TransferRepository, RadioRepository, ShopRepository, SourceProbe {
+    implements IngestRepository, PlaylistRepository, TransferRepository, RadioRepository, ShopRepository, SourceProbe, ArtistPhotoRepository {
+  Future<dynamic> _artist(String action, [Map<String, dynamic> body = const {}]) async =>
+      jsonDecode((await _artists(action.toJS, jsonEncode(body).toJS).toDart).toDart);
+  @override
+  Future<Map<String, String>> artistPhotos() async => {
+    for (final e in (await _artist('photos') as Map).entries) '${e.key}': '${(e.value as Map)['uri']}',
+  };
+  @override
+  Future<Map<String, dynamic>> artistPhotoStatus() async => Map<String, dynamic>.from(await _artist('status') as Map);
+  @override
+  Future<Map<String, dynamic>> refreshArtistPhotos({bool download = false, List<String>? only}) async =>
+      Map<String, dynamic>.from(await _artist('refresh', {'download': download, 'only': ?only}) as Map);
+  @override
+  Future<void> cancelArtistPhotos() async => _artist('cancel');
+  @override
+  Future<String?> artistPhotoFolder() async => (await _artist('folder') as Map)['path'] as String?;
+  @override
+  Future<void> setArtistPhotoFolder(String? path) async => _artist('setFolder', {'path': path});
+  @override
+  Future<String?> pickArtistPhotoFolder() async {
+    final paths = (await _artist('pick') as Map)['paths'] as List? ?? const [];
+    return paths.isEmpty ? null : '${paths.first}';
+  }
   @override
   Future<void> probeSources() async => _net('probe', '');
   @override

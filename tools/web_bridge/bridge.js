@@ -130,6 +130,18 @@ window.mytifyBridge = {
     }
     throw new Error('Nieznana operacja metadanych.');
   },
+  async artists(action,body) {
+    // Artist photos: folders first, downloads on request.
+    const args=JSON.parse(body||'{}');
+    if(action==='photos') return JSON.stringify(await api('/api/artists/photos'));
+    if(action==='status') return JSON.stringify(await api('/api/artists/photos/status'));
+    if(action==='refresh') return JSON.stringify(await api('/api/artists/photos/refresh',{method:'POST',body:{download:!!args.download,only:args.only||null}}));
+    if(action==='cancel') return JSON.stringify(await api('/api/artists/photos/cancel',{method:'POST',body:{}}));
+    if(action==='folder') return JSON.stringify(await api('/api/artists/folder'));
+    if(action==='setFolder') return JSON.stringify(await api('/api/artists/folder',{method:'POST',body:{path:args.path||null}}));
+    if(action==='pick') return JSON.stringify(await api('/api/pick',{method:'POST',body:{folder:true,title:'Wybierz folder ze zdjęciami wykonawców'}}));
+    throw new Error('Nieznana operacja.');
+  },
   async shop(query,country) { return JSON.stringify(await api('/api/shop/search?q='+encodeURIComponent(query)+'&country='+encodeURIComponent(country))); },
   async radio(action,body) {
     // Internet radio: directory search, listen counting, address check, logos through the core.

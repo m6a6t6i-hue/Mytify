@@ -256,7 +256,36 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (player.state.playing) await player.command({'action': 'pause'});
     },
     onLibraryChanged: loadLibrary,
+    onImported: (artists) async {
+      // A freshly imported artist gets their photo right away.
+      final repo = repository;
+      if (repo is! ArtistPhotoRepository) return;
+      try {
+        await (repo as ArtistPhotoRepository).refreshArtistPhotos(download: true, only: artists);
+        for (var i = 0; i < 60; i++) {
+          await Future<void>.delayed(const Duration(seconds: 1));
+          if ((await (repo as ArtistPhotoRepository).artistPhotoStatus())['running'] != true) break;
+        }
+        await loadArtistPhotos();
+      } catch (_) {}
+    },
   );
+
+  /// Artist photos by artist key (PC); album covers stand in for the rest.
+  Map<String, String> artistPhotos = const {};
+
+  String? artistPhoto(ArtistGroup a) => artistPhotos[a.key] ?? a.art?.cover;
+
+  Future<void> loadArtistPhotos() async {
+    final repo = repository;
+    if (repo is! ArtistPhotoRepository) return;
+    try {
+      final photos = await (repo as ArtistPhotoRepository).artistPhotos();
+      if (mounted) setState(() => artistPhotos = photos);
+    } catch (_) {
+      /* photos are optional */
+    }
+  }
   Timer? _libraryRefresh;
   bool cancelling = false;
   String? startupError;
@@ -749,6 +778,7 @@ class LibraryScreenState extends State<LibraryScreen> {
           selected.removeWhere((id) => !index.byId.containsKey(id));
         });
       }
+      unawaited(loadArtistPhotos());
     } catch (e) {
       if (mounted) {
         setState(() {

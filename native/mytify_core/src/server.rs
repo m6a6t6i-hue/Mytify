@@ -43,6 +43,7 @@ pub struct App {
     pub busy: AtomicBool,
     pub radio: crate::radio::Directory,
     pub shop: crate::shop::Shop,
+    pub artists: Arc<crate::artist_photos::ArtistPhotos>,
 }
 pub struct RunningServer {
     pub app: Arc<App>,
@@ -92,6 +93,7 @@ pub fn start_with_audio(
         busy: AtomicBool::new(false),
         radio: crate::radio::Directory::new(),
         shop: crate::shop::Shop::new(),
+        artists: Arc::new(crate::artist_photos::ArtistPhotos::new()),
     });
     app.downloads.start();
     if !test {
@@ -99,6 +101,11 @@ pub fn start_with_audio(
         let catalog = app.catalog.clone();
         let downloads = app.downloads.clone();
         let transfer = app.transfer.clone();
+        // Artist photos already in folders, read off the request path (a NAS may be slow).
+        let photos = app.clone();
+        thread::spawn(move || {
+            let _ = photos.artists.refresh(&photos.catalog, &photos.metadata, false, None);
+        });
         thread::spawn(move || loop {
             let _ = catalog.probe_network_sources();
             // Playlists kept offline pick up new entries when the server is back.
@@ -349,6 +356,57 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
         if path == "/api/player/levels" && method == Method::Get {
             return send_json(request, 200, json!({ "bands": app.player.levels() }));
         }
+        if path == "/api/artists/photos" && method == Method::Get {
+            return match crate::artist_photos::photos_json(&app.catalog, &app.origin, &app.token) {
+                Ok(v) => send_json(request, 200, v),
+                Err(e) => send_error(request, 500, format!("{e:#}")),
+            };
+        }
+        if path == "/api/artists/photos/status" && method == Method::Get {
+            return send_json(request, 200, serde_json::to_value(app.artists.status())?);
+        }
+        if path == "/api/artists/photos/cancel" && method == Method::Post {
+            app.artists.cancel();
+            return send_json(request, 200, serde_json::to_value(app.artists.status())?);
+        }
+        if path == "/api/artists/photos/refresh" && method == Method::Post {
+            let args = match read_json(&mut request) {
+                Ok(v) => v,
+                Err(e) => return send_error(request, 400, e),
+            };
+            if app.artists.status().running {
+                return send_json(request, 200, serde_json::to_value(app.artists.status())?);
+            }
+            let download = args["download"].as_bool().unwrap_or(false);
+            let only: Option<Vec<String>> = args["only"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).take(50).collect());
+            let job = app.clone();
+            thread::spawn(move || {
+                let _ = job.artists.refresh(&job.catalog, &job.metadata, download, only.as_deref());
+            });
+            // Give the job a moment to register as running.
+            thread::sleep(std::time::Duration::from_millis(50));
+            return send_json(request, 200, serde_json::to_value(app.artists.status())?);
+        }
+        if path == "/api/artists/folder" && method == Method::Get {
+            let folder = crate::artist_photos::ArtistPhotos::folder(&app.catalog)?;
+            return send_json(request, 200, json!({"path": folder.map(|p| p.to_string_lossy().into_owned())}));
+        }
+        if path == "/api/artists/folder" && method == Method::Post {
+            let args = match read_json(&mut request) {
+                Ok(v) => v,
+                Err(e) => return send_error(request, 400, e),
+            };
+            return match crate::artist_photos::ArtistPhotos::set_folder(&app.catalog, args["path"].as_str()) {
+                Ok(()) => {
+                    let job = app.clone();
+                    thread::spawn(move || {
+                        let _ = job.artists.refresh(&job.catalog, &job.metadata, false, None);
+                    });
+                    send_json(request, 200, json!({"path": args["path"]}))
+                }
+                Err(e) => send_error(request, 400, format!("{e:#}")),
+            };
+        }
         if path == "/api/shop/search" && method == Method::Get {
             let query: HashMap<_, _> = parsed.query_pairs().into_owned().collect();
             let q = query.get("q").cloned().unwrap_or_default();
@@ -578,7 +636,7 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
             #[cfg(windows)]
             let paths: Vec<String> = if folder {
                 rfd::FileDialog::new()
-                    .set_title("Wybierz folder z muzyką")
+                    .set_title(args["title"].as_str().filter(|t| t.len() < 120).unwrap_or("Wybierz folder z muzyką"))
                     .pick_folder()
                     .into_iter()
                     .map(|p| p.to_string_lossy().into_owned())
