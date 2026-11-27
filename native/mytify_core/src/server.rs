@@ -104,6 +104,8 @@ pub fn start_with_audio(
         // Artist photos already in folders, read off the request path (a NAS may be slow).
         let photos = app.clone();
         thread::spawn(move || {
+            // The NAS is connected first: the photo folder and the music folder may be on it.
+            let _ = photos.catalog.probe_network_sources();
             let _ = photos.artists.refresh(&photos.catalog, &photos.metadata, false, None);
             // Covers the library shows go next to the albums in the music folder.
             let _ = crate::ingest::write_folder_covers(&photos.catalog);

@@ -174,7 +174,7 @@ impl ArtistPhotos {
                 let entry = names.get_mut(k).unwrap();
                 for d in dirs.iter().flatten() {
                     let name = d.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                    if loose(&name) == loose(&entry.0) && !entry.1.iter().any(|x| x == d) && entry.1.len() < 4 {
+                    if loose(&name) == loose(&entry.0) && !entry.1.iter().any(|x| x == d) && entry.1.len() < 12 {
                         entry.1.push(d.to_path_buf());
                     }
                 }
@@ -385,6 +385,34 @@ impl ArtistPhotos {
         thumb.query_pairs_mut().append_pair("width", "1000");
         get(client, &thumb, LIMIT)
     }
+}
+
+/// Every artist folder in the music folder gets artist.jpg from the photo the library
+/// shows for that artist (downloaded, from the photo folder or found in a folder).
+/// Never replaces a picture that is there. Returns how many it wrote.
+pub fn place_in_music_folder(catalog: &Catalog) -> Result<usize> {
+    let Some(music) = crate::ingest::import_folder(catalog).and_then(|m| m.canonicalize().ok()) else { return Ok(0) };
+    let photos: HashMap<String, String> = {
+        let db = catalog.db()?;
+        ensure(&db)?;
+        let mut stmt = db.prepare("SELECT key,cover FROM artist_photos WHERE cover IS NOT NULL")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        rows.collect::<rusqlite::Result<_>>()?
+    };
+    let mut written = 0;
+    for (k, (_, dirs)) in ArtistPhotos::artists(catalog)? {
+        let Some(hash) = photos.get(&k) else { continue };
+        let targets: Vec<&PathBuf> = dirs.iter().filter(|d| d.starts_with(&music) && d.is_dir() && !NAMES.iter().any(|n| d.join(n).is_file())).collect();
+        if targets.is_empty() {
+            continue;
+        }
+        let Some(bytes) = catalog.artwork_path(hash).ok().and_then(|p| std::fs::read(p).ok()) else { continue };
+        for d in targets {
+            write_new(&d.join("artist.jpg"), &bytes);
+            written += 1;
+        }
+    }
+    Ok(written)
 }
 
 /// Writes a photo only where there is none: user files are never replaced.

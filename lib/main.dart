@@ -10,6 +10,7 @@ import 'devices.dart';
 import 'ingest.dart';
 import 'mini_player.dart';
 import 'visualizer.dart';
+import 'test_env.dart' if (dart.library.io) 'test_env_io.dart';
 import 'intro.dart';
 import 'startup_signal.dart';
 import 'library_index.dart';
@@ -300,7 +301,7 @@ class LibraryScreenState extends State<LibraryScreen> {
       /* photos are optional */
     }
   }
-  Timer? _libraryRefresh;
+  Timer? _libraryRefresh, _startupScan;
   bool cancelling = false;
   String? startupError;
   String? _openedTrackId;
@@ -432,6 +433,13 @@ class LibraryScreenState extends State<LibraryScreen> {
           .whenComplete(() {
             if (mounted) setState(() => startupConnecting = false);
             signalStartupDone();
+            // New and changed files (a NAS filled from another computer) come in by
+            // themselves, in the background, a moment after the app opens.
+            if (!inFlutterTest) {
+              _startupScan = Timer(const Duration(seconds: 3), () {
+                if (mounted && !importing && librarySources.any((x) => x.kind != 'downloads')) unawaited(scanSources(null, true));
+              });
+            }
           }),
     );
     // PC app: notice an inserted Audio CD and offer to import it.
@@ -456,6 +464,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     unawaited(player.dispose());
     _libraryRefresh?.cancel();
     _screensaver?.cancel();
+    _startupScan?.cancel();
     unawaited(repository.dispose());
     prefs.dispose();
     _ingest?.dispose();
@@ -1309,9 +1318,11 @@ class LibraryScreenState extends State<LibraryScreen> {
     return [for (final t in list) index.byId[t.id] ?? t];
   }
 
+  /// [quiet]: a background refresh; it says something only when the library changed.
   Future<void> runOperation(
     Future<ImportReport> Function(void Function(ImportProgress)) action, {
     bool showAlbums = false,
+    bool quiet = false,
   }) async {
     if (importing || startupError != null) return;
     setState(() {
@@ -1319,22 +1330,24 @@ class LibraryScreenState extends State<LibraryScreen> {
       cancelling = false;
       progress = ImportProgress(0, 0, tr('Przygotowanie'));
     });
-    taskbarProgress(null, 'indeterminate');
+    if (!quiet) taskbarProgress(null, 'indeterminate');
     try {
       final report = await action((value) {
         if (mounted) setState(() => progress = value);
-        taskbarProgress(value.total > 0 ? value.done / value.total : null, value.total > 0 ? 'normal' : 'indeterminate');
+        if (!quiet) taskbarProgress(value.total > 0 ? value.done / value.total : null, value.total > 0 ? 'normal' : 'indeterminate');
       });
       await loadLibrary();
       if (!mounted) return;
       if (report.added > 0) notifyDesktop(tr('Import zakończony'), tr('Dodano: {0}', [trackCount(report.added)]));
+      final changed = report.added + report.updated + report.missing > 0;
+      if (quiet && !changed) return;
       if (!report.cancelled || report.added + report.updated + report.unchanged > 0) {
         setState(() => lastImport = report);
         if (showAlbums && report.added > 0) go(const Nav('library', 'albums'));
         showImportSummary(report);
       }
     } catch (e) {
-      message(tr('Operacja nie powiodła się: {0}', [e]));
+      if (!quiet) message(tr('Operacja nie powiodła się: {0}', [e]));
     } finally {
       if (mounted) {
         setState(() {
@@ -1342,7 +1355,7 @@ class LibraryScreenState extends State<LibraryScreen> {
           cancelling = false;
         });
       }
-      taskbarProgress(null, 'none');
+      if (!quiet) taskbarProgress(null, 'none');
     }
   }
 
@@ -1480,8 +1493,8 @@ class LibraryScreenState extends State<LibraryScreen> {
     (update) => repository.importAudio(folder: folder, onProgress: update),
     showAlbums: true,
   );
-  Future<void> scanSources([String? id]) =>
-      runOperation((update) => repository.rescan(sourceId: id, onProgress: update));
+  Future<void> scanSources([String? id, bool quiet = false]) =>
+      runOperation((update) => repository.rescan(sourceId: id, onProgress: update), quiet: quiet);
   Future<void> relinkSource(String id) =>
       runOperation((update) => repository.relink(id, onProgress: update));
   Future<void> migrateLegacy() => runOperation(

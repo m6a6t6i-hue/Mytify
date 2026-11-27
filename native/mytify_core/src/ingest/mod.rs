@@ -1404,6 +1404,8 @@ pub fn write_folder_covers(catalog: &Catalog) -> Result<usize> {
         }
         Ok(written)
     })();
+    // Artist folders get artist.jpg from the photo the library shows.
+    let _ = crate::artist_photos::place_in_music_folder(catalog);
     COVERS_RUNNING.store(false, Ordering::Release);
     result
 }
@@ -1845,6 +1847,12 @@ mod tests {
         assert_eq!(write_folder_covers(&ingest.catalog).unwrap(), 1);
         assert_eq!(std::fs::read(album.join("cover.jpg")).unwrap(), b"jpeg");
         assert_eq!(write_folder_covers(&ingest.catalog).unwrap(), 0, "never replaced");
+        // The artist's photo goes into the artist folder of the same layout.
+        crate::artist_photos::place_in_music_folder(&ingest.catalog).unwrap();
+        ingest.catalog.db().unwrap().execute("INSERT INTO artist_photos(key,name,cover,origin,checked) VALUES('zespół','Zespół',?1,'deezer',0)", [&hash]).unwrap();
+        assert_eq!(crate::artist_photos::place_in_music_folder(&ingest.catalog).unwrap(), 1);
+        assert!(music.join("Zespół").join("artist.jpg").is_file());
+        assert_eq!(crate::artist_photos::place_in_music_folder(&ingest.catalog).unwrap(), 0, "never replaced");
         // Second rip of the same drive reuses the remembered offset and goes straight to
         // the music folder without replacing anything there.
         let mut s = ingest.state.lock().unwrap();

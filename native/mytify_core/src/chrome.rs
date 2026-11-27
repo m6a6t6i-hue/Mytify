@@ -158,13 +158,68 @@ fn app_icon() -> HICON {
     }
 }
 
-/// Claims the single desktop instance. A second start asks the running one to come to
-/// the front and returns false.
+/// The running Mytify window's process (it may be hidden in the tray).
+fn running_instance() -> Option<u32> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW, GetWindowThreadProcessId};
+    unsafe extern "system" fn each(hwnd: HWND, found: isize) -> windows_sys::core::BOOL {
+        let mut title = [0u16; 16];
+        let n = unsafe { GetWindowTextW(hwnd, title.as_mut_ptr(), title.len() as i32) };
+        if String::from_utf16_lossy(&title[..n.max(0) as usize]) == "Mytify" {
+            let mut pid = 0u32;
+            unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
+            if pid != 0 && pid != std::process::id() {
+                unsafe { *(found as *mut u32) = pid };
+                return 0;
+            }
+        }
+        1
+    }
+    let mut pid = 0u32;
+    unsafe { EnumWindows(Some(each), &mut pid as *mut u32 as isize) };
+    (pid != 0).then_some(pid)
+}
+
+/// Full path of a process's program file.
+fn process_path(process: windows_sys::Win32::Foundation::HANDLE) -> Option<String> {
+    use windows_sys::Win32::System::Threading::{QueryFullProcessImageNameW, PROCESS_NAME_WIN32};
+    let mut buf = [0u16; 1024];
+    let mut len = buf.len() as u32;
+    (unsafe { QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, buf.as_mut_ptr(), &mut len) } != 0)
+        .then(|| String::from_utf16_lossy(&buf[..len as usize]).to_lowercase())
+}
+
+/// Claims the single desktop instance. A second start of the same program asks the
+/// running one to come to the front and returns false. A different program file (a new
+/// version downloaded next to the old one) takes over: the old one is asked to quit,
+/// and ended if it does not, so the new version is what opens.
 pub fn single_instance() -> bool {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, WAIT_OBJECT_0},
+        System::Threading::{OpenProcess, TerminateProcess, WaitForSingleObject, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE},
+    };
     unsafe {
         let name = wide("Local\\Mytify.Desktop");
         let mutex = CreateMutexW(std::ptr::null(), 0, name.as_ptr());
         if !mutex.is_null() && GetLastError() == ERROR_ALREADY_EXISTS {
+            let mine = std::env::current_exe().ok().map(|p| p.to_string_lossy().to_lowercase());
+            if let Some(pid) = running_instance() {
+                let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE | PROCESS_TERMINATE, 0, pid);
+                if !process.is_null() {
+                    let other = process_path(process);
+                    if other.is_some() && mine.is_some() && other != mine {
+                        let quit = RegisterWindowMessageW(wide("Mytify.Quit").as_ptr());
+                        PostMessageW(HWND_BROADCAST, quit, 0, 0);
+                        if WaitForSingleObject(process, 5000) != WAIT_OBJECT_0 {
+                            TerminateProcess(process, 0);
+                            WaitForSingleObject(process, 5000);
+                        }
+                        CloseHandle(process);
+                        // Our handle keeps the mutex: this instance is the one now.
+                        return true;
+                    }
+                    CloseHandle(process);
+                }
+            }
             AllowSetForegroundWindow(ASFW_ANY);
             let msg = RegisterWindowMessageW(wide("Mytify.Activate").as_ptr());
             PostMessageW(HWND_BROADCAST, msg, 0, 0);
@@ -549,6 +604,11 @@ unsafe extern "system" fn parent_proc(hwnd: HWND, msg: u32, wparam: usize, lpara
             }
             return 0;
         }
+        m if m != 0 && m == quit_msg() => {
+            // A newer Mytify was started: this one saves and closes for it.
+            send(json!({"action": "tray", "command": "quit"}));
+            return 0;
+        }
         m if m != 0 && m == activate => {
             // Mytify started again while it sits in the tray: it opens as if started.
             send(json!({"action": "tray", "command": "launch"}));
@@ -562,6 +622,11 @@ unsafe extern "system" fn parent_proc(hwnd: HWND, msg: u32, wparam: usize, lpara
         _ => {}
     }
     unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+}
+
+fn quit_msg() -> u32 {
+    thread_local!(static QUIT: u32 = unsafe { RegisterWindowMessageW(wide("Mytify.Quit").as_ptr()) });
+    QUIT.with(|q| *q)
 }
 
 /// Top resize edge over the web view: Windows resizes as if the frame's top was grabbed.
