@@ -654,14 +654,26 @@ impl MetadataService {
             bail!("Nieprawidłowy identyfikator wydania.");
         }
         // Route through CAA, including its redirects; no arbitrary URL input.
-        let bytes = self.fetch(
+        let caa = self.fetch(
             Url::parse(&format!(
                 "https://coverartarchive.org/release/{id}/front-500"
             ))?,
             true,
             8 * 1024 * 1024,
-        )?;
-        bytes.map(|b| self.store_cover(&b)).transpose()
+        );
+        if let Ok(Some(bytes)) = &caa {
+            return self.store_cover(bytes).map(Some);
+        }
+        // CAA has no image or does not answer (its images live on archive.org, which is
+        // often slow): the same album's artwork from iTunes or Deezer.
+        if let Some(bytes) = self
+            .release(id)
+            .ok()
+            .and_then(|d| crate::store_art::find(&d.release.artist, &d.release.title))
+        {
+            return self.store_cover(&bytes).map(Some);
+        }
+        caa.map(|_| None)
     }
     pub fn store_cover(&self, bytes: &[u8]) -> Result<String> {
         if bytes.len() > 8 * 1024 * 1024 {
@@ -786,7 +798,10 @@ mod tests {
             bytes: vec![],
         }]);
         assert!(service.cover(ID).is_err());
-        assert_eq!(fake.urls.lock().unwrap().len(), 1);
+        // The refused redirect is never followed (a store fallback may ask MusicBrainz only).
+        let urls = fake.urls.lock().unwrap().clone();
+        assert!(urls[0].to_string().starts_with("https://coverartarchive.org/"));
+        assert!(urls.iter().all(|u| !u.to_string().contains("127.0.0.1")));
         assert!(service.release("invalid").is_err());
     }
     #[test]

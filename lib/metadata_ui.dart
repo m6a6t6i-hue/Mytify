@@ -647,7 +647,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                           OutlinedButton.icon(
                             onPressed: busy ? null : fetchCover,
                             icon: const Icon(Icons.image_search),
-                            label: Text(tr('Pobierz okładkę z CAA')),
+                            label: Text(tr('Pobierz okładkę')),
                           ),
                         ],
                       ),
@@ -733,7 +733,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        tr('Dane: MusicBrainz · Okładki: Cover Art Archive'),
+                        tr('Dane: MusicBrainz · Okładki: Cover Art Archive, iTunes, Deezer'),
                         style: TextStyle(fontSize: 11),
                       ),
                     ],

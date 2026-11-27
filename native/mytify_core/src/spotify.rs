@@ -80,7 +80,7 @@ pub fn album(link: &str) -> Result<Album> {
         .ok()
         .and_then(|html| parse_embed(&html))
         .unwrap_or_default();
-    if album.title.is_empty() || album.artist.is_empty() || album.date.is_empty() || album.tracks.is_empty() {
+    if album.title.is_empty() || album.artist.is_empty() || album.date.is_empty() || album.tracks.is_empty() || album.cover_url.is_none() {
         if let Ok(html) = page(&client, &format!("https://open.spotify.com/album/{id}")) {
             let p = parse_page(&html);
             for (mine, theirs) in [(&mut album.title, p.title), (&mut album.artist, p.artist), (&mut album.date, p.date)] {
@@ -93,6 +93,18 @@ pub fn album(link: &str) -> Result<Album> {
             }
             if album.cover_url.is_none() {
                 album.cover_url = p.cover_url;
+            }
+        }
+    }
+    if album.cover_url.is_none() {
+        // oEmbed always names the cover.
+        let link = format!("https://open.spotify.com/album/{id}");
+        if let Ok(r) = client.get("https://open.spotify.com/oembed").query(&[("url", link.as_str())]).send() {
+            if let Ok(v) = r.json::<Value>() {
+                album.cover_url = v["thumbnail_url"].as_str().map(str::to_string);
+                if album.title.is_empty() {
+                    album.title = clean(v["title"].as_str().unwrap_or(""));
+                }
             }
         }
     }
@@ -127,7 +139,7 @@ pub fn parse_embed(html: &str) -> Option<Album> {
     let close = open + html[open..].find("</script>")?;
     let data: Value = serde_json::from_str(&html[open..close]).ok()?;
     let entity = find_entity(&data)?;
-    let text = |v: &Value| v.as_str().unwrap_or("").trim().to_string();
+    let text = |v: &Value| clean(v.as_str().unwrap_or(""));
     let mut album = Album {
         title: text(entity.get("name").or_else(|| entity.get("title"))?),
         artist: entity
@@ -151,7 +163,7 @@ pub fn parse_embed(html: &str) -> Option<Album> {
         }
         album.tracks.push(Song {
             title,
-            artist: text(&t["subtitle"]).replace('\u{a0}', " "),
+            artist: text(&t["subtitle"]),
             duration_ms: t["duration"].as_u64().or_else(|| t["duration"].as_f64().map(|d| d as u64)).unwrap_or(0),
         });
     }
@@ -174,21 +186,42 @@ fn find_entity(v: &Value) -> Option<&Value> {
     }
 }
 
+/// The largest image of the album: any object with a Spotify image address, wherever
+/// the player keeps it (the layout of its data changes).
 fn cover_url(entity: &Value) -> Option<String> {
-    let lists = [&entity["visualIdentity"]["image"], &entity["coverArt"]["sources"], &entity["images"]];
-    lists
-        .iter()
-        .filter_map(|l| l.as_array())
-        .flatten()
-        .filter_map(|i| Some((i["maxWidth"].as_u64().or(i["width"].as_u64()).unwrap_or(0), i["url"].as_str()?)))
-        .max_by_key(|(w, _)| *w)
-        .map(|(_, u)| u.to_string())
+    fn walk<'a>(v: &'a Value, out: &mut Vec<(u64, &'a str)>) {
+        match v {
+            Value::Object(m) => {
+                if let Some(u) = m.get("url").and_then(Value::as_str).filter(|u| u.starts_with("https://i.scdn.co/image/")) {
+                    let w = ["maxWidth", "width", "maxHeight", "height"].iter().find_map(|k| m.get(*k).and_then(Value::as_u64)).unwrap_or(1);
+                    out.push((w, u));
+                }
+                // Track entries carry their own small art; the album's is enough.
+                for (k, x) in m {
+                    if k != "trackList" {
+                        walk(x, out);
+                    }
+                }
+            }
+            Value::Array(a) => a.iter().for_each(|x| walk(x, out)),
+            Value::String(u) if u.starts_with("https://i.scdn.co/image/") => out.push((0, u)),
+            _ => {}
+        }
+    }
+    let mut found = Vec::new();
+    walk(entity, &mut found);
+    found.into_iter().max_by_key(|(w, _)| *w).map(|(_, u)| u.to_string())
+}
+
+/// Trimmed text with ordinary spaces (Spotify uses non-breaking ones in names).
+fn clean(s: &str) -> String {
+    s.replace(['\u{a0}', '\u{202f}'], " ").split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// The album page's description tags ("Radiohead · Album · 1997 · 12 songs").
 pub fn parse_page(html: &str) -> Album {
     let mut album = Album {
-        title: meta(html, "og:title").unwrap_or_default(),
+        title: clean(&meta(html, "og:title").unwrap_or_default()),
         date: meta(html, "music:release_date").unwrap_or_default(),
         cover_url: meta(html, "og:image"),
         ..Default::default()
@@ -199,7 +232,7 @@ pub fn parse_page(html: &str) -> Album {
         let d = d.rsplit_once("Spotify. ").map(|(_, r)| r).unwrap_or(&d).trim_end_matches('.');
         let parts: Vec<&str> = d.split(" · ").map(str::trim).collect();
         if parts.len() >= 2 {
-            album.artist = parts[0].to_string();
+            album.artist = clean(parts[0]);
         }
         for p in &parts[1..] {
             if p.len() == 4 && p.bytes().all(|b| b.is_ascii_digit()) && album.date.is_empty() {
@@ -312,6 +345,12 @@ mod tests {
         assert_eq!(a.tracks.len(), 2);
         assert_eq!(a.tracks[1], Song { title: "Paranoid Android".into(), artist: "Radiohead".into(), duration_ms: 383000 });
         assert_eq!(a.cover_url.as_deref(), Some("https://i.scdn.co/image/big"));
+        // Other layouts: cover under any key, names with non-breaking spaces.
+        let other = r#"<script id="__NEXT_DATA__" type="application/json">{"entity":{"name":"Queen of Time","subtitle":"Amorphis\u00a0","coverArt":{"extractedColors":{},"sources":[{"url":"https://i.scdn.co/image/a300","height":300},{"url":"https://i.scdn.co/image/a640","height":640}]},"trackList":[{"title":"The Bee","subtitle":"Amorphis","duration":400000,"image":{"url":"https://i.scdn.co/image/track"}}]}}</script>"#;
+        let b = parse_embed(other).unwrap();
+        assert_eq!(b.artist, "Amorphis");
+        assert_eq!(b.tracks[0].artist, "Amorphis");
+        assert_eq!(b.cover_url.as_deref(), Some("https://i.scdn.co/image/a640"));
     }
 
     #[test]

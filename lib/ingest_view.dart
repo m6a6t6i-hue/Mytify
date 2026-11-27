@@ -1117,7 +1117,7 @@ class _IngestViewState extends State<IngestView> {
                 for (final x in s.sessions)
                   (
                     x['id'] as String,
-                    '${x['label'] ?? tr('Nagranie')} · ${ingestClock(x['durationMs'] as num? ?? 0)}${x['partial'] == true ? tr(' · przerwane') : ''}',
+                    '${x['label'] ?? tr('Nagranie')} · ${ingestClock(x['durationMs'] as num? ?? 0)}${x['partial'] == true ? tr(' · przerwane') : ''}${x['exported'] is Map ? tr(' · w bibliotece') : ''}',
                   ),
               ],
               onChanged: idle
@@ -1252,6 +1252,38 @@ class _IngestViewState extends State<IngestView> {
               Text(trMessage(s.step), style: Ctl.label),
               const SizedBox(height: Sp.s),
               OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: Text(tr('Zatrzymaj eksport'))),
+            ] else if (selected['exported'] is Map) ...[
+              // Already in the library: say so, and adding again is a deliberate choice.
+              Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, color: accent, size: 20),
+                  const SizedBox(width: Sp.s),
+                  Flexible(
+                    child: Text(
+                      tr('Już w bibliotece: {0}', [trackCount(((selected['exported'] as Map)['tracks'] as num? ?? 0).toInt())]),
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: Sp.s),
+              Wrap(
+                spacing: Sp.s,
+                runSpacing: Sp.s,
+                children: [
+                  if (((selected['exported'] as Map)['folder'] as String? ?? '').isNotEmpty)
+                    OutlinedButton.icon(
+                      style: Ctl.outlined,
+                      onPressed: () => unawaited(s.openFolder((selected['exported'] as Map)['folder'] as String)),
+                      icon: const Icon(Icons.folder_open_outlined, size: 18),
+                      label: Text(tr('Otwórz folder')),
+                    ),
+                  TextButton(
+                    onPressed: idle && s.vinylForm.tracks.isNotEmpty ? () => unawaited(s.export()) : null,
+                    child: Text(tr('Dodaj jeszcze raz (powstanie druga kopia)')),
+                  ),
+                ],
+              ),
             ] else
               FilledButton.icon(
                 style: Ctl.filled,
@@ -1259,7 +1291,7 @@ class _IngestViewState extends State<IngestView> {
                 icon: const Icon(Icons.library_add_outlined, size: 18),
                 label: Text(tr('Dodaj do biblioteki')),
               ),
-            if (exportDone) ...[
+            if (exportDone && selected['exported'] is! Map) ...[
               Padding(
                 padding: const EdgeInsets.only(top: Sp.m),
                 child: Text(tr('Dodano do biblioteki: {0}', [trackCount((s.status['files'] as List? ?? const []).length)]), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),

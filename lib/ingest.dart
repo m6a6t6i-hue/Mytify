@@ -30,6 +30,17 @@ String ingestClock(num ms) {
   return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$sec' : '$m:$sec';
 }
 
+/// Name compared the way people read it: case, spacing and non-breaking spaces ignored.
+String sameName(String s) => s.replaceAll(RegExp(r'[\s\u00a0\u202f]+'), ' ').trim().toLowerCase();
+
+/// Album title without edition notes ("(Deluxe Edition)", "- Remastered 2011").
+String plainAlbumTitle(String title) {
+  const notes = r'deluxe|edition|remaster|expanded|anniversary|bonus|version|edycja';
+  var t = title.replaceAll(RegExp('\\s*[\\(\\[][^\\)\\]]*($notes)[^\\)\\]]*[\\)\\]]', caseSensitive: false), '');
+  t = t.replaceAll(RegExp('\\s+-\\s+[^-]*($notes).*\$', caseSensitive: false), '');
+  return t.trim().isEmpty ? title : t.trim();
+}
+
 /// "4:05", "1:02:03" or "245" (seconds) → milliseconds; 0 when it is not a length.
 int parseClock(String text) {
   final parts = text.trim().replaceAll(',', '.').split(':');
@@ -418,6 +429,7 @@ class IngestState extends ChangeNotifier {
   /// The edited list becomes the track list the recording is cut and tagged by.
   void _syncAppTracks() {
     if (appTracks.isEmpty) return;
+    final albumArtist = sameName(tracklist?.release.artist ?? vinylForm.artist.text);
     final release =
         tracklist?.release ??
         ReleaseCandidate(
@@ -437,7 +449,8 @@ class IngestState extends ChangeNotifier {
       for (var i = 0; i < appTracks.length; i++)
         ReleaseSong(
           title: appTracks[i].title.text.trim().isEmpty ? tr('Utwór {0}', [i + 1]) : appTracks[i].title.text.trim(),
-          artist: appTracks[i].artist,
+          // The album's own artist is not a per-track artist (no compilation).
+          artist: sameName(appTracks[i].artist) == albumArtist ? (tracklist?.release.artist ?? vinylForm.artist.text.trim()) : appTracks[i].artist,
           discNumber: 1,
           trackNumber: i + 1,
           durationMs: appTracks[i].ms,
@@ -470,7 +483,12 @@ class IngestState extends ChangeNotifier {
     final count = (info['trackCount'] as num? ?? songs.length).toInt();
     ReleaseInfo? found;
     try {
-      final candidates = await library.findReleases(title, artist);
+      // "Queen of Time (Deluxe Edition)" is "Queen of Time" in MusicBrainz.
+      final plain = plainAlbumTitle(title);
+      final candidates = [
+        ...await library.findReleases(title, artist),
+        if (plain != title) ...await library.findReleases(plain, artist),
+      ];
       final same = candidates.where((c) => count == 0 || c.trackCount == count).toList()
         ..sort((a, b) => (b.format.contains('Digital') ? 1 : 0).compareTo(a.format.contains('Digital') ? 1 : 0));
       if (same.isNotEmpty) found = await library.releaseDetails(same.first.id);
@@ -731,7 +749,8 @@ class IngestState extends ChangeNotifier {
     if ((job == 'rip' || job == 'export') && (status['files'] as List? ?? const []).isNotEmpty) {
       await onLibraryChanged();
     }
-    if (job == 'export') firstTrack += (status['files'] as List? ?? const []).length;
+    // Side B continues the numbering of side A; an app album is complete in one go.
+    if (job == 'export' && !appSession) firstTrack += (status['files'] as List? ?? const []).length;
     // Batch: the disc was ejected; the next one is read when it appears.
     if (job == 'rip' && serial && stage == 'finished') {
       inserted = null;
@@ -1190,8 +1209,12 @@ class IngestState extends ChangeNotifier {
       final points = (await api('align', {'id': session, 'durations': [for (final s in songs) s.durationMs]}) as List).cast<num>();
       setMarkers([for (final p in points) p.toInt()]);
     }
-    vinylForm.setTracks([for (final s in songs) s.title], [for (final s in songs) s.artist == info.release.artist ? '' : s.artist]);
-    vinylForm.various = songs.any((s) => s.artist.isNotEmpty && s.artist != info.release.artist);
+    final own = sameName(info.release.artist);
+    bool other(ReleaseSong s) => s.artist.trim().isNotEmpty && sameName(s.artist) != own;
+    vinylForm.setTracks([for (final s in songs) s.title], [for (final s in songs) other(s) ? s.artist : '']);
+    // A guest on some tracks ("Amorphis, Hellscore") keeps the album the band's own; only
+    // tracks without the album artist make it a compilation.
+    vinylForm.various = own.isNotEmpty && songs.any((s) => other(s) && !sameName(s.artist).contains(own));
     final picked = [for (var i = 0; i < info.tracks.length; i++) if (tracklistPicked[i]) i];
     if (picked.isNotEmpty) firstTrack = picked.first + 1;
   });

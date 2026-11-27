@@ -125,6 +125,10 @@ void main() {
     expect(parseClock('1:02:03'), 3723000);
     expect(parseClock('245'), 245000);
     expect(parseClock('4:x'), 0);
+    expect(plainAlbumTitle('Queen of Time (Deluxe Edition)'), 'Queen of Time');
+    expect(plainAlbumTitle('Abbey Road - Remastered 2019'), 'Abbey Road');
+    expect(plainAlbumTitle('Help!'), 'Help!');
+    expect(sameName(' Amorphis\u00a0'), sameName('amorphis'));
     await s.recordApp();
     final record = repo.requests.lastWhere((r) => r['action'] == 'record');
     expect(record['app'], 'spotify');

@@ -401,7 +401,7 @@ impl Ingest {
                             .ok()
                             .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
                             .unwrap_or(json!({}));
-                        out.push(json!({"id":id,"path":path,"partial":path.extension().is_some_and(|s|s=="partial"),"rate":info.as_ref().map(|w|w.rate),"channels":info.as_ref().map(|w|w.channels),"durationMs":info.as_ref().map(|w|w.frames()*1000/w.rate as u64),"label":meta["label"],"markers":meta["markers"],"app":meta["app"]}));
+                        out.push(json!({"id":id,"path":path,"partial":path.extension().is_some_and(|s|s=="partial"),"rate":info.as_ref().map(|w|w.rate),"channels":info.as_ref().map(|w|w.channels),"durationMs":info.as_ref().map(|w|w.frames()*1000/w.rate as u64),"label":meta["label"],"markers":meta["markers"],"app":meta["app"],"exported":meta["exported"]}));
                     }
                 }
                 out.sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
@@ -553,6 +553,15 @@ impl Ingest {
             .map(|(i, _)| TagInfo::from_request(v, &titles[i], artists.get(i).map(String::as_str), (i + first) as u32, total))
             .collect();
         self.finish_tracks(&made, tags, cover.as_deref())?;
+        // The recording remembers it is in the library, so the app does not offer it again as new.
+        if !self.signals.stop.load(Ordering::Acquire) {
+            let meta_path = dir.join("session.json");
+            if let Some(mut meta) = std::fs::read(&meta_path).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()) {
+                let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                meta["exported"] = json!({"at": at, "tracks": made.len(), "folder": dest.to_string_lossy()});
+                let _ = std::fs::write(&meta_path, serde_json::to_vec_pretty(&meta)?);
+            }
+        }
         Ok(())
     }
     /// Cover chosen in the app (artwork hash), if any.

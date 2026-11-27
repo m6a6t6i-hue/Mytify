@@ -183,7 +183,9 @@ fn encode_tracks(app: &App) -> Result<Value> {
 /// Album behind a Spotify link, with its cover stored like any chosen cover.
 fn spotify_album(app: &App, link: &str) -> Result<Value> {
     let album = crate::spotify::album(link)?;
-    let cover = crate::spotify::cover(&album).and_then(|b| app.metadata.store_cover(&b).ok());
+    let cover = crate::spotify::cover(&album)
+        .or_else(|| crate::store_art::find(&album.artist, &album.title))
+        .and_then(|b| app.metadata.store_cover(&b).ok());
     let mut out = serde_json::to_value(&album)?;
     if let Some(hash) = cover {
         out["cover"] = json!({"hash": hash, "uri": format!("{}/api/artwork/{hash}?token={}", app.origin, app.token)});

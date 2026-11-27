@@ -955,4 +955,9 @@ const enStrings = <String, String>{
   'MP3 320 kb/s': 'MP3 320 kb/s',
   '{0}% płyty': '{0}% of the disc',
   'Zakończ nagranie': 'Finish recording',
+  'Już w bibliotece: {0}': 'Already in the library: {0}',
+  'Dodaj jeszcze raz (powstanie druga kopia)': 'Add again (makes a second copy)',
+  ' · w bibliotece': ' · in the library',
+  'Pobierz okładkę': 'Download cover',
+  'Dane: MusicBrainz · Okładki: Cover Art Archive, iTunes, Deezer': 'Data: MusicBrainz · Covers: Cover Art Archive, iTunes, Deezer',
 };
