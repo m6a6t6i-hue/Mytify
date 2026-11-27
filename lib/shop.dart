@@ -186,7 +186,7 @@ class _BuyMusicState extends State<BuyMusic> {
           padding: pad.copyWith(top: Sp.s, bottom: Sp.l),
           child: Text(
             widget.prices
-                ? tr('Ceny z iTunes Store dla Polski. Bandcamp i Qobuz podają ceny na swoich stronach. Zakup w iTunes wymaga aplikacji iTunes lub Apple Music na PC albo iPhone’a.')
+                ? tr('Ceny z iTunes Store dla Polski.')
                 : tr('Kupione pliki dodasz do biblioteki jak każdy inny folder z muzyką.'),
             style: Txt.meta,
           ),

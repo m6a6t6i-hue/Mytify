@@ -590,7 +590,7 @@ impl Catalog {
     }
     /// New files made by the app (import, recording): added under the library folder
     /// that holds them, else as single files.
-    pub fn add_files(&self, files: &[PathBuf]) -> Result<Report> {
+    pub fn add_files(&self, files: &[PathBuf], mut progress: impl FnMut(usize, usize)) -> Result<Report> {
         let mut report = Report::default();
         let generation = format!("{}-{}", now_ms(), hex(getrandom_bytes()?));
         let mut loose = Vec::new();
@@ -602,7 +602,8 @@ impl Catalog {
                 }
             }
         }
-        for file in files {
+        for (i, file) in files.iter().enumerate() {
+            progress(i, files.len());
             let canonical = fs::canonicalize(file)?;
             match owners.iter().find(|(root, _)| canonical.starts_with(root)) {
                 Some((_, source)) => {

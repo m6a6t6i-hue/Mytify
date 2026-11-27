@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'design.dart';
 import 'l10n.dart';
+import 'progress.dart';
 
 const _hot = Color(0xffff4d4d);
 const _warm = Color(0xffffc233);
@@ -486,7 +487,7 @@ class CaptureStage extends StatelessWidget {
                   ),
                   if (pct != null) ...[
                     const SizedBox(height: Sp.l),
-                    _Bar(value: pct, color: info.rec ? _hot : accent, height: 6),
+                    _Bar(value: pct, color: info.rec ? _hot : accent, height: 6, active: !info.paused && !info.waiting),
                   ],
                   if (meters) ...[
                     const SizedBox(height: Sp.l),
@@ -497,9 +498,9 @@ class CaptureStage extends StatelessWidget {
                     children: [
                       Expanded(
                         child: info.parts.length > 1
-                            ? _Timeline(parts: info.parts, current: info.current, overall: info.overall ?? 0)
+                            ? _Timeline(parts: info.parts, current: info.current, overall: info.overall ?? 0, active: !info.paused && !info.waiting)
                             : info.overall != null
-                            ? _Bar(value: info.overall, color: secondaryText, height: 3)
+                            ? _Bar(value: info.overall, color: secondaryText, height: 3, active: !info.paused && !info.waiting)
                             : const SizedBox(),
                       ),
                       const SizedBox(width: Sp.l),
@@ -533,47 +534,18 @@ class _Bar extends StatelessWidget {
   final double? value;
   final Color color;
   final double height;
-  const _Bar({required this.value, required this.color, required this.height});
+  final bool active;
+  const _Bar({required this.value, required this.color, required this.height, this.active = true});
   @override
-  Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(height),
-    child: SizedBox(
-      height: height,
-      child: value == null
-          ? LinearProgressIndicator(minHeight: height, backgroundColor: elevated, color: color)
-          : TweenAnimationBuilder<double>(
-              tween: Tween(end: value!.clamp(0, 1)),
-              duration: const Duration(milliseconds: 300),
-              builder: (context, v, _) => Stack(
-                fit: StackFit.expand,
-                children: [
-                  ColoredBox(color: elevated),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FractionallySizedBox(
-                      widthFactor: v,
-                      heightFactor: 1,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [color.withValues(alpha: .7), color]),
-                          boxShadow: [BoxShadow(color: color.withValues(alpha: .5), blurRadius: 8)],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-    ),
-  );
+  Widget build(BuildContext context) => LiveProgress(value: value, color: color, height: height, active: active, glow: true);
 }
 
-/// The album as segments: done ones full, the current one filling, the rest empty.
 class _Timeline extends StatelessWidget {
   final List<double> parts;
   final int current;
   final double overall;
-  const _Timeline({required this.parts, required this.current, required this.overall});
+  final bool active;
+  const _Timeline({required this.parts, required this.current, required this.overall, this.active = true});
   @override
   Widget build(BuildContext context) {
     final sum = math.max(parts.fold(0.0, (a, b) => a + b), 1.0);
@@ -591,7 +563,7 @@ class _Timeline extends StatelessWidget {
             if (i > 0) const SizedBox(width: 2),
             Expanded(
               flex: math.max(1, (parts[i] / sum * 1000).round()),
-              child: _Bar(value: fills[i], color: i == current ? _hot : accent, height: 8),
+              child: _Bar(value: fills[i], color: i == current ? _hot : accent, height: 8, active: active && i == current && fills[i] < 1),
             ),
           ],
         ],

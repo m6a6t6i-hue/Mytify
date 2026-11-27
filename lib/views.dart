@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'audio_settings.dart';
 import 'cleanup.dart';
 import 'cover_tint.dart';
+import 'progress.dart';
 import 'design.dart';
 import 'downloads_ui.dart';
 import 'ingest.dart';
@@ -1933,7 +1934,7 @@ class SettingsPage extends StatelessWidget {
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(tr('Zamknięcie okna chowa Mytify do zasobnika'), style: TextStyle(fontSize: 14.5)),
-        subtitle: Text(tr('Muzyka gra dalej. Ikona Mytify jest obok zegara; z jej menu zamkniesz aplikację.'), style: Txt.meta),
+        subtitle: Text(tr('Muzyka gra dalej, Mytify zostaje przy zegarze.'), style: Txt.meta),
         value: app.closeToTray,
         onChanged: app.setCloseToTray,
       ),
@@ -1952,7 +1953,7 @@ class SettingsPage extends StatelessWidget {
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(tr('Kompaktowa tabela utworów'), style: TextStyle(fontSize: 14.5)),
-        subtitle: Text(tr('Niższe wiersze, bez okładek. Kolumny wybierzesz prawym przyciskiem na nagłówku tabeli.'), style: Txt.meta),
+        subtitle: Text(tr('Niższe wiersze, bez okładek.'), style: Txt.meta),
         value: compactTable(app.prefs),
         onChanged: (v) => app.refresh(() => app.prefs.set('density', v ? 'compact' : 'normal')),
       ),
@@ -1967,7 +1968,7 @@ class SettingsPage extends StatelessWidget {
     SwitchListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(tr('Stroboskop'), style: const TextStyle(fontSize: 14.5)),
-      subtitle: Text(tr('Pulsujące wiązki światła jako dodatkowa scena. Nie pojawia się, gdy system ogranicza animacje.'), style: Txt.meta),
+      subtitle: Text(tr('Pulsujące wiązki światła.'), style: Txt.meta),
       value: app.prefs.get<bool>('viz.strobe', false),
       onChanged: (v) => app.refresh(() => app.prefs.set('viz.strobe', v)),
     ),
@@ -1981,7 +1982,7 @@ class SettingsPage extends StatelessWidget {
     if (app.canFloat)
       _row(
         tr('Wygaszacz z wizualizacją'),
-        tr('Gdy gra muzyka, a komputer nie jest używany. Ruch myszy lub klawisz zamyka.'),
+        tr('Gdy gra muzyka, a komputer jest bezczynny.'),
         trailing: DropdownButton<int>(
           value: const [0, 2, 5, 10, 20].contains(app.screensaverMinutes) ? app.screensaverMinutes : 0,
           underline: const SizedBox.shrink(),
@@ -1996,7 +1997,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.28.0']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.28.1']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),
@@ -2166,9 +2167,9 @@ class SourcesList extends StatelessWidget {
                 ),
                 if (app.importing && (source.state == 'partial' || source.state == 'scanning')) ...[
                   const SizedBox(height: Sp.xs),
-                  LinearProgressIndicator(
+                  LiveProgress(
                     value: app.progress.total > 0 ? (app.progress.done / app.progress.total).clamp(0.0, 1.0) : null,
-                    minHeight: 3,
+                    height: 3,
                   ),
                 ],
               ],

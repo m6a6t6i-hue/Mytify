@@ -906,6 +906,44 @@ class Catalog(private val context: Context) :
 
     private fun isAudio(name: String) = name.substringAfterLast('.').lowercase() in extensions
 
+    /** `Album/MP3/x.mp3` when `Album/x.flac` is in [flacs] (paths without extension, lower case). */
+    private fun mp3Copy(path: String, flacs: Set<String>): Boolean {
+        if (!path.endsWith(".mp3", true)) return false
+        val dir = path.substringBeforeLast('/', "")
+        if (!dir.substringAfterLast('/').equals("MP3", true)) return false
+        val album = dir.substringBeforeLast('/', "")
+        val stem = path.substringAfterLast('/').substringBeforeLast('.')
+        return (if (album.isEmpty()) stem else "$album/$stem").lowercase() in flacs
+    }
+
+    /** Album picture next to the music (Plex, Jellyfin, Mytify on PC); lower is preferred, -1 = none. */
+    private fun coverRank(name: String): Int =
+        listOf("cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png", "front.jpg", "front.png", "albumart.jpg")
+            .indexOf(name.lowercase())
+
+    /**
+     * Tracks without an embedded picture take the album folder's cover.jpg / folder.jpg.
+     * [audio] and [covers] are paths inside the source; [read] gives a picture's bytes.
+     * Each picture is read once; nothing is written to the share.
+     */
+    private fun applyFolderCovers(source: String, audio: List<String>, covers: Map<String, String>, read: (String) -> ByteArray) {
+        val stored = HashMap<String, String?>()
+        for (path in audio) {
+            checkCancel()
+            val dir = path.substringBeforeLast('/', "")
+            val picture = covers[dir] ?: continue
+            val u = Smb.uri(source, path).toString()
+            val (track, raw) =
+                readableDatabase
+                    .rawQuery("SELECT t.id,t.raw FROM locations l JOIN tracks t ON t.id=l.track WHERE l.uri=? AND l.source=?", arrayOf(u, source))
+                    .use { if (it.moveToFirst()) it.getString(0) to JSONObject(it.getString(1)) else null } ?: continue
+            if (raw.optString("cover").isNotEmpty()) continue
+            val hash = stored.getOrPut(picture) { runCatching { storeCover(read(picture)).getString("hash") }.getOrNull() } ?: continue
+            raw.put("cover", hash)
+            writableDatabase.update("tracks", cv("raw" to raw.toString()), "id=?", arrayOf(track))
+        }
+    }
+
     /**
      * Stores one scanned file. Shared by phone folders and network shares, so a track has one
      * identity (content hash) whatever its location.
@@ -979,9 +1017,9 @@ class Catalog(private val context: Context) :
         val s = SmbSettings.parse(sourceSettings(id) ?: error("Brak ustawień źródła"))
         val password = Secrets.load(context, id) ?: ""
         progress(0, 0, "Łączenie z ${s.host}…")
-        val entries =
+        val all =
             try {
-                Smb.with(id, s, password) { share -> Smb.walk(share, s, ::isAudio) { cancelled.get() } }
+                Smb.with(id, s, password) { share -> Smb.walk(share, s, { isAudio(it) || coverRank(it) >= 0 }) { cancelled.get() } }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -991,6 +1029,15 @@ class Catalog(private val context: Context) :
                 errors.put("$name: ${Smb.friendly(e).message}")
                 return
             }
+        // MP3 copies Mytify makes next to FLAC (Album/MP3/01 - Title.mp3) are the same songs.
+        val flacs = all.filter { it.name.endsWith(".flac", true) }.map { it.path.substringBeforeLast('.').lowercase() }.toHashSet()
+        val entries = all.filter { isAudio(it.name) && !mp3Copy(it.path, flacs) }
+        val copies = all.filter { isAudio(it.name) && mp3Copy(it.path, flacs) }.map { Smb.uri(id, it.path).toString() }.toHashSet()
+        // cover.jpg / folder.jpg per album folder, for files without an embedded picture.
+        val folderCovers =
+            all.filter { coverRank(it.name) >= 0 && it.size in 1..8L * 1024 * 1024 }
+                .groupBy { it.path.substringBeforeLast('/', "") }
+                .mapValues { (_, v) -> v.minBy { coverRank(it.name) } }
         val seen = HashSet<String>()
         var complete = true
         for ((i, e) in entries.withIndex()) {
@@ -1046,15 +1093,45 @@ class Catalog(private val context: Context) :
                 if (errors.length() < 100) errors.put("${e.name}: ${Smb.friendly(x).message}")
             }
         }
+        if (folderCovers.isNotEmpty()) {
+            progress(entries.size, entries.size, "Okładki")
+            try {
+                Smb.with(id, s, password) { share ->
+                    applyFolderCovers(id, entries.map { it.path }, folderCovers.mapValues { it.value.path }) { path ->
+                        Smb.openFile(share, path).use { f ->
+                            val out = ByteArrayOutputStream()
+                            val buffer = ByteArray(256 * 1024)
+                            var offset = 0L
+                            while (true) {
+                                val n = f.read(buffer, offset, 0, buffer.size)
+                                if (n <= 0) break
+                                out.write(buffer, 0, n)
+                                offset += n
+                                require(offset <= 8L * 1024 * 1024) { "Okładka przekracza 8 MB" }
+                            }
+                            out.toByteArray()
+                        }
+                    }
+                }
+            } catch (x: CancellationException) {
+                throw x
+            } catch (x: Exception) {
+                if (errors.length() < 100) errors.put("$name: ${Smb.friendly(x).message}")
+            }
+        }
         val db = writableDatabase
         db.beginTransaction()
         try {
             db.rawQuery("SELECT uri,available FROM locations WHERE source=?", arrayOf(id)).use { c ->
-                while (c.moveToNext()) if (c.getString(0) !in seen) {
+                while (c.moveToNext()) if (c.getString(0) in copies) {
+                    // An MP3 copy scanned before this rule: drop it, the FLAC is the song.
+                    db.delete("locations", "source=? AND uri=?", arrayOf(id, c.getString(0)))
+                } else if (c.getString(0) !in seen) {
                     if (c.getInt(1) > 0) bump("missing")
                     db.update("locations", cv("available" to 0), "source=? AND uri=?", arrayOf(id, c.getString(0)))
                 }
             }
+            if (copies.isNotEmpty()) db.execSQL("DELETE FROM tracks WHERE id NOT IN (SELECT track FROM locations)")
             db.update(
                 "sources",
                 cv("state" to if (complete) "online" else "partial", "scanned" to System.currentTimeMillis()),

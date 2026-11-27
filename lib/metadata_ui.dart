@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
+import 'progress.dart';
 import 'design.dart';
 import 'model.dart';
 import 'cover_widget.dart';
@@ -279,7 +280,7 @@ class _MetadataEditorState extends State<MetadataEditor> {
                   if (busy)
                     const Padding(
                       padding: EdgeInsets.only(top: 16),
-                      child: LinearProgressIndicator(),
+                      child: LiveProgress(),
                     ),
                   if (widget.tracks.any((t) => t.edited))
                     TextButton(
@@ -538,7 +539,7 @@ class _ReleaseFinderState extends State<ReleaseFinder> {
                   ],
                 ),
               ),
-              if (busy) const LinearProgressIndicator(),
+              if (busy) const LiveProgress(),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 24),

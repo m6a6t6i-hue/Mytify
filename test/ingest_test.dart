@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mytify/ingest.dart';
 import 'package:mytify/main.dart';
 import 'package:mytify/model.dart';
+import 'package:mytify/progress.dart';
 
 class IngestFake implements LibraryRepository, IngestRepository {
   final calls = <Map<String, dynamic>>[];
@@ -447,5 +448,35 @@ void main() {
     expect(find.text('Przeniesiono albumy: 2.'), findsOneWidget);
     expect(find.textContaining('Przenieś wcześniej zgrane'), findsNothing);
     await close(t);
+  });
+
+  test('saving shows every step: live progress from the core, then tags and the library', () {
+    final s = IngestState(repository: repo, library: repo, beforeCapture: () async {}, onLibraryChanged: () async {});
+    s.vinylForm.setTracks(['Raz', 'Dwa']);
+    s.status = {'running': true, 'stage': 'exporting', 'done': 1, 'total': 2, 'progress': .62, 'part': .4, 'step': 'Zapis utworów'};
+    var info = s.exportStage();
+    expect(info.title, 'Dwa');
+    expect(info.time, '62%');
+    expect(info.track, .4);
+    expect(info.parts.length, 3, reason: 'two tracks and the saving stretch');
+    s.status = {'running': true, 'stage': 'exporting', 'done': 2, 'total': 2, 'progress': .96, 'part': .5, 'step': 'Dodawanie do biblioteki'};
+    info = s.exportStage();
+    expect(info.title, 'Dodawanie do biblioteki');
+    expect(info.time, '96%');
+    expect(info.current, 2);
+    // Older core without live progress: done of total.
+    s.status = {'running': true, 'stage': 'exporting', 'done': 1, 'total': 4};
+    expect(s.progress, .25);
+    s.dispose();
+  });
+
+  testWidgets('progress bars settle in tests and glide to new values', (t) async {
+    Widget bar(double? v) => MaterialApp(theme: mytifyTheme(), home: Scaffold(body: Column(children: [LiveProgress(value: v), const LiveProgress()])));
+    await t.pumpWidget(bar(.2));
+    await t.pumpAndSettle();
+    await t.pumpWidget(bar(.8));
+    await t.pump(const Duration(milliseconds: 100));
+    await t.pumpAndSettle();
+    expect(t.takeException(), isNull);
   });
 }

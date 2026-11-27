@@ -292,6 +292,17 @@ class IngestState extends ChangeNotifier {
   bool get ripping => running && stage == 'ripping';
   bool get exporting => running && stage == 'exporting';
   bool get capturing => monitoring || recording;
+
+  /// Whole job, 0..1, live from the core (every track and file), else done of total.
+  double? get progress {
+    final p = status['progress'] as num?;
+    if (p != null) return p.toDouble().clamp(0, 1);
+    final done = (status['done'] as num? ?? 0).toDouble(), total = (status['total'] as num? ?? 0).toDouble();
+    return total > 0 ? (done / total).clamp(0, 1) : null;
+  }
+
+  /// Current part (track being saved, file being copied), 0..1.
+  double get part => (status['part'] as num? ?? 0).toDouble().clamp(0, 1);
   String get step => status['step'] as String? ?? '';
 
   void _changed() {
@@ -704,24 +715,41 @@ class IngestState extends ChangeNotifier {
     final total = (status['total'] as num? ?? 0).toInt();
     final titles = vinylForm.titles;
     final i = done.clamp(0, titles.isEmpty ? 0 : titles.length - 1);
+    final overall = progress;
+    // After the last track: tags and the library, shown as such.
+    final finishing = total > 0 && done >= total;
     return StageInfo(
       kicker: tr('Zapisuję do biblioteki'),
-      title: titles.isEmpty ? trMessage(step) : titles[i],
+      title: finishing || titles.isEmpty ? trMessage(step) : titles[i],
       subtitle: [
-        if (total > 0) tr('Utwór {0} z {1}', [(done + 1).clamp(1, total), total]),
+        if (total > 0 && !finishing) tr('Utwór {0} z {1}', [(done + 1).clamp(1, total), total]),
         appSession ? tr('MP3 320 kb/s') : 'FLAC',
       ].join(' · '),
-      overall: total > 0 ? done / total : null,
-      time: total > 0 ? '${(done * 100 / total).round()}%' : '',
-      parts: [for (var k = 0; k < total; k++) 1],
-      current: done,
+      track: part,
+      overall: overall,
+      time: overall == null ? '' : '${(overall * 100).floor()}%',
+      parts: _withSaving(_exportLengths(total), .9),
+      current: finishing ? total : done,
     );
+  }
+
+  /// Track lengths of the export (from the markers), so the timeline moves with the core.
+  List<double> _exportLengths(int total) {
+    final len = (sessions.where((x) => x['id'] == session).firstOrNull?['durationMs'] as num? ?? 0).toInt();
+    final cuts = [0, ...markers.where((m) => m > 0 && m < len), len];
+    if (len <= 0 || cuts.length - 1 != total) return [for (var k = 0; k < total; k++) 1.0];
+    return [for (var k = 1; k < cuts.length; k++) (cuts[k] - cuts[k - 1]).toDouble()];
+  }
+
+  /// The last stretch of the timeline: tags and the library after the audio part.
+  static List<double> _withSaving(List<double> parts, double audioShare) {
+    final sum = parts.fold(0.0, (a, b) => a + b);
+    return sum <= 0 ? parts : [...parts, sum * (1 - audioShare) / audioShare];
   }
 
   /// Reading a CD: the track being read now, its percentage and the whole disc.
   StageInfo ripStage() {
     final done = (status['done'] as num? ?? 0).toDouble();
-    final total = (status['total'] as num? ?? 0).toDouble();
     final number = (status['track'] as num? ?? 0).toInt();
     final from = (status['trackFrom'] as num? ?? 0).toDouble();
     final len = (status['trackLen'] as num? ?? 0).toDouble();
@@ -731,9 +759,19 @@ class IngestState extends ChangeNotifier {
     ];
     final at = chosen.indexWhere((c) => c.$2['number'] == number);
     final album = [cdForm.artist.text.trim(), cdForm.album.text.trim()].where((x) => x.isNotEmpty).join(' · ');
-    final overall = total > 0 ? (done / total).clamp(0, 1).toDouble() : null;
+    final overall = progress;
+    final saving = (status['files'] as List? ?? const []).isNotEmpty && number == 0;
     if (number == 0 || at < 0) {
-      return StageInfo(kicker: tr('Przygotowanie'), title: trMessage(step), subtitle: album, overall: overall, time: overall == null ? '' : tr('{0}% płyty', [(overall * 100).floor()]));
+      return StageInfo(
+        kicker: saving ? tr('Zapisuję do biblioteki') : tr('Przygotowanie'),
+        title: trMessage(step),
+        subtitle: album,
+        track: saving ? part : null,
+        overall: overall,
+        time: overall == null ? '' : '${(overall * 100).floor()}%',
+        parts: saving ? _withSaving([for (final c in chosen) trackMs(c.$2).toDouble()], .95) : const [],
+        current: chosen.length,
+      );
     }
     final index = chosen[at].$1;
     final title = index < cdForm.tracks.length ? cdForm.tracks[index].title.text.trim() : '';
@@ -743,8 +781,8 @@ class IngestState extends ChangeNotifier {
       subtitle: [tr('Utwór {0} z {1}', [at + 1, chosen.length]), if (album.isNotEmpty) album, if (step.isNotEmpty && !step.startsWith('Odczyt ścieżki')) trMessage(step)].join(' · '),
       track: len > 0 ? ((done - from) / len).clamp(0, 1).toDouble() : null,
       overall: overall,
-      time: overall == null ? '' : tr('{0}% płyty', [(overall * 100).floor()]),
-      parts: [for (final c in chosen) trackMs(c.$2).toDouble()],
+      time: overall == null ? '' : '${(overall * 100).floor()}%',
+      parts: _withSaving([for (final c in chosen) trackMs(c.$2).toDouble()], .95),
       current: at,
     );
   }

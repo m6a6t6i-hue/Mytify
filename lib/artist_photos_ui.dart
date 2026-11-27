@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 
+import 'progress.dart';
 import 'design.dart';
 import 'l10n.dart';
 import 'library_index.dart';
@@ -119,11 +120,6 @@ class _ArtistPhotosPanelState extends State<ArtistPhotosPanel> {
           tr('Zdjęcia wykonawców: {0} z {1}.', [withPhoto.length, artists.length]),
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
-        const SizedBox(height: Sp.xs),
-        Text(
-          tr('Mytify bierze zdjęcie z folderu zdjęć (Amorphis.jpg albo Amorphis/artist.jpg) albo z folderu wykonawcy obok muzyki (Muzyka/Amorphis/artist.jpg, jak Plex i Jellyfin). Brakujące może pobrać z Deezera, a potem z Wikimedia Commons; pobrane zapisuje w folderze zdjęć, a bez niego jako artist.jpg w folderze wykonawcy. Istniejących plików nie nadpisuje.'),
-          style: Txt.meta.copyWith(height: 1.45),
-        ),
         const SizedBox(height: Sp.l),
         Text(tr('Folder ze zdjęciami wykonawców'), style: Ctl.label),
         const SizedBox(height: Sp.xs),
@@ -134,7 +130,7 @@ class _ArtistPhotosPanelState extends State<ArtistPhotosPanel> {
                 padding: const EdgeInsets.symmetric(horizontal: Sp.m, vertical: 10),
                 decoration: BoxDecoration(color: elevated, borderRadius: BorderRadius.circular(Rad.control)),
                 child: Text(
-                  folder ?? tr('Nie ustawiono (tylko foldery wykonawców obok muzyki)'),
+                  folder ?? tr('Nie ustawiono'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Ctl.fieldText.copyWith(color: folder == null ? secondaryText : null),
@@ -146,11 +142,9 @@ class _ArtistPhotosPanelState extends State<ArtistPhotosPanel> {
             if (folder != null) IconAction(Icons.close_rounded, tr('Nie używaj folderu zdjęć'), running ? null : () => unawaited(_clear()), color: secondaryText),
           ],
         ),
-        const SizedBox(height: Sp.xs),
-        Text(tr('Może być na NAS: wybierz go w Sieci albo wpisz ścieżkę \\\\NAS\\udział\\folder w oknie wyboru.'), style: Ctl.label),
         const SizedBox(height: Sp.l),
         if (running) ...[
-          LinearProgressIndicator(value: total > 0 ? (done / total).clamp(0, 1).toDouble() : null),
+          LiveProgress(value: total > 0 ? (done / total).clamp(0, 1).toDouble() : null),
           const SizedBox(height: Sp.xs),
           Text(
             [

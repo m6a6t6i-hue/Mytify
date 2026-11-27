@@ -147,6 +147,8 @@ pub struct Outputs<'a> {
     /// MP3 bitrate in kb/s (192 or 320).
     pub mp3_kbps: u32,
     pub restore: Restore,
+    /// Share of this part already written (0..1, f32 bits), for the progress bar.
+    pub progress: Option<&'a std::sync::atomic::AtomicU32>,
 }
 
 pub struct Encoded {
@@ -412,6 +414,9 @@ pub fn encode(input: &Path, start: u64, end: u64, out: &Outputs, cancel: &Atomic
             emit(&planar, &mut flac, &mut mp3, &mut loudness, &mut written)?;
         }
         pos += n as u64;
+        if let Some(p) = out.progress {
+            p.store(((pos - start) as f32 / (end - start) as f32).to_bits(), Ordering::Release);
+        }
     }
     if let Some(f) = flac {
         f.finish()?;
@@ -465,7 +470,7 @@ mod tests {
         let before = std::fs::read(&src).unwrap();
         let flac = d.path().join("a.flac");
         let mp3 = d.path().join("a.mp3");
-        let r = encode(&src, 0, 44100, &Outputs { flac: Some(&flac), mp3: Some(&mp3), mp3_kbps: 192, restore: Restore::default() }, &AtomicBool::new(false)).unwrap();
+        let r = encode(&src, 0, 44100, &Outputs { flac: Some(&flac), mp3: Some(&mp3), mp3_kbps: 192, restore: Restore::default(), progress: None }, &AtomicBool::new(false)).unwrap();
         assert_eq!(r.frames, 44100);
         assert_eq!(std::fs::read(&src).unwrap(), before);
         let a = decode(&flac);
@@ -481,12 +486,12 @@ mod tests {
         let src = d.path().join("m.wav");
         sine(&src, 44100, 1.0, false, false);
         let mp3 = d.path().join("a.mp3");
-        let r = encode(&src, 0, 44100, &Outputs { flac: None, mp3: Some(&mp3), mp3_kbps: 320, restore: Restore::default() }, &AtomicBool::new(false)).unwrap();
+        let r = encode(&src, 0, 44100, &Outputs { flac: None, mp3: Some(&mp3), mp3_kbps: 320, restore: Restore::default(), progress: None }, &AtomicBool::new(false)).unwrap();
         assert_eq!(r.frames, 44100);
         // One second at 320 kb/s is about 40 kB (192 kb/s would be about 24 kB).
         let size = std::fs::metadata(&mp3).unwrap().len();
         assert!(size > 34_000, "{size}");
-        assert!(encode(&src, 0, 44100, &Outputs { flac: None, mp3: None, mp3_kbps: 320, restore: Restore::default() }, &AtomicBool::new(false)).is_err());
+        assert!(encode(&src, 0, 44100, &Outputs { flac: None, mp3: None, mp3_kbps: 320, restore: Restore::default(), progress: None }, &AtomicBool::new(false)).is_err());
     }
 
     #[test]
@@ -496,7 +501,7 @@ mod tests {
         sine(&src, 48000, 2.0, true, true);
         let flac = d.path().join("b.flac");
         let restore = Restore { hum: Some(50.0), declick: true, speed: 1.0 };
-        let r = encode(&src, 0, 96000, &Outputs { flac: Some(&flac), mp3: None, mp3_kbps: 192, restore }, &AtomicBool::new(false)).unwrap();
+        let r = encode(&src, 0, 96000, &Outputs { flac: Some(&flac), mp3: None, mp3_kbps: 192, restore, progress: None }, &AtomicBool::new(false)).unwrap();
         assert!(r.clicks >= 8, "{}", r.clicks);
         let out = decode(&flac);
         // After the notch settles, the 50 Hz component is gone: compare 50 Hz energy.
@@ -513,7 +518,7 @@ mod tests {
         assert!(energy(tail, 50.0) < 0.005, "{}", energy(tail, 50.0));
         assert!(energy(tail, 440.0) > 0.1);
         let fast = d.path().join("c.flac");
-        let r = encode(&src, 0, 96000, &Outputs { flac: Some(&fast), mp3: None, mp3_kbps: 192, restore: Restore { hum: None, declick: false, speed: 1.02 } }, &AtomicBool::new(false)).unwrap();
+        let r = encode(&src, 0, 96000, &Outputs { flac: Some(&fast), mp3: None, mp3_kbps: 192, restore: Restore { hum: None, declick: false, speed: 1.02 }, progress: None }, &AtomicBool::new(false)).unwrap();
         let expected = (96000.0 / 1.02) as i64;
         assert!((r.frames as i64 - expected).abs() < 300, "{} vs {expected}", r.frames);
     }

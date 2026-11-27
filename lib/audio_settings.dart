@@ -309,21 +309,21 @@ class _AudioSettingsViewState extends State<AudioSettingsView> {
       children: [
         item(
           tr('DLNA i Yamaha MusicCast'),
-          tr('Odbiornik dostaje oryginalny plik i sam go dekoduje, więc musi obsługiwać jego format. MusicCast działa jako pojedynczy odbiornik DLNA, grupy ustawisz w aplikacji Yamahy.'),
+          tr('Odbiornik sam dekoduje plik. Grupy MusicCast ustawisz w aplikacji Yamahy.'),
         ),
         item(
           'AirPlay',
-          tr('Mytify wysyła dźwięk stereo 16 bit / 44,1 kHz bez strat. Odbiornik gra z kilkusekundowym opóźnieniem, dlatego wizualizacja w pasku postępu jest wtedy statyczna.'),
+          tr('Stereo 16 bit / 44,1 kHz bez strat, kilka sekund opóźnienia.'),
         ),
         if (android)
           item(
             tr('Ten telefon'),
-            tr('Odtwarzanie przez Media3. Dźwięk idzie tam, gdzie wskaże Android: głośnik, słuchawki albo Bluetooth. Wybierzesz je w „Połącz z urządzeniem” → Bluetooth i słuchawki.'),
+            tr('Głośnik, słuchawki albo Bluetooth, według Androida.'),
           )
         else
           item(
             tr('Ten komputer'),
-            tr('Dekodowanie w silniku Mytify, wyjście przez Windows WASAPI w trybie współdzielonym. Bufor odtwarzania mieści około 3 sekund zdekodowanego dźwięku.'),
+            tr('Windows WASAPI, tryb współdzielony.'),
           ),
       ],
     );

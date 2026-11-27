@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'capture_stage.dart';
 import 'cover_widget.dart';
+import 'progress.dart';
 import 'design.dart';
 import 'ingest.dart';
 import 'model.dart';
@@ -101,11 +102,11 @@ class _IngestViewState extends State<IngestView> {
               OutlinedButton(style: Ctl.outlined, onPressed: idle ? () => unawaited(s.chooseMusicFolder()) : null, child: Text(path == null ? tr('Wybierz folder') : tr('Zmień'))),
             ],
           ),
-          _note(tr('Układ: Wykonawca\\Album (rok)\\01 - Tytuł.flac, obok cover.jpg, a w folderze wykonawcy artist.jpg (jak Plex i Jellyfin). Folder trafia do biblioteki. Istniejących plików Mytify nie nadpisuje.')),
-          if (path != null && !available) _warning(tr('Folder jest teraz niedostępny. Włącz NAS albo wybierz inny folder, zanim zaczniesz zgrywać.')),
+          Padding(padding: const EdgeInsets.only(top: Sp.s, left: 22 + Sp.m), child: Text(tr('Wykonawca\\Album (rok)\\01 - Tytuł'), style: Ctl.label)),
+          if (path != null && !available) _warning(tr('Folder jest niedostępny.')),
           if (s.moving) ...[
             const SizedBox(height: Sp.m),
-            LinearProgressIndicator(value: total > 0 ? (done / total).clamp(0, 1).toDouble() : null),
+            LiveProgress(value: s.progress),
             const SizedBox(height: Sp.xs),
             Text([if (s.step.isNotEmpty) trMessage(s.step), if (total > 0) '$done / $total'].join(' · '), style: Ctl.label),
             const SizedBox(height: Sp.s),
@@ -122,7 +123,6 @@ class _IngestViewState extends State<IngestView> {
                 ),
               ],
             ),
-            _note(tr('Albumy z folderu aplikacji trafią do tego układu, a biblioteka wskaże nowe pliki. Nagrania WAV zostają w aplikacji.')),
           ],
           if (moved) _note(tr('Przeniesiono albumy: {0}.', [done]), icon: Icons.check_circle_outline_rounded),
           if (s.job == 'move' && s.stage == 'error' && s.status['error'] != null) _error('${s.status['error']}'),
@@ -324,7 +324,7 @@ class _IngestViewState extends State<IngestView> {
         _empty(
           icon: Icons.album_outlined,
           title: tr('Włóż następną płytę'),
-          text: tr('Tryb seryjny: płyta zostanie odczytana i opisana sama. Gdy opis jest jednoznaczny, import ruszy bez pytania.'),
+          text: tr('Tryb seryjny'),
           action: OutlinedButton(style: Ctl.outlined, onPressed: () => setState(() => s.serial = false), child: Text(tr('Zakończ tryb seryjny'))),
         )
       else
@@ -333,7 +333,7 @@ class _IngestViewState extends State<IngestView> {
             icon: Icons.album_outlined,
             title: tr('Szukam napędów'),
             text: tr('To potrwa chwilę.'),
-            action: const SizedBox(width: 120, child: LinearProgressIndicator()),
+            action: const SizedBox(width: 120, child: LiveProgress()),
           ),
           CdState.noDrive => _empty(
             icon: Icons.album_outlined,
@@ -500,13 +500,12 @@ class _IngestViewState extends State<IngestView> {
       SectionTitle(tr('Zapis')),
       InfoRow(tr('Format'), tr('FLAC bez strat, 16 bit / 44,1 kHz, z okładką, opisem i ReplayGain')),
       if (s.folders['cd'] != null) InfoRow(tr('Folder'), s.musicPath ?? '${s.folders['cd']}'),
-      _check(tr('Kopia MP3 192 kb/s na telefon'), s.mp3, idle ? (v) => setState(() => s.mp3 = v) : null, sub: tr('Osobny folder MP3 obok plików FLAC.')),
+      _check(tr('Kopia MP3 192 kb/s na telefon'), s.mp3, idle ? (v) => setState(() => s.mp3 = v) : null),
       _check(tr('Wysuń płytę po imporcie'), s.eject || s.serial, idle && !s.serial ? (v) => setState(() => s.eject = v) : null),
       _check(
         tr('Tryb seryjny'),
         s.serial,
         idle ? (v) => setState(() => s.serial = v) : null,
-        sub: tr('Po imporcie płyta się wysuwa. Następna jest odczytywana sama i importowana, gdy opis jest jednoznaczny.'),
       ),
       Collapsible(
         title: tr('Przesunięcie odczytu'),
@@ -608,9 +607,9 @@ class _IngestViewState extends State<IngestView> {
           if (ok == verdicts.length)
             _note(tr('Wszystkie ścieżki zgodne z bazami AccurateRip lub CTDB.'), icon: Icons.verified_rounded)
           else if (bad > 0)
-            _warning(tr('Niezgodne z bazą: {0}. Przetrzyj płytę i zaimportuj te ścieżki ponownie.', [bad]))
+            _warning(tr('Niezgodne z bazą: {0}. Przetrzyj płytę i zgraj je ponownie.', [bad]))
           else
-            _note(tr('Zweryfikowane w bazach: {0} z {1}. Reszty płyty nie ma w bazach, więc nie da się jej sprawdzić.', [ok, verdicts.length])),
+            _note(tr('Zweryfikowane: {0} z {1}.', [ok, verdicts.length])),
           if (disc?['ctdbConfidence'] != null && (disc!['ctdbConfidence'] as num) > 0) _note(tr('Cała płyta zgodna z CTDB (pewność {0}).', [disc['ctdbConfidence']]), icon: Icons.verified_rounded),
           if (s.status['offset'] != null) _note(tr('Przesunięcie odczytu: {0}{1} próbek ({2}).', [(s.status['offset'] as num) >= 0 ? '+' : '', s.status['offset'], trMessage('${s.status['offsetSource']}')])),
         ],
@@ -780,7 +779,7 @@ class _IngestViewState extends State<IngestView> {
         if (s.apps.isEmpty && !s.searching)
           Row(
             children: [
-              Expanded(child: Text(tr('Nie widzę aplikacji. Uruchom program, z którego chcesz nagrać (np. Spotify), i odśwież listę.'), style: TextStyle(fontSize: 13.5))),
+              Expanded(child: Text(tr('Uruchom program, z którego chcesz nagrać.'), style: TextStyle(fontSize: 13.5))),
               IconAction(Icons.refresh_rounded, tr('Odśwież listę aplikacji'), () => unawaited(s.refresh()), color: secondaryText),
             ],
           )
@@ -893,15 +892,14 @@ class _IngestViewState extends State<IngestView> {
           ),
         ),
         if (s.appTracks.isEmpty)
-          Text(tr('Wczytaj album z linku albo dodaj utwory ręcznie: tytuł i długość (m:ss).'), style: Ctl.label)
+          Text(tr('Wklej link albumu albo dodaj utwory.'), style: Ctl.label)
         else if (s.albumMs == 0)
-          Text(tr('Podaj długość każdego utworu (m:ss). Bez tego podział będzie według ciszy.'), style: Ctl.label.copyWith(color: dangerText)),
+          Text(tr('Uzupełnij długości (m:ss).'), style: Ctl.label.copyWith(color: dangerText)),
         const SizedBox(height: Sp.s),
         _check(
           tr('Po nagraniu podziel, opisz i dodaj do biblioteki'),
           s.autoSave,
           idle ? (v) => setState(() => s.autoSave = v) : null,
-          sub: tr('MP3 320 kb/s z tagami i okładką. Bez linku do albumu podział według ciszy, do sprawdzenia przed zapisem.'),
         ),
         Divider(height: Sp.xl, color: softBorder),
         Text(tr('Poziom'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
@@ -1199,7 +1197,7 @@ class _IngestViewState extends State<IngestView> {
             ),
           ),
           if (selected != null && selected['partial'] == true) ...[
-            _warning(tr('Nagranie zostało przerwane. Odzyskaj je, aby podzielić i dodać do biblioteki.')),
+            _warning(tr('Nagranie zostało przerwane.')),
             const SizedBox(height: Sp.m),
             FilledButton(style: Ctl.filled, onPressed: idle ? () => unawaited(s.recover()) : null, child: Text(tr('Odzyskaj nagranie'))),
           ] else if (selected != null) ...[
@@ -1283,9 +1281,8 @@ class _IngestViewState extends State<IngestView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(tr('Dotyczy tylko plików FLAC i MP3. Oryginalne nagranie WAV zostaje bez zmian.'), style: Ctl.label),
-                  _check(tr('Usuń trzaski'), s.declick, idle ? (v) => setState(() => s.declick = v) : null, sub: tr('Krótkie trzaski i pyknięcia z płyty winylowej.')),
-                  _check(tr('Filtr brumu 50 Hz'), s.hum, idle ? (v) => setState(() => s.hum = v) : null, sub: tr('Wycina 50, 100 i 150 Hz z przewodów i uziemienia.')),
+                  _check(tr('Usuń trzaski'), s.declick, idle ? (v) => setState(() => s.declick = v) : null),
+                  _check(tr('Filtr brumu 50 Hz'), s.hum, idle ? (v) => setState(() => s.hum = v) : null),
                   Row(
                     children: [
                       const SizedBox(width: Sp.m),
@@ -1310,15 +1307,13 @@ class _IngestViewState extends State<IngestView> {
             const SizedBox(height: Sp.s),
             Text(
               s.appSession
-                  ? tr('Każdy utwór trafi do biblioteki jako MP3 320 kb/s z opisem, okładką i ReplayGain. Oryginalne nagranie WAV zostaje.')
-                  : tr('Każdy utwór trafi do biblioteki jako FLAC z opisem i ReplayGain. Oryginalne nagranie WAV zostaje.'),
+                  ? tr('MP3 320 kb/s')
+                  : tr('FLAC'),
               style: Ctl.label,
             ),
             const SizedBox(height: Sp.m),
             if (s.exporting) ...[
-              LinearProgressIndicator(
-                value: (s.status['total'] as num? ?? 0) > 0 ? ((s.status['done'] as num? ?? 0) / (s.status['total'] as num)).clamp(0, 1).toDouble() : null,
-              ),
+              LiveProgress(value: s.progress),
               const SizedBox(height: Sp.xs),
               Text(trMessage(s.step), style: Ctl.label),
               const SizedBox(height: Sp.s),
@@ -1465,7 +1460,7 @@ class _OffsetFieldState extends State<_OffsetField> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        tr('Zostaw puste: Mytify użyje wartości zapamiętanej dla napędu albo ustali ją z AccurateRip przy pierwszej płycie, która jest w bazie.'),
+        tr('Puste: automatycznie.'),
         style: Ctl.label,
       ),
       const SizedBox(height: Sp.s),
@@ -1603,7 +1598,7 @@ class _WaveformEditorState extends State<WaveformEditor> {
             ),
           ],
         ),
-        Text(tr('Kliknij, aby ustawić kursor. Dwuklik dodaje znacznik, przeciągnij znacznik, aby go przesunąć.'), style: Ctl.label),
+        Text(tr('Dwuklik: znacznik. Przeciągnij, aby przesunąć.'), style: Ctl.label),
         if (s.markers.isNotEmpty) ...[
           const SizedBox(height: Sp.s),
           Wrap(

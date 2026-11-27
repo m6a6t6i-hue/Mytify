@@ -138,7 +138,7 @@ class _CleanupPageState extends State<CleanupPage> {
     final extra = groups.fold(0, (n, g) => n + g.length - 1);
     return [
       Text(
-        tr('Ten sam wykonawca, tytuł i długość (do 3 s różnicy). Pierwsza jest najlepsza kopia.'),
+        tr('Ten sam wykonawca, tytuł i długość.'),
         style: Txt.meta,
       ),
       const SizedBox(height: Sp.m),

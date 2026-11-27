@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'progress.dart';
 import 'design.dart';
 import 'model.dart';
 import 'l10n.dart';
@@ -253,7 +254,7 @@ class _TransferScreenState extends State<TransferScreen> {
             !receiver
                 ? tr('Na telefonie: Ustawienia, potem Z komputera lub telefonu. Oba urządzenia muszą być w tej samej sieci.')
                 : sharing
-                ? tr('Na drugim telefonie: Ustawienia, potem Z komputera lub telefonu, Skanuj kod. Udostępniasz muzykę zapisaną w tym telefonie, dopóki ten ekran jest otwarty.')
+                ? tr('Na drugim telefonie: Ustawienia, Z komputera lub telefonu, Skanuj kod.')
                 : tr('Zeskanuj kod Mytify z komputera albo z drugiego telefonu i wybierz albumy. Pobrane utwory działają bez sieci.'),
             style: TextStyle(color: secondaryText, height: 1.5),
           ),
@@ -270,7 +271,7 @@ class _TransferScreenState extends State<TransferScreen> {
             ),
           ],
           const SizedBox(height: 22),
-          if (busy) const LinearProgressIndicator(),
+          if (busy) const LiveProgress(),
           if (error != null)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -470,12 +471,10 @@ class _TransferScreenState extends State<TransferScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 10),
-                      LinearProgressIndicator(
+                      LiveProgress(
                         value: (state['totalBytes'] as num? ?? 0) > 0
-                            ? ((state['doneBytes'] as num? ?? 0) /
-                                      (state['totalBytes'] as num))
-                                  .clamp(0.0, 1.0)
-                            : 0,
+                            ? ((state['doneBytes'] as num? ?? 0) / (state['totalBytes'] as num)).clamp(0.0, 1.0).toDouble()
+                            : null,
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -651,7 +650,7 @@ class _TransferScreenState extends State<TransferScreen> {
       ),
       const SizedBox(height: 8),
       Text(
-        tr('Oryginalne pliki, bez konwersji. Każdy plik jest sprawdzany sumą SHA-256.'),
+        tr('Oryginalne pliki, bez konwersji.'),
         style: TextStyle(color: secondaryText, fontSize: 12, height: 1.5),
       ),
     ];

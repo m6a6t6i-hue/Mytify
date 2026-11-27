@@ -57,6 +57,13 @@ pub struct Status {
     pub track: u32,
     pub track_from: u64,
     pub track_len: u64,
+    /// Whole job, 0..1, live (start of the current part plus how far it got).
+    pub progress: Option<f64>,
+    /// Current part (track being saved, file being copied), 0..1.
+    pub part: f64,
+    /// Share of the whole job the current part takes.
+    #[serde(skip)]
+    pub span: f64,
 }
 pub struct Signals {
     pub stop: AtomicBool,
@@ -67,6 +74,8 @@ pub struct Signals {
     pub dropped: AtomicU64,
     pub failed: AtomicBool,
     pub paused: AtomicBool,
+    /// Current part done, f32 bits (encoder, copy).
+    pub part: AtomicU32,
 }
 impl Default for Signals {
     fn default() -> Self {
@@ -79,6 +88,7 @@ impl Default for Signals {
             dropped: AtomicU64::new(0),
             failed: AtomicBool::new(false),
             paused: AtomicBool::new(false),
+            part: AtomicU32::new(0),
         }
     }
 }
@@ -107,6 +117,13 @@ impl Ingest {
     }
     pub fn snapshot(&self) -> Value {
         let mut s = self.state.lock().unwrap().clone();
+        if let Some(base) = s.progress {
+            s.part = (f32::from_bits(self.signals.part.load(Ordering::Acquire)) as f64).clamp(0.0, 1.0);
+            s.progress = Some((base + s.span * s.part).clamp(0.0, 1.0));
+        } else if s.stage == "ripping" && s.total > 0 {
+            // Reading is most of a CD import; saving into the library is the rest.
+            s.progress = Some(READING * s.done as f64 / s.total as f64);
+        }
         if s.stage == "ripping" {
             // Levels of what is being read, for the import view.
             s.peaks = self.signals.peaks.iter().map(|p| f32::from_bits(p.swap(0, Ordering::AcqRel))).collect();
@@ -131,6 +148,7 @@ impl Ingest {
         self.signals.stop.store(false, Ordering::Release);
         self.signals.failed.store(false, Ordering::Release);
         self.signals.paused.store(false, Ordering::Release);
+        self.signals.part.store(0, Ordering::Release);
         self.signals.frames.store(0, Ordering::Release);
         self.signals.peak.store(0, Ordering::Release);
         for p in &self.signals.peaks {
@@ -297,7 +315,12 @@ impl Ingest {
                 "cd": self.catalog.root.join("cd-imports"),
                 "music": import_folder(&self.catalog),
             })),
-            "importFolder" => Ok(self.import_folder_info()),
+            "importFolder" => {
+                // Opening import also brings covers found since into the music folder.
+                let catalog = self.catalog.clone();
+                std::thread::spawn(move || write_folder_covers(&catalog));
+                Ok(self.import_folder_info())
+            }
             "setImportFolder" => {
                 let path = v["path"].as_str().map(str::trim).filter(|p| !p.is_empty());
                 if let Some(p) = path {
@@ -306,6 +329,8 @@ impl Ingest {
                     }
                 }
                 crate::settings::set(&self.catalog, IMPORT_FOLDER, path)?;
+                let catalog = self.catalog.clone();
+                std::thread::spawn(move || write_folder_covers(&catalog));
                 Ok(self.import_folder_info())
             }
             "relocate" => {
@@ -470,6 +495,17 @@ impl Ingest {
     fn step(&self, text: &str) {
         self.state.lock().unwrap().step = text.into();
     }
+    /// The next part of the job starts at `base` of the whole and takes `span` of it.
+    fn phase(&self, base: f64, span: f64) {
+        self.signals.part.store(0, Ordering::Release);
+        let mut s = self.state.lock().unwrap();
+        s.progress = Some(base);
+        s.span = span;
+    }
+    /// How far the current part got, 0..1.
+    fn part(&self, value: f64) {
+        self.signals.part.store((value as f32).to_bits(), Ordering::Release);
+    }
     fn offsets_file(&self) -> PathBuf {
         self.catalog.root.join("drive-offsets.json")
     }
@@ -533,10 +569,12 @@ impl Ingest {
         }
         let mut made: Vec<(PathBuf, Option<PathBuf>, loudness::Loudness)> = Vec::new();
         let mut clicks = 0;
+        let all = (bounds[bounds.len() - 1] - bounds[0]).max(1) as f64;
         for (i, b) in bounds.windows(2).enumerate() {
             if self.signals.stop.load(Ordering::Acquire) {
                 break;
             }
+            self.phase(ENCODING * (b[0] - bounds[0]) as f64 / all, ENCODING * (b[1] - b[0]) as f64 / all);
             let ext = if mp3_only { "mp3" } else { "flac" };
             let name = free_stem(&track_stem(v, i + first, &titles[i]), |n| vec![dest.join(format!("{n}.{ext}")), dest.join("MP3").join(format!("{n}.mp3"))]);
             let out = dest.join(format!("{name}.{ext}"));
@@ -551,6 +589,7 @@ impl Ingest {
                     mp3: if mp3_only { Some(partial.as_path()) } else { mp3_out.as_deref() },
                     mp3_kbps: kbps,
                     restore: restore.clone(),
+                    progress: Some(&self.signals.part),
                 },
                 &self.signals.stop,
             )?;
@@ -571,7 +610,7 @@ impl Ingest {
             .enumerate()
             .map(|(i, _)| TagInfo::from_request(v, &titles[i], artists.get(i).map(String::as_str), (i + first) as u32, total))
             .collect();
-        self.finish_tracks(&made, tags, cover.as_deref())?;
+        self.finish_tracks(&made, tags, cover.as_deref(), ENCODING)?;
         // The recording remembers it is in the library, so the app does not offer it again as new.
         if !self.signals.stop.load(Ordering::Acquire) {
             let meta_path = dir.join("session.json");
@@ -655,20 +694,28 @@ impl Ingest {
             std::fs::create_dir_all(&dest)?;
             let mut old = Vec::new();
             let mut new = Vec::new();
-            for (from, rel) in files_below(dir) {
+            // Copying is the first half of an album, the library check the second.
+            let share = 1.0 / albums.len() as f64;
+            self.phase(i as f64 * share, share / 2.0);
+            let files = files_below(dir);
+            let bytes = files.iter().map(|(f, _)| std::fs::metadata(f).map(|m| m.len()).unwrap_or(0)).sum::<u64>().max(1);
+            let mut copied = 0u64;
+            for (from, rel) in files {
                 let to = dest.join(rel.parent().unwrap_or(Path::new(""))).join(dashed(&rel.file_name().unwrap_or_default().to_string_lossy()));
                 let name = to.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
                 if name == "cover.jpg" && to.exists() {
                     continue;
                 }
                 let to = free_path(to);
-                copy_checked(&from, &to)?;
+                copy_checked(&from, &to, |n| self.part((copied + n) as f64 / bytes as f64))?;
+                copied += std::fs::metadata(&to).map(|m| m.len()).unwrap_or(0);
                 if is_audio(&from) && !crate::catalog::mp3_copy(&to) {
                     old.push(from);
                     new.push(to);
                 }
             }
-            self.catalog.add_files(&new)?;
+            self.phase(i as f64 * share + share / 2.0, share / 2.0);
+            self.catalog.add_files(&new, |k, n| self.part(k as f64 / n.max(1) as f64))?;
             self.catalog.forget_paths(&old)?;
             // The recording notes where its album went.
             if let Some(session) = dir.parent().map(|p| p.join("session.json")).filter(|p| p.is_file()) {
@@ -681,6 +728,8 @@ impl Ingest {
             }
             // Only the app's own copy in its data folder is removed, after the check.
             std::fs::remove_dir_all(dir)?;
+            self.phase((i + 1) as f64 * share, 0.0);
+            let _ = write_folder_covers(&self.catalog);
             let mut s = self.state.lock().unwrap();
             s.done = (i + 1) as u64;
             s.files.push(dest.to_string_lossy().into_owned());
@@ -700,7 +749,12 @@ impl Ingest {
         made: &[(PathBuf, Option<PathBuf>, loudness::Loudness)],
         mut tags: Vec<TagInfo>,
         cover: Option<&[u8]>,
+        base: f64,
     ) -> Result<()> {
+        // Tags (files rewritten, possibly on a NAS), then the library (files read again).
+        let half = (1.0 - base) / 2.0;
+        self.step("Opis utworów i ReplayGain");
+        self.phase(base, half);
         let mut all = Vec::new();
         let mut album_peak: f64 = 0.0;
         for (_, _, l) in made {
@@ -708,7 +762,8 @@ impl Ingest {
             album_peak = album_peak.max(l.peak);
         }
         let album = loudness::integrated(&all).map(loudness::gain);
-        for ((flac, mp3, l), t) in made.iter().zip(tags.iter_mut()) {
+        for (i, ((flac, mp3, l), t)) in made.iter().zip(tags.iter_mut()).enumerate() {
+            self.part(i as f64 / made.len() as f64);
             t.gain = loudness::integrated(&l.blocks).map(|g| (loudness::gain(g), l.peak));
             t.album_gain = album.map(|g| (g, album_peak));
             write_tags(flac, t, cover)?;
@@ -716,7 +771,11 @@ impl Ingest {
                 write_tags(m, t, cover)?;
             }
         }
-        self.catalog.add_files(&made.iter().map(|(f, _, _)| f.clone()).collect::<Vec<_>>())?;
+        self.step("Dodawanie do biblioteki");
+        self.phase(base + half, half);
+        self.catalog.add_files(&made.iter().map(|(f, _, _)| f.clone()).collect::<Vec<_>>(), |i, n| self.part(i as f64 / n.max(1) as f64))?;
+        let _ = write_folder_covers(&self.catalog);
+        self.phase(1.0, 0.0);
         Ok(())
     }
     /// Reads `count` stereo samples starting at sample `from` (may be negative or past
@@ -903,7 +962,7 @@ impl Ingest {
                 let out = dest.join(format!("{name}.flac"));
                 let partial = out.with_extension("flac.partial");
                 let mp3_out = mp3.then(|| dest.join("MP3").join(format!("{name}.mp3")));
-                let e = encode::encode(&temp, 0, samples, &encode::Outputs { flac: Some(&partial), mp3: mp3_out.as_deref(), mp3_kbps: 192, restore: Default::default() }, &self.signals.stop)?;
+                let e = encode::encode(&temp, 0, samples, &encode::Outputs { flac: Some(&partial), mp3: mp3_out.as_deref(), mp3_kbps: 192, restore: Default::default(), progress: None }, &self.signals.stop)?;
                 std::fs::rename(&partial, &out)?;
                 made.push((out.clone(), mp3_out, e.loudness));
                 tags.push(TagInfo::from_request(v, "Ukryty utwór", None, 0, n as u32));
@@ -963,7 +1022,7 @@ impl Ingest {
             let out = dest.join(format!("{name}.flac"));
             let partial = out.with_extension("flac.partial");
             let mp3_out = mp3.then(|| dest.join("MP3").join(format!("{name}.mp3")));
-            let e = encode::encode(&temp, 0, samples, &encode::Outputs { flac: Some(&partial), mp3: mp3_out.as_deref(), mp3_kbps: 192, restore: Default::default() }, &self.signals.stop)?;
+            let e = encode::encode(&temp, 0, samples, &encode::Outputs { flac: Some(&partial), mp3: mp3_out.as_deref(), mp3_kbps: 192, restore: Default::default(), progress: None }, &self.signals.stop)?;
             std::fs::rename(&partial, &out)?;
             std::fs::remove_file(&temp)?;
             made.push((out.clone(), mp3_out, e.loudness));
@@ -980,8 +1039,9 @@ impl Ingest {
         if made.is_empty() {
             return Ok(());
         }
+        self.state.lock().unwrap().track = 0;
         self.step("Opis utworów i ReplayGain");
-        self.finish_tracks(&made, tags, cover.as_deref())?;
+        self.finish_tracks(&made, tags, cover.as_deref(), READING)?;
 
         let complete = whole && verdicts.len() == n;
         let disc = complete.then(|| disc_crc.finish());
@@ -1196,6 +1256,10 @@ fn safe_name(s: &str) -> String {
     }
 }
 pub const IMPORT_FOLDER: &str = "importFolder";
+/// Share of a CD import spent reading the disc (the rest is tags and the library).
+const READING: f64 = 0.95;
+/// Share of an export spent encoding (the rest is tags and the library).
+const ENCODING: f64 = 0.9;
 
 fn is_audio(p: &Path) -> bool {
     p.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("flac") || e.eq_ignore_ascii_case("mp3"))
@@ -1259,12 +1323,30 @@ fn album_tags(path: &Path) -> (String, String, String) {
 }
 
 /// Copies through a temporary name and checks the size before the file counts as copied.
-fn copy_checked(from: &Path, to: &Path) -> Result<()> {
+/// `progress` gets the bytes copied so far.
+fn copy_checked(from: &Path, to: &Path, mut progress: impl FnMut(u64)) -> Result<()> {
+    use std::io::{Read, Write};
     if let Some(dir) = to.parent() {
         std::fs::create_dir_all(dir)?;
     }
     let partial = to.with_extension("partial");
-    let n = std::fs::copy(from, &partial)?;
+    let n = {
+        let mut src = std::fs::File::open(from)?;
+        let mut dst = std::fs::File::create(&partial)?;
+        let mut buf = vec![0u8; 1 << 20];
+        let mut n = 0u64;
+        loop {
+            let k = src.read(&mut buf)?;
+            if k == 0 {
+                break;
+            }
+            dst.write_all(&buf[..k])?;
+            n += k as u64;
+            progress(n);
+        }
+        dst.sync_all()?;
+        n
+    };
     if n != std::fs::metadata(from)?.len() || std::fs::metadata(&partial)?.len() != n {
         let _ = std::fs::remove_file(&partial);
         bail!("Kopia pliku {} jest niepełna", from.display())
@@ -1276,6 +1358,54 @@ fn copy_checked(from: &Path, to: &Path) -> Result<()> {
 /// The music folder chosen for imports, if any.
 pub fn import_folder(catalog: &Catalog) -> Option<PathBuf> {
     crate::settings::get(catalog, IMPORT_FOLDER).ok().flatten().map(PathBuf::from)
+}
+
+static COVERS_RUNNING: AtomicBool = AtomicBool::new(false);
+
+/// Album folders in the music folder get `cover.jpg` from the cover the library shows
+/// (chosen in the app, found online or embedded), so the phone and other players see
+/// it too. Never replaces a picture that is already there. Returns how many it wrote.
+pub fn write_folder_covers(catalog: &Catalog) -> Result<usize> {
+    let Some(root) = import_folder(catalog).and_then(|r| r.canonicalize().ok()) else { return Ok(0) };
+    if COVERS_RUNNING.swap(true, Ordering::AcqRel) {
+        return Ok(0);
+    }
+    let result = (|| -> Result<usize> {
+        let covers: std::collections::HashMap<String, String> =
+            catalog.tracks()?.into_iter().filter_map(|t| t.cover.map(|c| (t.id, c))).collect();
+        let rows: Vec<(String, String)> = {
+            let db = catalog.db()?;
+            let mut stmt = db.prepare("SELECT track_id,path FROM locations WHERE available=1")?;
+            let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+            rows.collect::<rusqlite::Result<_>>()?
+        };
+        let mut dirs: std::collections::BTreeMap<PathBuf, String> = Default::default();
+        for (id, path) in rows {
+            let Some(cover) = covers.get(&id) else { continue };
+            let path = PathBuf::from(path);
+            if !path.starts_with(&root) {
+                continue;
+            }
+            if let Some(dir) = path.parent() {
+                dirs.entry(dir.to_path_buf()).or_insert_with(|| cover.clone());
+            }
+        }
+        let mut written = 0;
+        for (dir, cover) in dirs {
+            const PICTURES: [&str; 6] = ["cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png"];
+            if !dir.is_dir() || PICTURES.iter().any(|n| dir.join(n).is_file()) {
+                continue;
+            }
+            if let Some(bytes) = catalog.artwork_path(&cover).ok().and_then(|p| std::fs::read(p).ok()) {
+                if write_new(&dir.join("cover.jpg"), &bytes).is_ok() {
+                    written += 1;
+                }
+            }
+        }
+        Ok(written)
+    })();
+    COVERS_RUNNING.store(false, Ordering::Release);
+    result
 }
 
 /// Album folder in the music folder: `Artist\Album (year)`, the layout of Plex,
@@ -1655,6 +1785,7 @@ mod tests {
         ingest.rip_with(&FakeDrive { audio: audio.clone(), offset: 6 }, toc.clone(), "FAKE DRIVE", db.clone(), &v).unwrap();
         let s = ingest.state.lock().unwrap().clone();
         assert_eq!(s.offset, Some(6), "{:?}", s.offset_source);
+        assert_eq!(ingest.snapshot()["progress"], 1.0);
         assert_eq!(s.verdicts.len(), 3);
         assert!(s.verdicts.iter().all(|x| x.accuraterip == 17), "{:?}", s.verdicts);
         assert_eq!(ingest.saved_offsets().get("FAKE DRIVE"), Some(&6));
@@ -1706,6 +1837,14 @@ mod tests {
         };
         assert_eq!(paths.len(), 3, "{paths:?}");
         assert!(paths.iter().all(|p| p.contains("Muzyka")), "{paths:?}");
+        // A cover the library knows (found online, chosen in the app) goes next to the album.
+        let hash = "ab".repeat(32);
+        std::fs::create_dir_all(d.path().join("artwork")).unwrap();
+        std::fs::write(d.path().join("artwork").join(&hash), b"jpeg").unwrap();
+        ingest.catalog.db().unwrap().execute("UPDATE tracks SET cover=?1", [&hash]).unwrap();
+        assert_eq!(write_folder_covers(&ingest.catalog).unwrap(), 1);
+        assert_eq!(std::fs::read(album.join("cover.jpg")).unwrap(), b"jpeg");
+        assert_eq!(write_folder_covers(&ingest.catalog).unwrap(), 0, "never replaced");
         // Second rip of the same drive reuses the remembered offset and goes straight to
         // the music folder without replacing anything there.
         let mut s = ingest.state.lock().unwrap();

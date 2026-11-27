@@ -105,6 +105,8 @@ pub fn start_with_audio(
         let photos = app.clone();
         thread::spawn(move || {
             let _ = photos.artists.refresh(&photos.catalog, &photos.metadata, false, None);
+            // Covers the library shows go next to the albums in the music folder.
+            let _ = crate::ingest::write_folder_covers(&photos.catalog);
         });
         thread::spawn(move || loop {
             let _ = catalog.probe_network_sources();

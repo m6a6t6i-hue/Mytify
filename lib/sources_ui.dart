@@ -242,10 +242,10 @@ class _NetworkSourceFormState extends State<NetworkSourceForm> {
           const SizedBox(height: 4),
           Text(
             server
-                ? tr('OpenSubsonic, np. Navidrome. Biblioteka, polubienia i playlisty pochodzą z serwera.')
+                ? tr('OpenSubsonic, np. Navidrome.')
                 : dav
-                ? tr('Folder na serwerze przez HTTPS, np. NAS z włączonym WebDAV. Mytify tylko odczytuje muzykę.')
-                : tr('Udział z NAS-a lub komputera w tej samej sieci. Mytify tylko odczytuje muzykę.'),
+                ? tr('Folder przez HTTPS, np. NAS z WebDAV.')
+                : tr('Udział NAS-a lub komputera w sieci.'),
             style: Txt.sub,
           ),
           const SizedBox(height: Sp.l),

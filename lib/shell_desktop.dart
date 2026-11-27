@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'progress.dart';
 import 'design.dart';
 import 'main.dart';
 import 'radio.dart';
@@ -709,7 +710,7 @@ class ScanBanner extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          LinearProgressIndicator(value: known ? (p.done / p.total).clamp(0.0, 1.0) : null, minHeight: 3),
+          LiveProgress(value: known ? (p.done / p.total).clamp(0.0, 1.0) : null, height: 3),
           Padding(
             padding: EdgeInsets.fromLTRB(app.desktopMode ? Sp.xl : Sp.l, Sp.xs, Sp.xs, Sp.xs),
             child: Row(

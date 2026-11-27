@@ -1455,9 +1455,9 @@ class LibraryScreenState extends State<LibraryScreen> {
   void _ingestTaskbar() {
     final s = _ingest;
     if (s == null || importing) return;
-    final done = (s.status['done'] as num? ?? 0).toDouble(), total = (s.status['total'] as num? ?? 0).toDouble();
-    if (s.ripping || s.exporting) {
-      taskbarProgress(total > 0 ? done / total : null, total > 0 ? 'normal' : 'indeterminate');
+    if (s.ripping || s.exporting || s.moving) {
+      final p = s.progress;
+      taskbarProgress(p, p != null ? 'normal' : 'indeterminate');
     } else if (s.recording) {
       final overall = s.recordStage().overall;
       taskbarProgress(overall, s.paused ? 'paused' : (overall == null ? 'indeterminate' : 'normal'));

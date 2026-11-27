@@ -989,3 +989,32 @@ Albumy z folderu aplikacji trafią do tego układu, a biblioteka wskaże nowe pl
 Przeniesiono albumy: {0}.	Albums moved: {0}.
 Przenoszenie albumów	Moving albums
 Najpierw wybierz folder na muzykę	Pick a music folder first
+Wykonawca\\Album (rok)\\01 - Tytuł	Artist\\Album (year)\\01 - Title
+Folder jest niedostępny.	The folder is not reachable.
+Niezgodne z bazą: {0}. Przetrzyj płytę i zgraj je ponownie.	Not matching the database: {0}. Clean the disc and rip them again.
+Zweryfikowane: {0} z {1}.	Verified: {0} of {1}.
+Uruchom program, z którego chcesz nagrać.	Start the program you want to record from.
+Wklej link albumu albo dodaj utwory.	Paste an album link or add tracks.
+Uzupełnij długości (m:ss).	Fill in the lengths (m:ss).
+Nagranie zostało przerwane.	The recording was interrupted.
+FLAC	FLAC
+Puste: automatycznie.	Empty: automatic.
+Dwuklik: znacznik. Przeciągnij, aby przesunąć.	Double-click: marker. Drag to move.
+Nie ustawiono	Not set
+Odbiornik sam dekoduje plik. Grupy MusicCast ustawisz w aplikacji Yamahy.	The receiver decodes the file itself. Set MusicCast groups in the Yamaha app.
+Stereo 16 bit / 44,1 kHz bez strat, kilka sekund opóźnienia.	Lossless stereo 16 bit / 44.1 kHz, a few seconds of delay.
+Głośnik, słuchawki albo Bluetooth, według Androida.	Speaker, headphones or Bluetooth, as Android routes it.
+Windows WASAPI, tryb współdzielony.	Windows WASAPI, shared mode.
+Muzyka gra dalej, Mytify zostaje przy zegarze.	Music keeps playing, Mytify stays next to the clock.
+Niższe wiersze, bez okładek.	Shorter rows, no covers.
+Pulsujące wiązki światła.	Pulsing light beams.
+Gdy gra muzyka, a komputer jest bezczynny.	While music plays and the computer is idle.
+Ten sam wykonawca, tytuł i długość.	Same artist, title and length.
+OpenSubsonic, np. Navidrome.	OpenSubsonic, e.g. Navidrome.
+Folder przez HTTPS, np. NAS z WebDAV.	A folder over HTTPS, e.g. a NAS with WebDAV.
+Udział NAS-a lub komputera w sieci.	A NAS or computer share on the network.
+Ceny z iTunes Store dla Polski.	iTunes Store prices for Poland.
+Oryginalne pliki, bez konwersji.	Original files, no conversion.
+Na drugim telefonie: Ustawienia, Z komputera lub telefonu, Skanuj kod.	On the other phone: Settings, From a computer or phone, Scan code.
+Dodawanie do biblioteki	Adding to the library
+Okładki	Covers
