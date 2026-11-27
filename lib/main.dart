@@ -256,6 +256,19 @@ class LibraryScreenState extends State<LibraryScreen> {
       if (player.state.playing) await player.command({'action': 'pause'});
     },
     onLibraryChanged: loadLibrary,
+    addSource: (folder) async {
+      final repo = repository;
+      if (repo is! DropImport) return;
+      await runOperation((update) => (repo as DropImport).importPaths([folder], folder: true, onProgress: update));
+    },
+    onMoved: () async {
+      // Artist folders in the music folder get their artist.jpg.
+      final repo = repository;
+      if (repo is! ArtistPhotoRepository) return;
+      try {
+        await (repo as ArtistPhotoRepository).refreshArtistPhotos();
+      } catch (_) {}
+    },
     onImported: (artists) async {
       notifyDesktop(tr('Dodano do biblioteki'), artists.join(', '));
       // A freshly imported artist gets their photo right away.

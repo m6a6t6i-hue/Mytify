@@ -7,7 +7,7 @@ pub mod encode;
 pub mod loudness;
 pub mod verify;
 pub mod wav;
-use crate::catalog::{getrandom_bytes, hex, Catalog, ScanRequest};
+use crate::catalog::{getrandom_bytes, hex, Catalog};
 use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -267,8 +267,9 @@ impl Ingest {
                 {
                     let target = PathBuf::from(v["path"].as_str().unwrap_or(""));
                     let root = self.catalog.root.canonicalize()?;
+                    let music = import_folder(&self.catalog).and_then(|m| m.canonicalize().ok());
                     let target = target.canonicalize()?;
-                    if !target.starts_with(&root) || !target.is_dir() {
+                    if !(target.starts_with(&root) || music.is_some_and(|m| target.starts_with(m))) || !target.is_dir() {
                         bail!("Ten folder nie należy do Mytify")
                     }
                     std::process::Command::new("explorer.exe").arg(target).spawn()?;
@@ -294,7 +295,25 @@ impl Ingest {
             "folders" => Ok(json!({
                 "recordings": self.root(),
                 "cd": self.catalog.root.join("cd-imports"),
+                "music": import_folder(&self.catalog),
             })),
+            "importFolder" => Ok(self.import_folder_info()),
+            "setImportFolder" => {
+                let path = v["path"].as_str().map(str::trim).filter(|p| !p.is_empty());
+                if let Some(p) = path {
+                    if !Path::new(p).is_dir() {
+                        bail!("Nie ma takiego folderu albo nie jest dostępny: {p}")
+                    }
+                }
+                crate::settings::set(&self.catalog, IMPORT_FOLDER, path)?;
+                Ok(self.import_folder_info())
+            }
+            "relocate" => {
+                if import_folder(&self.catalog).is_none() {
+                    bail!("Najpierw wybierz folder na muzykę")
+                }
+                self.job("moving", move |s| s.relocate())
+            }
             "openFolder" => {
                 #[cfg(windows)]
                 {
@@ -498,14 +517,13 @@ impl Ingest {
         let kbps = if v["mp3Kbps"].as_u64() == Some(320) { 320 } else { 192 };
         // Side B continues the numbering of side A.
         let first = v["firstTrack"].as_u64().unwrap_or(1).clamp(1, 99) as usize;
-        let dest = dir.join(format!("export-{}", hex(getrandom_bytes()?)));
-        std::fs::create_dir(&dest)?;
+        let dest = self.album_dest(v, dir.join(format!("export-{}", hex(getrandom_bytes()?))))?;
         if mp3 && !mp3_only {
-            std::fs::create_dir(dest.join("MP3"))?;
+            std::fs::create_dir_all(dest.join("MP3"))?;
         }
         let cover = self.cover_bytes(v);
         if let Some(c) = &cover {
-            std::fs::write(dest.join("cover.jpg"), c)?;
+            write_new(&dest.join("cover.jpg"), c)?;
         }
         {
             let mut s = self.state.lock().unwrap();
@@ -519,8 +537,9 @@ impl Ingest {
             if self.signals.stop.load(Ordering::Acquire) {
                 break;
             }
-            let name = format!("{:02}-{}", i + first, safe_name(&titles[i]));
-            let out = dest.join(format!("{name}.{}", if mp3_only { "mp3" } else { "flac" }));
+            let ext = if mp3_only { "mp3" } else { "flac" };
+            let name = free_stem(&track_stem(v, i + first, &titles[i]), |n| vec![dest.join(format!("{n}.{ext}")), dest.join("MP3").join(format!("{n}.mp3"))]);
+            let out = dest.join(format!("{name}.{ext}"));
             let partial = out.with_extension(if mp3_only { "mp3.partial" } else { "flac.partial" });
             let mp3_out = (mp3 && !mp3_only).then(|| dest.join("MP3").join(format!("{name}.mp3")));
             let e = encode::encode(
@@ -564,6 +583,111 @@ impl Ingest {
         }
         Ok(())
     }
+    /// Folder for a new album: `Artist\Album (year)` in the music folder the user chose,
+    /// else `fallback` in the app data.
+    fn album_dest(&self, v: &Value, fallback: PathBuf) -> Result<PathBuf> {
+        let Some(root) = import_folder(&self.catalog) else {
+            std::fs::create_dir_all(&fallback)?;
+            return Ok(fallback);
+        };
+        if !root.is_dir() {
+            bail!("Folder na muzykę jest niedostępny: {}. Sprawdź połączenie z NAS albo wybierz inny folder.", root.display())
+        }
+        let artists: Vec<String> = serde_json::from_value(v["artists"].clone()).unwrap_or_default();
+        let distinct = artists.iter().filter(|a| !a.trim().is_empty()).collect::<std::collections::BTreeSet<_>>().len();
+        let artist = v["artist"].as_str().unwrap_or("").trim();
+        let artist = if artist.is_empty() && distinct > 1 { "Różni wykonawcy" } else { artist };
+        let dest = album_path(&root, artist, v["album"].as_str().unwrap_or(""), v["date"].as_str().unwrap_or(""));
+        std::fs::create_dir_all(&dest)?;
+        Ok(dest)
+    }
+    /// The music folder, whether it is reachable and in the library, and how many
+    /// albums made earlier still sit in the app data.
+    fn import_folder_info(&self) -> Value {
+        let folder = import_folder(&self.catalog);
+        let available = folder.as_ref().is_some_and(|f| f.is_dir());
+        let source = folder
+            .as_ref()
+            .filter(|_| available)
+            .and_then(|f| self.catalog.source_containing(f).ok().flatten());
+        json!({
+            "path": folder,
+            "available": available,
+            "inLibrary": source.is_some(),
+            "stored": self.stored_albums().len(),
+        })
+    }
+    /// Albums made before a music folder was chosen, still in the app data.
+    fn stored_albums(&self) -> Vec<PathBuf> {
+        let dirs = |d: &Path| -> Vec<PathBuf> {
+            std::fs::read_dir(d).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect()
+        };
+        let mut out = Vec::new();
+        for session in dirs(&self.root()) {
+            out.extend(dirs(&session).into_iter().filter(|e| e.file_name().is_some_and(|n| n.to_string_lossy().starts_with("export-"))));
+        }
+        out.extend(dirs(&self.catalog.root.join("cd-imports")));
+        out.retain(|d| !audio_files(d).is_empty());
+        out.sort();
+        out
+    }
+    /// Moves albums from the app data into the music folder layout: copies and checks
+    /// every file, points the library at the copies, then removes the app's own copy.
+    fn relocate(&self) -> Result<()> {
+        let root = import_folder(&self.catalog).ok_or_else(|| anyhow!("Najpierw wybierz folder na muzykę"))?;
+        if !root.is_dir() {
+            bail!("Folder na muzykę jest niedostępny: {}", root.display())
+        }
+        let albums = self.stored_albums();
+        {
+            let mut s = self.state.lock().unwrap();
+            s.total = albums.len() as u64;
+            s.step = "Przenoszenie albumów".into();
+        }
+        for (i, dir) in albums.iter().enumerate() {
+            if self.signals.stop.load(Ordering::Acquire) {
+                break;
+            }
+            let audio = audio_files(dir);
+            let (artist, album, date) = album_tags(&audio[0]);
+            self.step(&format!("{artist} / {album}"));
+            let dest = album_path(&root, &artist, &album, &date);
+            std::fs::create_dir_all(&dest)?;
+            let mut old = Vec::new();
+            let mut new = Vec::new();
+            for (from, rel) in files_below(dir) {
+                let to = dest.join(rel.parent().unwrap_or(Path::new(""))).join(dashed(&rel.file_name().unwrap_or_default().to_string_lossy()));
+                let name = to.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+                if name == "cover.jpg" && to.exists() {
+                    continue;
+                }
+                let to = free_path(to);
+                copy_checked(&from, &to)?;
+                if is_audio(&from) && !crate::catalog::mp3_copy(&to) {
+                    old.push(from);
+                    new.push(to);
+                }
+            }
+            self.catalog.add_files(&new)?;
+            self.catalog.forget_paths(&old)?;
+            // The recording notes where its album went.
+            if let Some(session) = dir.parent().map(|p| p.join("session.json")).filter(|p| p.is_file()) {
+                if let Some(mut meta) = std::fs::read(&session).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()) {
+                    if meta["exported"].is_object() {
+                        meta["exported"]["folder"] = json!(dest.to_string_lossy());
+                        let _ = std::fs::write(&session, serde_json::to_vec_pretty(&meta)?);
+                    }
+                }
+            }
+            // Only the app's own copy in its data folder is removed, after the check.
+            std::fs::remove_dir_all(dir)?;
+            let mut s = self.state.lock().unwrap();
+            s.done = (i + 1) as u64;
+            s.files.push(dest.to_string_lossy().into_owned());
+            s.folder = root.to_string_lossy().into_owned();
+        }
+        Ok(())
+    }
     /// Cover chosen in the app (artwork hash), if any.
     fn cover_bytes(&self, v: &Value) -> Option<Vec<u8>> {
         let hash = v["cover"].as_str()?;
@@ -592,14 +716,7 @@ impl Ingest {
                 write_tags(m, t, cover)?;
             }
         }
-        self.catalog.scan(
-            ScanRequest {
-                paths: made.iter().map(|(f, _, _)| f.to_string_lossy().into_owned()).collect(),
-                ..Default::default()
-            },
-            &AtomicBool::new(false),
-            |_| {},
-        )?;
+        self.catalog.add_files(&made.iter().map(|(f, _, _)| f.clone()).collect::<Vec<_>>())?;
         Ok(())
     }
     /// Reads `count` stereo samples starting at sample `from` (may be negative or past
@@ -679,14 +796,16 @@ impl Ingest {
         let whole = toc.tracks.iter().all(|t| wanted(t.number));
         let mp3 = v["mp3"].as_bool().unwrap_or(false);
         let spsec = verify::SAMPLES_PER_SECTOR;
-        let dest = self.catalog.root.join("cd-imports").join(hex(getrandom_bytes()?));
-        std::fs::create_dir_all(&dest)?;
+        let dest = self.album_dest(v, self.catalog.root.join("cd-imports").join(hex(getrandom_bytes()?)))?;
         if mp3 {
-            std::fs::create_dir(dest.join("MP3"))?;
+            std::fs::create_dir_all(dest.join("MP3"))?;
         }
+        // Raw tracks are read into the app folder, never onto the NAS.
+        let work = self.catalog.root.join("cd-work");
+        std::fs::create_dir_all(&work)?;
         let cover = self.cover_bytes(v);
         if let Some(c) = &cover {
-            std::fs::write(dest.join("cover.jpg"), c)?;
+            write_new(&dest.join("cover.jpg"), c)?;
         }
         self.state.lock().unwrap().folder = dest.to_string_lossy().into_owned();
         for e in &db.errors {
@@ -769,7 +888,7 @@ impl Ingest {
         if toc.tracks[0].start > 0 && whole && v["htoa"].as_bool().unwrap_or(true) {
             self.step("Sprawdzanie ukrytego utworu przed ścieżką 1");
             let samples = toc.tracks[0].start as u64 * spsec;
-            let temp = dest.join("track-00.wav.partial");
+            let temp = work.join("track-00.wav.partial");
             let mut wav = wav::Wav::create(&temp, 44100, 2, 16)?;
             let mut loud = false;
             let mut retried = Vec::new();
@@ -780,9 +899,10 @@ impl Ingest {
             wav.finish()?;
             drop(wav);
             if loud && !self.signals.stop.load(Ordering::Acquire) {
-                let out = dest.join("00-Ukryty utwór.flac");
+                let name = free_stem(&track_stem(v, 0, "Ukryty utwór"), |n| vec![dest.join(format!("{n}.flac")), dest.join("MP3").join(format!("{n}.mp3"))]);
+                let out = dest.join(format!("{name}.flac"));
                 let partial = out.with_extension("flac.partial");
-                let mp3_out = mp3.then(|| dest.join("MP3").join("00-Ukryty utwór.mp3"));
+                let mp3_out = mp3.then(|| dest.join("MP3").join(format!("{name}.mp3")));
                 let e = encode::encode(&temp, 0, samples, &encode::Outputs { flac: Some(&partial), mp3: mp3_out.as_deref(), mp3_kbps: 192, restore: Default::default() }, &self.signals.stop)?;
                 std::fs::rename(&partial, &out)?;
                 made.push((out.clone(), mp3_out, e.loudness));
@@ -811,7 +931,7 @@ impl Ingest {
             let samples = (track.end - track.start) as u64 * spsec;
             let track_from = track.start as u64 * spsec;
             let mut sums = verify::TrackSums::new(samples, i == 0, i + 1 == n, prefix, suffix);
-            let temp = dest.join(format!("track-{:02}.wav.partial", track.number));
+            let temp = work.join(format!("track-{:02}.wav.partial", track.number));
             let mut wav = wav::Wav::create(&temp, 44100, 2, 16)?;
             let mut retried = Vec::new();
             let mut at = track_from;
@@ -839,7 +959,7 @@ impl Ingest {
             self.state.lock().unwrap().verdicts.push(verdict.clone());
             verdicts.push(verdict);
             self.step(&format!("Zapis ścieżki {}", track.number));
-            let name = format!("{:02}-{}", track.number, safe_name(&titles[i]));
+            let name = free_stem(&track_stem(v, track.number as usize, &titles[i]), |n| vec![dest.join(format!("{n}.flac")), dest.join("MP3").join(format!("{n}.mp3"))]);
             let out = dest.join(format!("{name}.flac"));
             let partial = out.with_extension("flac.partial");
             let mp3_out = mp3.then(|| dest.join("MP3").join(format!("{name}.mp3")));
@@ -921,7 +1041,7 @@ impl Ingest {
             let a = artists.get(i).map(String::as_str).filter(|a| !a.is_empty()).unwrap_or(artist);
             cue.push_str(&format!("    PERFORMER \"{}\"\r\n    INDEX 01 00:00:00\r\n", q(a)));
         }
-        std::fs::write(dest.join(format!("{}.cue", safe_name(if album.is_empty() { "Album" } else { album }))), cue)?;
+        std::fs::write(free_path(dest.join(format!("{}.cue", safe_name(if album.is_empty() { "Album" } else { album })))), cue)?;
 
         let mut log = String::new();
         let ar = |x: &verify::TrackVerdict| {
@@ -961,9 +1081,9 @@ impl Ingest {
         }
         let ok = verdicts.iter().filter(|x| x.accuraterip > 0 || x.ctdb > 0).count();
         log.push_str(&format!("\r\nZweryfikowane w bazach: {ok} z {} ścieżek.\r\n", verdicts.len()));
-        std::fs::write(dest.join("Raport importu.log"), log)?;
+        std::fs::write(free_path(dest.join("Raport importu.log")), log)?;
         std::fs::write(
-            dest.join("READ_REPORT.json"),
+            free_path(dest.join("READ_REPORT.json")),
             serde_json::to_vec_pretty(&json!({"toc": toc, "drive": drive, "offset": offset, "offsetSource": source, "tracks": verdicts, "ctdbDisc": disc.map(|c| format!("{c:08x}")), "ctdbDiscConfidence": ctdb_disc}))?,
         )?;
         Ok(())
@@ -1075,6 +1195,142 @@ fn safe_name(s: &str) -> String {
         s
     }
 }
+pub const IMPORT_FOLDER: &str = "importFolder";
+
+fn is_audio(p: &Path) -> bool {
+    p.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("flac") || e.eq_ignore_ascii_case("mp3"))
+}
+
+/// Audio files directly in a folder, sorted.
+fn audio_files(dir: &Path) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = std::fs::read_dir(dir).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| p.is_file() && is_audio(p)).collect();
+    out.sort();
+    out
+}
+
+/// Files of an album folder (and its MP3 subfolder) with their relative paths.
+fn files_below(dir: &Path) -> Vec<(PathBuf, PathBuf)> {
+    let mut out = Vec::new();
+    for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let p = e.path();
+        if p.is_file() {
+            if !p.to_string_lossy().ends_with(".partial") {
+                out.push((p.clone(), PathBuf::from(e.file_name())));
+            }
+        } else if p.is_dir() {
+            for f in std::fs::read_dir(&p).into_iter().flatten().flatten() {
+                if f.path().is_file() {
+                    out.push((f.path(), PathBuf::from(e.file_name()).join(f.file_name())));
+                }
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// "01-Title.flac" (older imports) becomes "01 - Title.flac".
+fn dashed(name: &str) -> String {
+    let b = name.as_bytes();
+    if b.len() > 3 && b[0].is_ascii_digit() && b[1].is_ascii_digit() && b[2] == b'-' && b[3] != b' ' {
+        format!("{} - {}", &name[..2], &name[3..])
+    } else {
+        name.to_string()
+    }
+}
+
+/// Album artist (or artist), album and date from a file's tags.
+fn album_tags(path: &Path) -> (String, String, String) {
+    use lofty::{
+        file::TaggedFileExt,
+        prelude::Accessor,
+        tag::ItemKey,
+    };
+    let Ok(f) = lofty::read_from_path(path) else { return Default::default() };
+    let Some(t) = f.primary_tag().or_else(|| f.first_tag()) else { return Default::default() };
+    let artist = t
+        .get_string(ItemKey::AlbumArtist)
+        .filter(|a| !a.trim().is_empty())
+        .map(str::to_string)
+        .or_else(|| t.artist().map(|a| a.into_owned()))
+        .unwrap_or_default();
+    let date = t.get_string(ItemKey::RecordingDate).or_else(|| t.get_string(ItemKey::Year)).unwrap_or("").to_string();
+    (artist, t.album().map(|a| a.into_owned()).unwrap_or_default(), date)
+}
+
+/// Copies through a temporary name and checks the size before the file counts as copied.
+fn copy_checked(from: &Path, to: &Path) -> Result<()> {
+    if let Some(dir) = to.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let partial = to.with_extension("partial");
+    let n = std::fs::copy(from, &partial)?;
+    if n != std::fs::metadata(from)?.len() || std::fs::metadata(&partial)?.len() != n {
+        let _ = std::fs::remove_file(&partial);
+        bail!("Kopia pliku {} jest niepełna", from.display())
+    }
+    std::fs::rename(&partial, to)?;
+    Ok(())
+}
+
+/// The music folder chosen for imports, if any.
+pub fn import_folder(catalog: &Catalog) -> Option<PathBuf> {
+    crate::settings::get(catalog, IMPORT_FOLDER).ok().flatten().map(PathBuf::from)
+}
+
+/// Album folder in the music folder: `Artist\Album (year)`, the layout of Plex,
+/// Jellyfin and most taggers.
+pub fn album_path(root: &Path, artist: &str, album: &str, date: &str) -> PathBuf {
+    let artist = if artist.trim().is_empty() { "Nieznany wykonawca" } else { artist };
+    let album = if album.trim().is_empty() { "Bez tytułu" } else { album.trim() };
+    let year: String = date.trim().chars().take(4).collect();
+    let album = if year.len() == 4 && year.chars().all(|c| c.is_ascii_digit()) && !album.contains(&year) {
+        format!("{album} ({year})")
+    } else {
+        album.to_string()
+    };
+    root.join(safe_name(artist)).join(safe_name(&album))
+}
+
+/// File name without extension: `01 - Title`, `2-01 - Title` on a multi-disc album.
+fn track_stem(v: &Value, number: usize, title: &str) -> String {
+    match v["disc"].as_u64().filter(|_| v["discs"].as_u64().unwrap_or(1) > 1) {
+        Some(d) => format!("{d}-{number:02} - {}", safe_name(title)),
+        None => format!("{number:02} - {}", safe_name(title)),
+    }
+}
+
+/// A stem none of whose files exist yet: "01 - Title", then "01 - Title (2)"...
+/// Files already in the folder are never overwritten.
+fn free_stem(stem: &str, files: impl Fn(&str) -> Vec<PathBuf>) -> String {
+    (1..1000)
+        .map(|n| if n == 1 { stem.to_string() } else { format!("{stem} ({n})") })
+        .find(|s| files(s).iter().all(|p| !p.exists()))
+        .unwrap_or_else(|| format!("{stem} {}", hex(getrandom_bytes().unwrap_or_default())))
+}
+
+/// `path` or, when it exists, `name (2).ext`...
+fn free_path(path: PathBuf) -> PathBuf {
+    let dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
+    let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    let s = free_stem(&stem, |s| vec![dir.join(format!("{s}{ext}"))]);
+    dir.join(format!("{s}{ext}"))
+}
+
+/// Writes a file only when there is none: the user's files are never replaced.
+fn write_new(path: &Path, bytes: &[u8]) -> Result<()> {
+    if path.exists() {
+        return Ok(());
+    }
+    let partial = path.with_extension("partial");
+    std::fs::write(&partial, bytes)?;
+    if std::fs::rename(&partial, path).is_err() {
+        let _ = std::fs::remove_file(&partial);
+    }
+    Ok(())
+}
+
 /// Everything written into a FLAC or MP3 file made by import.
 #[derive(Clone, Debug, Default)]
 pub struct TagInfo {
@@ -1411,7 +1667,7 @@ mod tests {
         assert!(log.contains("+6 próbek (wykryte z AccurateRip)"), "{log}");
         assert!(log.contains("Zweryfikowane w bazach: 3 z 3"), "{log}");
         // Decoded FLAC equals the true audio of track 2.
-        let mut dec = crate::audio::decoder::NativeSource::open(&folder.join("02-Dwa.flac"), 0).unwrap();
+        let mut dec = crate::audio::decoder::NativeSource::open(&folder.join("02 - Dwa.flac"), 0).unwrap();
         let mut n = 0usize;
         let t = &tracks[1];
         while let Some(f) = dec.next().unwrap() {
@@ -1423,18 +1679,43 @@ mod tests {
         assert_eq!(n, (t.end - t.start) as usize * 588);
         // Tags: guest artist on track 2, album artist kept, ReplayGain present.
         use lofty::prelude::{Accessor, TaggedFileExt};
-        let tagged = lofty::read_from_path(folder.join("02-Dwa.flac")).unwrap();
+        let tagged = lofty::read_from_path(folder.join("02 - Dwa.flac")).unwrap();
         let tag = tagged.primary_tag().unwrap();
         assert_eq!(tag.artist().as_deref(), Some("Gość"));
         assert_eq!(tag.get_string(lofty::tag::ItemKey::AlbumArtist), Some("Zespół"));
         assert!(tag.get_string(lofty::tag::ItemKey::ReplayGainTrackGain).is_some());
         assert!(tag.get_string(lofty::tag::ItemKey::ReplayGainAlbumGain).is_some());
-        // Second rip of the same drive reuses the remembered offset.
+        // A music folder: the album made earlier moves into Artist/Album (year).
+        let music = d.path().join("Muzyka");
+        std::fs::create_dir_all(&music).unwrap();
+        ingest.command(json!({"action": "setImportFolder", "path": music.to_string_lossy()})).unwrap();
+        let info = ingest.command(json!({"action": "importFolder"})).unwrap();
+        assert_eq!(info["stored"], 1, "{info}");
+        assert_eq!(info["inLibrary"], false);
+        ingest.relocate().unwrap();
+        let album = music.join("Zespół").join("Płyta (1999)");
+        assert!(album.join("02 - Dwa.flac").is_file());
+        assert!(album.join("MP3").join("02 - Dwa.mp3").is_file());
+        assert!(album.join("Raport importu.log").is_file());
+        assert!(!folder.exists(), "the app's own copy is removed after the check");
+        assert_eq!(ingest.command(json!({"action": "importFolder"})).unwrap()["stored"], 0);
+        let paths: Vec<String> = {
+            let db = ingest.catalog.db().unwrap();
+            let mut st = db.prepare("SELECT path FROM locations").unwrap();
+            st.query_map([], |r| r.get::<_, String>(0)).unwrap().map(|r| r.unwrap()).collect()
+        };
+        assert_eq!(paths.len(), 3, "{paths:?}");
+        assert!(paths.iter().all(|p| p.contains("Muzyka")), "{paths:?}");
+        // Second rip of the same drive reuses the remembered offset and goes straight to
+        // the music folder without replacing anything there.
         let mut s = ingest.state.lock().unwrap();
         s.verdicts.clear();
         drop(s);
         ingest.rip_with(&FakeDrive { audio, offset: 6 }, toc, "FAKE DRIVE", db, &v).unwrap();
         assert_eq!(ingest.state.lock().unwrap().offset_source, "zapamiętane dla napędu");
+        assert_eq!(PathBuf::from(&ingest.state.lock().unwrap().folder), album);
+        assert!(album.join("02 - Dwa (2).flac").is_file());
+        assert!(album.join("Raport importu (2).log").is_file());
     }
 
     #[test]
@@ -1513,5 +1794,18 @@ mod tests {
         w.finish().unwrap();
         drop(w);
         assert_eq!(silences(&p).unwrap(), [8000]);
+    }
+
+    #[test]
+    fn music_folder_names() {
+        let root = Path::new("M");
+        assert_eq!(album_path(root, "AC/DC", "Back in Black", "1980-07-25"), root.join("AC_DC").join("Back in Black (1980)"));
+        assert_eq!(album_path(root, "", "", ""), root.join("Nieznany wykonawca").join("Bez tytułu"));
+        assert_eq!(album_path(root, "Queen", "Live 1986", "1986"), root.join("Queen").join("Live 1986"));
+        assert_eq!(track_stem(&json!({}), 3, "Ja?"), "03 - Ja_");
+        assert_eq!(track_stem(&json!({"disc": 2, "discs": 2}), 1, "A"), "2-01 - A");
+        assert_eq!(dashed("01-Jeden.flac"), "01 - Jeden.flac");
+        assert_eq!(dashed("01 - Jeden.flac"), "01 - Jeden.flac");
+        assert_eq!(dashed("cover.jpg"), "cover.jpg");
     }
 }

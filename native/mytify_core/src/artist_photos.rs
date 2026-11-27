@@ -53,6 +53,10 @@ pub fn file_name(artist: &str) -> String {
 /// Several artists in one credit ("Amorphis, Hellscore", "A feat. B") have no single photo.
 fn collaboration(name: &str) -> bool {
     let l = name.to_lowercase();
+    // Compilations have no artist to show either.
+    if ["various artists", "różni wykonawcy", "va", "various"].contains(&l.trim()) {
+        return true;
+    }
     [", ", " feat. ", " feat ", " ft. ", " & ", " x ", " vs. ", " with ", "; ", " / "].iter().any(|s| l.contains(s))
 }
 
@@ -255,6 +259,17 @@ impl ArtistPhotos {
             rows.collect::<rusqlite::Result<HashMap<_, _>>>()?
         };
         self.status.lock().unwrap().total = artists.len();
+        // The music folder chosen for imports keeps its Plex/Jellyfin layout complete:
+        // every artist folder in it gets artist.jpg.
+        let music = crate::ingest::import_folder(catalog).and_then(|m| m.canonicalize().ok());
+        let place = |jpeg: &[u8], dirs: &[PathBuf]| {
+            let Some(m) = &music else { return };
+            for d in dirs.iter().filter(|d| d.starts_with(m) && d.is_dir()) {
+                if !NAMES.iter().any(|n| d.join(n).is_file()) {
+                    write_new(&d.join("artist.jpg"), jpeg);
+                }
+            }
+        };
         let mut missing = Vec::new();
         for (k, (name, dirs)) in &artists {
             if self.stop.load(Ordering::Acquire) {
@@ -267,9 +282,19 @@ impl ArtistPhotos {
                         Self::save(catalog, k, name, Some(&hash), "folder")?;
                     }
                 }
+                if music.is_some() && file.extension().is_some_and(|e| e.eq_ignore_ascii_case("jpg") || e.eq_ignore_ascii_case("jpeg")) {
+                    if let Some(bytes) = read_image(&file) {
+                        place(&bytes, dirs);
+                    }
+                }
                 self.status.lock().unwrap().found += 1;
-            } else if known.get(k).is_some_and(|(c, o, _)| c.is_some() && o != "folder") {
+            } else if let Some((Some(hash), _, _)) = known.get(k).filter(|(c, o, _)| c.is_some() && o != "folder") {
                 // Downloaded earlier and kept by the app.
+                if music.is_some() {
+                    if let Some(bytes) = catalog.artwork_path(hash).ok().and_then(|p| std::fs::read(p).ok()) {
+                        place(&bytes, dirs);
+                    }
+                }
                 self.status.lock().unwrap().found += 1;
             } else {
                 let recently = known.get(k).is_some_and(|(c, o, at)| c.is_none() && o == "none" && now_ms() - at < RETRY_MS);
@@ -311,12 +336,10 @@ impl ArtistPhotos {
                             Some(f) => Some(f.join(format!("{}.jpg", file_name(&name)))),
                             None => dirs.first().map(|d| d.join("artist.jpg")),
                         };
-                        if let Some(t) = target.filter(|t| !t.exists()) {
-                            let partial = t.with_extension("jpg.partial");
-                            if std::fs::write(&partial, &jpeg).is_ok() && std::fs::rename(&partial, &t).is_err() {
-                                let _ = std::fs::remove_file(&partial);
-                            }
+                        if let Some(t) = target {
+                            write_new(&t, &jpeg);
                         }
+                        place(&jpeg, &dirs);
                     }
                     Self::save(catalog, &k, &name, Some(&hash), origin)?;
                     let mut s = self.status.lock().unwrap();
@@ -361,6 +384,17 @@ impl ArtistPhotos {
         thumb.path_segments_mut().ok()?.pop().push(&file);
         thumb.query_pairs_mut().append_pair("width", "1000");
         get(client, &thumb, LIMIT)
+    }
+}
+
+/// Writes a photo only where there is none: user files are never replaced.
+fn write_new(t: &Path, bytes: &[u8]) {
+    if t.exists() {
+        return;
+    }
+    let partial = t.with_extension("jpg.partial");
+    if std::fs::write(&partial, bytes).is_ok() && std::fs::rename(&partial, t).is_err() {
+        let _ = std::fs::remove_file(&partial);
     }
 }
 
@@ -472,6 +506,8 @@ mod tests {
         assert_eq!(file_name("AC/DC: Live?"), "AC_DC_ Live_");
         assert!(collaboration("Amorphis, Hellscore"));
         assert!(!collaboration("Amorphis"));
+        assert!(collaboration("Various Artists"));
+        assert!(collaboration("Różni wykonawcy"));
         assert_eq!(loose("Guns N' Roses"), loose("guns n roses"));
     }
 

@@ -978,3 +978,14 @@ Muzyka gra dalej. Ikona Mytify jest obok zegara; z jej menu zamkniesz aplikację
 Import zakończony	Import finished
 Dodano: {0}	Added: {0}
 Dodano do biblioteki	Added to the library
+Zmień	Change
+Zapisuj zgraną muzykę do	Save ripped music to
+Folder aplikacji (ukryty w AppData)	App folder (hidden in AppData)
+Zapisuj w folderze aplikacji	Save in the app folder
+Układ: Wykonawca\\Album (rok)\\01 - Tytuł.flac, obok cover.jpg, a w folderze wykonawcy artist.jpg (jak Plex i Jellyfin). Folder trafia do biblioteki. Istniejących plików Mytify nie nadpisuje.	Layout: Artist\\Album (year)\\01 - Title.flac, with cover.jpg next to it and artist.jpg in the artist folder (like Plex and Jellyfin). The folder joins the library. Mytify never overwrites existing files.
+Folder jest teraz niedostępny. Włącz NAS albo wybierz inny folder, zanim zaczniesz zgrywać.	The folder is not reachable now. Turn on the NAS or pick another folder before you rip.
+Przenieś wcześniej zgrane ({0})	Move earlier rips ({0})
+Albumy z folderu aplikacji trafią do tego układu, a biblioteka wskaże nowe pliki. Nagrania WAV zostają w aplikacji.	Albums from the app folder move into this layout and the library points to the new files. WAV recordings stay in the app.
+Przeniesiono albumy: {0}.	Albums moved: {0}.
+Przenoszenie albumów	Moving albums
+Najpierw wybierz folder na muzykę	Pick a music folder first

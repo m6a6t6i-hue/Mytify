@@ -15,6 +15,7 @@ pub mod audio;
 
 pub mod airplay;
 pub mod artist_photos;
+pub mod settings;
 pub mod network;
 pub mod radio;
 pub mod shop;

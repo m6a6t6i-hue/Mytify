@@ -48,6 +48,7 @@ class _IngestViewState extends State<IngestView> {
       children: [
         Text(tr('Importuj muzykę'), style: Txt.display),
         const SizedBox(height: Sp.l),
+        if (s.folders.isNotEmpty && !(s.ripping || s.capturing || s.exporting)) ...[_musicFolder(), const SizedBox(height: Sp.xl)],
         TextTabs(
           labels: [tr('Audio CD'), tr('Winyl / kaseta / aplikacja')],
           index: s.tab,
@@ -59,6 +60,76 @@ class _IngestViewState extends State<IngestView> {
       ],
     ),
   );
+
+  // ---------------------------------------------------------------- music folder
+
+  /// Where ripped and recorded albums go: a folder (local or NAS) in the
+  /// Artist\Album (year) layout, part of the library.
+  Widget _musicFolder() {
+    final path = s.musicPath;
+    final available = s.musicFolder['available'] == true;
+    final idle = !s.running && !s.busy;
+    final moved = s.job == 'move' && !s.running && s.stage == 'finished';
+    final done = (s.status['done'] as num? ?? 0).toInt(), total = (s.status['total'] as num? ?? 0).toInt();
+    return _panel(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(path == null ? Icons.folder_off_outlined : Icons.folder_rounded, size: 22, color: path != null && available ? accent : secondaryText),
+              const SizedBox(width: Sp.m),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tr('Zapisuj zgraną muzykę do'), style: Ctl.label),
+                    const SizedBox(height: 2),
+                    Text(
+                      path ?? tr('Folder aplikacji (ukryty w AppData)'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Ctl.fieldText.copyWith(fontWeight: FontWeight.w600, color: path == null ? secondaryText : null),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: Sp.s),
+              if (path != null && available) IconAction(Icons.folder_open_outlined, tr('Otwórz folder'), idle ? () => unawaited(s.openFolder(path)) : null, color: secondaryText),
+              if (path != null) IconAction(Icons.close_rounded, tr('Zapisuj w folderze aplikacji'), idle ? () => unawaited(s.clearMusicFolder()) : null, color: secondaryText),
+              const SizedBox(width: Sp.xs),
+              OutlinedButton(style: Ctl.outlined, onPressed: idle ? () => unawaited(s.chooseMusicFolder()) : null, child: Text(path == null ? tr('Wybierz folder') : tr('Zmień'))),
+            ],
+          ),
+          _note(tr('Układ: Wykonawca\\Album (rok)\\01 - Tytuł.flac, obok cover.jpg, a w folderze wykonawcy artist.jpg (jak Plex i Jellyfin). Folder trafia do biblioteki. Istniejących plików Mytify nie nadpisuje.')),
+          if (path != null && !available) _warning(tr('Folder jest teraz niedostępny. Włącz NAS albo wybierz inny folder, zanim zaczniesz zgrywać.')),
+          if (s.moving) ...[
+            const SizedBox(height: Sp.m),
+            LinearProgressIndicator(value: total > 0 ? (done / total).clamp(0, 1).toDouble() : null),
+            const SizedBox(height: Sp.xs),
+            Text([if (s.step.isNotEmpty) trMessage(s.step), if (total > 0) '$done / $total'].join(' · '), style: Ctl.label),
+            const SizedBox(height: Sp.s),
+            OutlinedButton(style: Ctl.outlined, onPressed: () => unawaited(s.stop()), child: Text(tr('Zatrzymaj'))),
+          ] else if (path != null && available && s.storedAlbums > 0) ...[
+            const SizedBox(height: Sp.m),
+            Row(
+              children: [
+                FilledButton.icon(
+                  style: Ctl.filled,
+                  onPressed: idle ? () => unawaited(s.moveStored()) : null,
+                  icon: const Icon(Icons.drive_file_move_outline, size: 18),
+                  label: Text(tr('Przenieś wcześniej zgrane ({0})', [s.storedAlbums])),
+                ),
+              ],
+            ),
+            _note(tr('Albumy z folderu aplikacji trafią do tego układu, a biblioteka wskaże nowe pliki. Nagrania WAV zostają w aplikacji.')),
+          ],
+          if (moved) _note(tr('Przeniesiono albumy: {0}.', [done]), icon: Icons.check_circle_outline_rounded),
+          if (s.job == 'move' && s.stage == 'error' && s.status['error'] != null) _error('${s.status['error']}'),
+        ],
+      ),
+    );
+  }
 
   // ---------------------------------------------------------------- shared bits
 
@@ -428,7 +499,7 @@ class _IngestViewState extends State<IngestView> {
         ),
       SectionTitle(tr('Zapis')),
       InfoRow(tr('Format'), tr('FLAC bez strat, 16 bit / 44,1 kHz, z okładką, opisem i ReplayGain')),
-      if (s.folders['cd'] != null) InfoRow(tr('Folder'), '${s.folders['cd']}'),
+      if (s.folders['cd'] != null) InfoRow(tr('Folder'), s.musicPath ?? '${s.folders['cd']}'),
       _check(tr('Kopia MP3 192 kb/s na telefon'), s.mp3, idle ? (v) => setState(() => s.mp3 = v) : null, sub: tr('Osobny folder MP3 obok plików FLAC.')),
       _check(tr('Wysuń płytę po imporcie'), s.eject || s.serial, idle && !s.serial ? (v) => setState(() => s.eject = v) : null),
       _check(

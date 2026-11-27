@@ -338,7 +338,7 @@ void main() {
     expect(find.byType(Sidebar), findsOneWidget);
     expect(find.byType(PlayerBar), findsOneWidget);
     expect(find.text('Nie wykryto napędu'), findsOneWidget);
-    expect(repo.ingestCalls.toSet().difference({'drives', 'inputs', 'apps', 'sessions', 'state', 'folders', 'media'}), isEmpty);
+    expect(repo.ingestCalls.toSet().difference({'drives', 'inputs', 'apps', 'sessions', 'state', 'folders', 'importFolder', 'media'}), isEmpty);
     expect(commands.where((c) => c['action'] == 'pause'), isEmpty);
     await finish(tester);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));

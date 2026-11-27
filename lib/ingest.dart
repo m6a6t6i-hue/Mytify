@@ -147,13 +147,57 @@ class IngestState extends ChangeNotifier {
   /// Called with the album artist after an import (to fetch their photo).
   final Future<void> Function(List<String> artists)? onImported;
 
+  /// Adds a folder to the library as a source (the chosen music folder).
+  final Future<void> Function(String folder)? addSource;
+
+  /// Called after albums were moved into the music folder (artist photos follow).
+  final Future<void> Function()? onMoved;
+
   IngestState({
     required this.repository,
     required this.library,
     required this.beforeCapture,
     required this.onLibraryChanged,
     this.onImported,
+    this.addSource,
+    this.onMoved,
   });
+
+  /// Music folder for imports (PC): `path`, `available`, `inLibrary` and `stored`
+  /// (albums made earlier that still sit in the app data).
+  Map<String, dynamic> musicFolder = const {};
+  String? get musicPath => musicFolder['path'] as String?;
+  int get storedAlbums => (musicFolder['stored'] as num? ?? 0).toInt();
+  bool get moving => running && stage == 'moving';
+
+  Future<void> loadMusicFolder() async {
+    try {
+      musicFolder = Map<String, dynamic>.from(await api('importFolder') as Map);
+    } catch (_) {}
+    _changed();
+  }
+
+  Future<void> chooseMusicFolder() => _act(() async {
+    final paths = (await api('pickFolder') as Map)['paths'] as List? ?? const [];
+    if (paths.isEmpty) return;
+    await _setMusicFolder('${paths.first}');
+  });
+
+  Future<void> clearMusicFolder() => _act(() => _setMusicFolder(null));
+
+  Future<void> _setMusicFolder(String? path) async {
+    musicFolder = Map<String, dynamic>.from(await api('setImportFolder', {'path': path}) as Map);
+    _changed();
+    // The music folder is part of the library right away.
+    final add = addSource;
+    if (path != null && musicFolder['available'] == true && musicFolder['inLibrary'] != true && add != null) {
+      await add(path);
+      await loadMusicFolder();
+    }
+  }
+
+  /// Albums made earlier move from the app data into the music folder layout.
+  Future<void> moveStored() => _act(() => _start('move', 'relocate', {}));
 
   int tab = 0;
   Map<String, dynamic> status = const {};
@@ -362,6 +406,7 @@ class IngestState extends ChangeNotifier {
       Map<String, dynamic> f = const {};
       try {
         f = Map<String, dynamic>.from(await api('folders') as Map);
+        musicFolder = Map<String, dynamic>.from(await api('importFolder') as Map);
       } catch (_) {}
       drives = [
         for (final v in d)
@@ -749,6 +794,12 @@ class IngestState extends ChangeNotifier {
         if (_appRecording && stage != 'error') await _splitAppRecording();
       }
       _appRecording = false;
+    }
+    if (job == 'move') {
+      await onLibraryChanged();
+      await loadMusicFolder();
+      final moved = onMoved;
+      if (moved != null) unawaited(moved());
     }
     if ((job == 'rip' || job == 'export') && (status['files'] as List? ?? const []).isNotEmpty) {
       await onLibraryChanged();

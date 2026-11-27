@@ -12,6 +12,7 @@ import 'widgets.dart';
 /// Artists the photo applies to: single names, the way the core looks them up.
 bool soloArtist(String name) {
   final l = name.toLowerCase();
+  if (const ['various artists', 'różni wykonawcy', 'va', 'various'].contains(l.trim())) return false;
   return name.trim().isNotEmpty && ![', ', ' feat. ', ' feat ', ' ft. ', ' & ', ' x ', ' vs. ', ' with ', '; ', ' / '].any(l.contains);
 }
 

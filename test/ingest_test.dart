@@ -17,11 +17,22 @@ class IngestFake implements LibraryRepository, IngestRepository {
   bool media = false;
   ReleaseInfo? details;
   Map<String, dynamic> state = {'running': false, 'stage': '', 'files': <String>[]};
+  Map<String, dynamic> music = {'path': null, 'available': false, 'inLibrary': false, 'stored': 2};
 
   @override
   Future<dynamic> ingest(Map<String, dynamic> request) async {
     calls.add(request);
     switch (request['action']) {
+      case 'importFolder':
+        return music;
+      case 'pickFolder':
+        return {'paths': [r'\\NAS\muzyka']};
+      case 'setImportFolder':
+        music = {...music, 'path': request['path'], 'available': request['path'] != null};
+        return music;
+      case 'relocate':
+        state = {'running': true, 'stage': 'moving', 'total': 2, 'done': 1, 'step': 'Amorphis / Queen of Time', 'files': <String>[]};
+        return state;
       case 'drives':
         return drives;
       case 'inputs':
@@ -146,7 +157,7 @@ void main() {
   testWidgets('opening import only lists hardware, it starts nothing', (t) async {
     await open(t);
     final actions = repo.calls.map((c) => c['action']).toSet();
-    expect(actions.difference({'drives', 'inputs', 'apps', 'sessions', 'state', 'folders'}), isEmpty);
+    expect(actions.difference({'drives', 'inputs', 'apps', 'sessions', 'state', 'folders', 'importFolder'}), isEmpty);
     expect(find.text('Gotowe'), findsNothing);
     await close(t);
   });
@@ -399,4 +410,42 @@ void main() {
       await close(t);
     });
   }
+
+  testWidgets('music folder: chosen folder joins the library, earlier albums move into it', (t) async {
+    final added = <String>[];
+    var moved = 0;
+    t.view.physicalSize = const Size(1300, 1600);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    state = IngestState(
+      repository: repo,
+      library: repo,
+      beforeCapture: () async {},
+      onLibraryChanged: () async {},
+      addSource: (f) async => added.add(f),
+      onMoved: () async => moved++,
+    );
+    await t.pumpWidget(MaterialApp(theme: mytifyTheme(), home: Scaffold(body: IngestView(state: state))));
+    await t.pumpAndSettle();
+    expect(find.text('Folder aplikacji (ukryty w AppData)'), findsOneWidget);
+    // Nothing to move until a folder is chosen.
+    expect(find.textContaining('Przenieś wcześniej zgrane'), findsNothing);
+    await t.tap(find.text('Wybierz folder').first);
+    await t.pumpAndSettle();
+    expect(repo.calls.where((c) => c['action'] == 'setImportFolder').single['path'], r'\\NAS\muzyka');
+    expect(added, [r'\\NAS\muzyka']);
+    expect(find.text(r'\\NAS\muzyka'), findsWidgets);
+    await t.tap(find.text('Przenieś wcześniej zgrane (2)'));
+    await t.pump();
+    expect(find.text('Amorphis / Queen of Time · 1 / 2'), findsOneWidget);
+    repo.state = {'running': false, 'stage': 'finished', 'total': 2, 'done': 2, 'files': <String>['a', 'b']};
+    repo.music = {...repo.music, 'stored': 0, 'inLibrary': true};
+    await t.pump(const Duration(seconds: 2));
+    await t.pumpAndSettle();
+    expect(moved, 1);
+    expect(find.text('Przeniesiono albumy: 2.'), findsOneWidget);
+    expect(find.textContaining('Przenieś wcześniej zgrane'), findsNothing);
+    await close(t);
+  });
 }

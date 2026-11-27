@@ -188,6 +188,17 @@ pub fn search_key(value: &str) -> String {
         .filter(|c| !is_combining_mark(*c))
         .collect()
 }
+/// `Album/MP3/01 - Title.mp3` made by import next to `Album/01 - Title.flac`: the same
+/// song, so the library keeps only the FLAC.
+pub(crate) fn mp3_copy(path: &Path) -> bool {
+    let Some(dir) = path.parent() else { return false };
+    let is_mp3 = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("mp3"));
+    let in_mp3 = dir.file_name().is_some_and(|n| n.eq_ignore_ascii_case("MP3"));
+    match (is_mp3 && in_mp3, dir.parent(), path.file_stem()) {
+        (true, Some(album), Some(stem)) => album.join(stem).with_extension("flac").is_file(),
+        _ => false,
+    }
+}
 pub(crate) fn path_key(path: &Path) -> String {
     let text = path.to_string_lossy().into_owned();
     if cfg!(windows) {
@@ -568,6 +579,56 @@ impl Catalog {
         tx.commit()?;
         Ok(())
     }
+    /// Local source (folder or NAS share) whose folder holds this path.
+    pub fn source_containing(&self, path: &Path) -> Result<Option<Source>> {
+        let Ok(target) = fs::canonicalize(path) else { return Ok(None) };
+        Ok(self.sources()?.into_iter().find(|s| {
+            matches!(s.kind.as_str(), "folder" | "smb")
+                && !s.path.is_empty()
+                && fs::canonicalize(&s.path).is_ok_and(|root| target.starts_with(root))
+        }))
+    }
+    /// New files made by the app (import, recording): added under the library folder
+    /// that holds them, else as single files.
+    pub fn add_files(&self, files: &[PathBuf]) -> Result<Report> {
+        let mut report = Report::default();
+        let generation = format!("{}-{}", now_ms(), hex(getrandom_bytes()?));
+        let mut loose = Vec::new();
+        let mut owners: Vec<(PathBuf, Source)> = Vec::new();
+        for source in self.sources()? {
+            if matches!(source.kind.as_str(), "folder" | "smb") && !source.path.is_empty() {
+                if let Ok(root) = fs::canonicalize(&source.path) {
+                    owners.push((root, source));
+                }
+            }
+        }
+        for file in files {
+            let canonical = fs::canonicalize(file)?;
+            match owners.iter().find(|(root, _)| canonical.starts_with(root)) {
+                Some((_, source)) => {
+                    if let Err(e) = self.ingest(source, &canonical, &generation, false, None, &mut report) {
+                        report.error(format!("{}: {e}", display_path(file)));
+                    }
+                }
+                None => loose.push(file.to_string_lossy().into_owned()),
+            }
+        }
+        if !loose.is_empty() {
+            let r = self.scan(ScanRequest { paths: loose, ..Default::default() }, &AtomicBool::new(false), |_| {})?;
+            report.added += r.added;
+            report.errors.extend(r.errors);
+        }
+        Ok(report)
+    }
+    /// Drops the library entries of files the app moved elsewhere (no file is touched).
+    pub fn forget_paths(&self, files: &[PathBuf]) -> Result<()> {
+        let db = self.db()?;
+        for file in files {
+            let key = fs::canonicalize(file).map(|c| path_key(&c)).unwrap_or_else(|_| path_key(file));
+            db.execute("DELETE FROM locations WHERE path_key=?1", [key])?;
+        }
+        Ok(())
+    }
     pub fn forget_track(&self, id: &str) -> Result<()> {
         let mut db = self.db()?;
         let tx = db.transaction()?;
@@ -789,7 +850,9 @@ impl Catalog {
                     }
                     match entry {
                         Ok(entry) if entry.file_type().is_file() => {
-                            if supported(entry.path()) {
+                            if mp3_copy(entry.path()) {
+                                report.ignored += 1;
+                            } else if supported(entry.path()) {
                                 files.push(entry.into_path());
                             } else {
                                 report.ignored += 1;
