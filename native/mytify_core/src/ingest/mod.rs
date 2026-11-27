@@ -1844,6 +1844,10 @@ mod tests {
         std::fs::create_dir_all(d.path().join("artwork")).unwrap();
         std::fs::write(d.path().join("artwork").join(&hash), b"jpeg").unwrap();
         ingest.catalog.db().unwrap().execute("UPDATE tracks SET cover=?1", [&hash]).unwrap();
+        // Opening the music folder settings started a pass in the background: let it end.
+        while COVERS_RUNNING.load(Ordering::Acquire) {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
         assert_eq!(write_folder_covers(&ingest.catalog).unwrap(), 1);
         assert_eq!(std::fs::read(album.join("cover.jpg")).unwrap(), b"jpeg");
         assert_eq!(write_folder_covers(&ingest.catalog).unwrap(), 0, "never replaced");
