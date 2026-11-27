@@ -1400,9 +1400,10 @@ class LibraryScreenState extends State<LibraryScreen> {
   bool get isPhone => defaultTargetPlatform == TargetPlatform.android && !kIsWeb;
 
   /// Import from physical media opens in the normal layout. Nothing starts here.
-  void openIngest(bool cd) {
+  void openIngest(bool cd, {bool fromApp = false}) {
     if (!canDigitize || isPhone) return;
     ingest.setTab(cd ? 0 : 1);
+    if (!cd && ingest.appSource != fromApp && !ingest.capturing) ingest.setAppSource(fromApp);
     go(const Nav('import'));
   }
 

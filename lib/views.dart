@@ -67,7 +67,7 @@ String pageTitle(LibraryScreenState app, Nav nav) => switch (nav.page) {
   'cleanup' => tr('Porządki'),
   'radio' => tr('Radio'),
   'sources' => tr('Źródła muzyki'),
-  'import' => tr('Płyty CD i winyle'),
+  'import' => tr('Zgraj muzykę'),
   'transfer' => app.isPhone ? tr('Przesyłanie muzyki') : tr('Połącz telefon'),
   _ => tr('Start'),
 };
@@ -1783,7 +1783,7 @@ class _SearchPageState extends State<SearchPage> {
 
 String? settingsTitle(String? section) => switch (section) {
   'sources' => tr('Źródła muzyki'),
-  'import' => tr('Płyty CD i winyle'),
+  'import' => tr('Zgraj muzykę'),
   'audio' => tr('Audio'),
   'look' => tr('Wygląd i język'),
   'phone' => tr('Telefon i komputer'),
@@ -1801,7 +1801,7 @@ class SettingsPage extends StatelessWidget {
     if (!app.desktopMode) ('sources', Icons.folder_open_outlined, tr('Źródła muzyki')),
     ('audio', Icons.volume_up_outlined, tr('Audio')),
     // Adding music is one place (sources). Import here means digitizing CD and vinyl.
-    if (app.canDigitize && !app.isPhone) ('import', Icons.album_outlined, tr('Płyty CD i winyle')),
+    if (app.canDigitize && !app.isPhone) ('import', Icons.album_outlined, tr('Zgraj muzykę')),
     ('cleanup', Icons.cleaning_services_outlined, tr('Porządki w bibliotece')),
     ('look', Icons.palette_outlined, tr('Wygląd i język')),
     if (app.canTransfer && !app.desktopMode) ('phone', Icons.phonelink_rounded, app.isPhone ? tr('Przesyłanie muzyki') : tr('Połącz telefon')),
@@ -1910,6 +1910,7 @@ class SettingsPage extends StatelessWidget {
   List<Widget> _import() => [
     _row(tr('Audio CD'), tr('Odczyt cyfrowy, opis z MusicBrainz, FLAC'), icon: Icons.album_outlined, onTap: () => app.openIngest(true)),
     _row(tr('Winyl i kaseta'), tr('Nagranie, podział i opis utworów'), icon: Icons.radio_outlined, onTap: () => app.openIngest(false)),
+    _row(tr('Z aplikacji'), tr('Nagranie albumu z wybranej aplikacji, np. Spotify, podział i tagi'), icon: Icons.apps_rounded, onTap: () => app.openIngest(false, fromApp: true)),
   ];
 
   List<Widget> _look() => [
@@ -1985,7 +1986,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.24.0']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.24.1']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),

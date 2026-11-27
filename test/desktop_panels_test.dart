@@ -117,23 +117,31 @@ void main() {
     expect(s.vinylForm.releaseId, AppRecordingRepo.release.id);
     // Lengths are Spotify's: that is what the app plays.
     expect(s.albumMs, 150000);
+    // The expected songs can be tweaked before recording: they drive the cuts and tags.
+    expect([for (final t in s.appTracks) t.length.text], ['1:00', '1:30']);
+    s.appTracks[1].title.text = 'Drugi (wersja)';
+    s.appTracks[1].length.text = '1:31';
+    expect(s.albumMs, 151000);
+    expect(parseClock('1:02:03'), 3723000);
+    expect(parseClock('245'), 245000);
+    expect(parseClock('4:x'), 0);
     await s.recordApp();
     final record = repo.requests.lastWhere((r) => r['action'] == 'record');
     expect(record['app'], 'spotify');
     expect(record['waitForSound'], isTrue);
-    expect(record['maxMs'], 165000);
+    expect(record['maxMs'], 166000);
     repo.finishRecording();
     await s.poll();
     for (var i = 0; i < 100 && !repo.requests.any((r) => r['action'] == 'export'); i++) {
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
-    expect(repo.requests.firstWhere((r) => r['action'] == 'align')['durations'], [60000, 90000]);
+    expect(repo.requests.firstWhere((r) => r['action'] == 'align')['durations'], [60000, 91000]);
     final export = repo.requests.lastWhere((r) => r['action'] == 'export');
     expect(export['mp3Only'], isTrue);
     expect(export['mp3Kbps'], 320);
-    expect(export['titles'], ['Pierwszy', 'Drugi']);
+    expect(export['titles'], ['Pierwszy', 'Drugi (wersja)']);
     expect(export['markers'], [61000]);
-    expect(export['endMs'], 61000 + 90000 + 1500);
+    expect(export['endMs'], 61000 + 91000 + 1500);
     expect(export['restore'], {'declick': false, 'speed': 1});
     s.dispose();
   });
@@ -305,7 +313,7 @@ void main() {
     final app = await start(tester, repo: repo);
     app.go(const Nav('settings', 'audio'));
     await settle(tester);
-    await tester.tap(find.text('Płyty CD i winyle').first);
+    await tester.tap(find.text('Zgraj muzykę').first);
     await settle(tester);
     expect(app.route, const Nav('import'));
     expect(find.byType(IngestView), findsOneWidget);

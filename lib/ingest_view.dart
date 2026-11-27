@@ -45,16 +45,16 @@ class _IngestViewState extends State<IngestView> {
       key: const PageStorageKey('import'),
       padding: widget.padding,
       children: [
-        Text(tr('Płyty CD i winyle'), style: Txt.display),
+        Text(tr('Zgraj muzykę'), style: Txt.display),
         const SizedBox(height: Sp.l),
         TextTabs(
-          labels: [tr('Audio CD'), tr('Winyl i kaseta'), tr('Z aplikacji')],
+          labels: [tr('Audio CD'), tr('Winyl / kaseta / aplikacja')],
           index: s.tab,
           onChanged: s.setTab,
-          busy: [s.ripping, s.capturing || s.exporting, s.capturing || s.exporting],
+          busy: [s.ripping, s.capturing || s.exporting],
         ),
         const SizedBox(height: Sp.xl),
-        if (s.tab == 0) ..._cd() else if (s.tab == 1) ..._analog() else ..._fromApp(),
+        if (s.tab == 0) ..._cd() else ..._analog(fromApp: s.appSource),
       ],
     ),
   );
@@ -593,7 +593,11 @@ class _IngestViewState extends State<IngestView> {
     LayoutBuilder(
       builder: (context, box) {
         final wide = box.maxWidth >= 760;
-        final input = fromApp ? _appInput() : _input(), rec = _recording(fromApp: fromApp);
+        final input = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [_source(), const SizedBox(height: Sp.l), fromApp ? _appInput() : _input()],
+        );
+        final rec = _recording(fromApp: fromApp);
         return _panel(
           wide
               ? IntrinsicHeight(
@@ -620,7 +624,16 @@ class _IngestViewState extends State<IngestView> {
 
   // ------------------------------------------------------------- From an app
 
-  List<Widget> _fromApp() => _analog(fromApp: true);
+  /// What is recorded: an audio input (turntable, tape deck) or one app.
+  Widget _source() => SegmentedButton<bool>(
+    segments: [
+      ButtonSegment(value: false, icon: const Icon(Icons.settings_input_component_outlined), label: Text(tr('Wejście audio'))),
+      ButtonSegment(value: true, icon: const Icon(Icons.apps_rounded), label: Text(tr('Aplikacja'))),
+    ],
+    selected: {s.appSource},
+    showSelectedIcon: false,
+    onSelectionChanged: s.capturing || s.busy ? null : (v) => s.setAppSource(v.first),
+  );
 
   Widget _appInput() {
     final idle = !s.busy && !s.running;
@@ -631,7 +644,7 @@ class _IngestViewState extends State<IngestView> {
       children: [
         Row(
           children: [
-            Expanded(child: Text(tr('Aplikacja'), style: Ctl.section)),
+            Expanded(child: Text(tr('Nagrywanie z aplikacji'), style: Ctl.section)),
             IconAction(Icons.help_outline_rounded, help ? tr('Ukryj pomoc') : tr('Jak nagrać album z aplikacji'), () => setState(() => help = !help), color: secondaryText),
           ],
         ),
@@ -646,12 +659,12 @@ class _IngestViewState extends State<IngestView> {
             ),
           ),
         const SizedBox(height: Sp.m),
-        Text(tr('Program, który gra'), style: Ctl.label),
+        Text(tr('Aplikacja do nagrania'), style: Ctl.label),
         const SizedBox(height: Sp.xs),
         if (s.apps.isEmpty && !s.searching)
           Row(
             children: [
-              Expanded(child: Text(tr('Żaden program nie gra teraz dźwięku. Włącz odtwarzanie w aplikacji i odśwież listę.'), style: TextStyle(fontSize: 13.5))),
+              Expanded(child: Text(tr('Nie widzę aplikacji. Uruchom program, z którego chcesz nagrać (np. Spotify), i odśwież listę.'), style: TextStyle(fontSize: 13.5))),
               IconAction(Icons.refresh_rounded, tr('Odśwież listę aplikacji'), () => unawaited(s.refresh()), color: secondaryText),
             ],
           )
@@ -716,6 +729,57 @@ class _IngestViewState extends State<IngestView> {
             ],
           ),
         ],
+        const SizedBox(height: Sp.l),
+        Row(
+          children: [
+            Expanded(child: Text(tr('Utwory do nagrania'), style: Ctl.label)),
+            if (s.albumMs > 0) Text(tr('razem {0}', [ingestClock(s.albumMs)]), style: Ctl.label),
+          ],
+        ),
+        const SizedBox(height: Sp.xs),
+        for (var i = 0; i < s.appTracks.length; i++)
+          Padding(
+            key: ObjectKey(s.appTracks[i]),
+            padding: const EdgeInsets.only(bottom: Sp.xs),
+            child: Row(
+              children: [
+                SizedBox(width: 26, child: Text('${i + 1}', style: Ctl.label)),
+                Expanded(
+                  child: TextField(
+                    controller: s.appTracks[i].title,
+                    enabled: idle,
+                    style: Ctl.fieldText,
+                    decoration: Ctl.field(hint: tr('Tytuł')),
+                  ),
+                ),
+                const SizedBox(width: Sp.s),
+                SizedBox(
+                  width: 78,
+                  child: TextField(
+                    controller: s.appTracks[i].length,
+                    enabled: idle,
+                    style: Ctl.fieldText.copyWith(color: s.appTracks[i].ms > 0 ? null : dangerText),
+                    textAlign: TextAlign.end,
+                    decoration: Ctl.field(hint: 'm:ss'),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                IconAction(Icons.close_rounded, tr('Usuń utwór'), idle ? () => s.removeAppTrack(i) : null, color: secondaryText),
+              ],
+            ),
+          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: idle ? s.addAppTrack : null,
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: Text(tr('Dodaj utwór')),
+          ),
+        ),
+        if (s.appTracks.isEmpty)
+          Text(tr('Wczytaj album z linku albo dodaj utwory ręcznie: tytuł i długość (m:ss).'), style: Ctl.label)
+        else if (s.albumMs == 0)
+          Text(tr('Podaj długość każdego utworu (m:ss). Bez tego podział będzie według ciszy.'), style: Ctl.label.copyWith(color: dangerText)),
         const SizedBox(height: Sp.s),
         _check(
           tr('Po nagraniu podziel, opisz i dodaj do biblioteki'),

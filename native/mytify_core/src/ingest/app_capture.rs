@@ -4,7 +4,7 @@
 use anyhow::{anyhow, bail, Result};
 use serde_json::{json, Value};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc,
@@ -12,14 +12,16 @@ use std::{
     time::{Duration, Instant},
 };
 use windows::{
-    core::{implement, Interface, IUnknown, HRESULT, PWSTR},
+    core::{implement, Interface, IUnknown, BOOL, HRESULT, PWSTR},
     Win32::{
-        Foundation::{CloseHandle, HANDLE, S_OK},
+        Foundation::{CloseHandle, HANDLE, HWND, LPARAM, S_OK},
         Media::Audio::*,
         System::{
             Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, StructuredStorage::PROPVARIANT, CLSCTX_ALL, COINIT_MULTITHREADED},
+            Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS},
             Threading::{CreateEventW, OpenProcess, QueryFullProcessImageNameW, WaitForSingleObject, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION},
         },
+        UI::WindowsAndMessaging::{EnumWindows, GetWindowLongW, GetWindowTextLengthW, GetWindowThreadProcessId, IsWindowVisible, GWL_EXSTYLE, WS_EX_TOOLWINDOW},
     },
 };
 
@@ -97,39 +99,139 @@ fn sessions() -> Result<Vec<Session>> {
     Ok(out)
 }
 
-/// Apps to record from, one entry per program, playing ones first.
-pub fn apps() -> Result<Value> {
-    let mut by_path: BTreeMap<String, (u32, bool)> = BTreeMap::new();
-    for s in sessions()? {
-        let e = by_path.entry(s.path.to_lowercase()).or_insert((s.pid, s.active));
-        if s.active && !e.1 {
-            *e = (s.pid, true);
-        }
-    }
-    let mut list: Vec<Value> = by_path
-        .into_iter()
-        .map(|(path, (pid, active))| {
-            let path = exe_path(pid).unwrap_or(path);
-            json!({"id": app_name(&path).to_lowercase(), "name": app_name(&path), "pid": pid, "playing": active})
-        })
-        .collect();
-    list.sort_by_key(|v| (!v["playing"].as_bool().unwrap_or(false), v["name"].as_str().unwrap_or("").to_lowercase()));
-    list.dedup_by(|a, b| a["id"] == b["id"]);
-    Ok(json!(list))
+/// Programs that are not apps someone listens to (shell, helpers, Mytify itself).
+const SKIP: &[&str] = &[
+    "explorer", "applicationframehost", "textinputhost", "systemsettings", "shellexperiencehost", "startmenuexperiencehost",
+    "searchhost", "searchapp", "lockapp", "msedgewebview2", "mytify", "widgets", "widgetservice", "phoneexperiencehost",
+    "gamebar", "gamebarftserver", "ctfmon", "taskmgr", "svchost", "dwm", "csrss", "sihost", "runtimebroker", "conhost",
+];
+
+/// Music apps listed while running even without a visible window (closed to the tray).
+const PLAYERS: &[&str] = &[
+    "spotify", "tidal", "deezer", "qobuz", "applemusic", "itunes", "amazon music", "amazonmusic", "foobar2000", "aimp",
+    "musicbee", "winamp", "vlc", "youtube music", "ytmdesktop", "audirvana", "roon", "plexamp", "tidalplayer",
+];
+
+struct Process {
+    pid: u32,
+    parent: u32,
+    id: String,
+    name: String,
 }
 
-/// Process of the app named `id` ("spotify"), the one playing when there are several.
-fn find(id: &str) -> Result<u32> {
-    let mut best: Option<(u32, bool)> = None;
-    for s in sessions()? {
-        if app_name(&s.path).to_lowercase() != id {
-            continue;
+/// All running processes, named like apps ("spotify" / "Spotify").
+fn processes() -> Result<Vec<Process>> {
+    let mut out = Vec::new();
+    unsafe {
+        let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)?;
+        let mut e = PROCESSENTRY32W { dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+        let mut ok = Process32FirstW(snap, &mut e).is_ok();
+        while ok {
+            let len = e.szExeFile.iter().position(|&c| c == 0).unwrap_or(e.szExeFile.len());
+            let name = app_name(&String::from_utf16_lossy(&e.szExeFile[..len]));
+            if !name.is_empty() {
+                out.push(Process { pid: e.th32ProcessID, parent: e.th32ParentProcessID, id: name.to_lowercase(), name });
+            }
+            ok = Process32NextW(snap, &mut e).is_ok();
         }
-        if best.is_none_or(|b| s.active && !b.1) {
-            best = Some((s.pid, s.active));
+        let _ = CloseHandle(snap);
+    }
+    Ok(out)
+}
+
+unsafe extern "system" fn add_window(hwnd: HWND, list: LPARAM) -> BOOL {
+    unsafe {
+        let tool = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOOLWINDOW.0 != 0;
+        if IsWindowVisible(hwnd).as_bool() && !tool && GetWindowTextLengthW(hwnd) > 0 {
+            let mut pid = 0u32;
+            GetWindowThreadProcessId(hwnd, Some(&mut pid));
+            (*(list.0 as *mut HashSet<u32>)).insert(pid);
         }
     }
-    best.map(|b| b.0).ok_or_else(|| anyhow!("Aplikacja nie gra teraz dźwięku. Włącz ją i odtwórz cokolwiek, potem odśwież listę."))
+    BOOL(1)
+}
+
+/// Processes with a visible main window.
+fn windowed() -> HashSet<u32> {
+    let mut pids = HashSet::new();
+    unsafe {
+        let _ = EnumWindows(Some(add_window), LPARAM(&mut pids as *mut HashSet<u32> as isize));
+    }
+    pids
+}
+
+/// Apps to record from, one entry per program: every running program with a window
+/// or sound, and music apps also when they sit in the tray. Nothing needs to play yet:
+/// the recording waits for the first sound.
+pub fn apps() -> Result<Value> {
+    let procs = processes()?;
+    let windows = windowed();
+    let sessions = sessions().unwrap_or_default();
+    let me = std::process::id();
+    // name → (name, playing, has sound, listed)
+    let mut by_id: BTreeMap<String, (String, bool, bool, bool)> = BTreeMap::new();
+    for p in &procs {
+        if p.pid == me || SKIP.contains(&p.id.as_str()) {
+            continue;
+        }
+        let e = by_id.entry(p.id.clone()).or_insert((p.name.clone(), false, false, false));
+        e.3 |= windows.contains(&p.pid) || PLAYERS.contains(&p.id.as_str());
+    }
+    for s in &sessions {
+        let id = app_name(&s.path).to_lowercase();
+        if let Some(e) = by_id.get_mut(&id) {
+            e.1 |= s.active;
+            e.2 = true;
+            e.3 = true;
+        }
+    }
+    let mut list: Vec<(String, String, bool, bool, bool)> = by_id
+        .into_iter()
+        .filter(|(_, e)| e.3)
+        .map(|(id, (name, playing, sound, _))| {
+            let player = PLAYERS.contains(&id.as_str());
+            (id, name, playing, sound, player)
+        })
+        .collect();
+    list.sort_by_key(|(id, _, playing, sound, player)| (!*player, !*playing, !*sound, id.clone()));
+    Ok(json!(list
+        .into_iter()
+        .map(|(id, name, playing, sound, player)| json!({"id": id, "name": name, "playing": playing, "sound": sound, "player": player}))
+        .collect::<Vec<_>>()))
+}
+
+/// The process to record for app `id` ("spotify"): the top of its process tree (its
+/// helpers are included), the instance that is playing when there are several.
+fn find(id: &str) -> Result<u32> {
+    let procs = processes()?;
+    let mine: Vec<&Process> = procs.iter().filter(|p| p.id == id).collect();
+    let pids: HashSet<u32> = mine.iter().map(|p| p.pid).collect();
+    let root = |mut pid: u32| {
+        for _ in 0..64 {
+            match mine.iter().find(|p| p.pid == pid) {
+                Some(p) if pids.contains(&p.parent) && p.parent != pid => pid = p.parent,
+                _ => break,
+            }
+        }
+        pid
+    };
+    let playing = sessions()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|s| pids.contains(&s.pid))
+        .max_by_key(|s| s.active)
+        .map(|s| s.pid);
+    if let Some(pid) = playing {
+        return Ok(root(pid));
+    }
+    let windows = windowed();
+    let roots: Vec<u32> = mine.iter().filter(|p| !pids.contains(&p.parent)).map(|p| p.pid).collect();
+    roots
+        .iter()
+        .find(|p| windows.contains(p))
+        .or(roots.first())
+        .copied()
+        .ok_or_else(|| anyhow!("Ta aplikacja nie jest uruchomiona. Włącz ją i odśwież listę."))
 }
 
 #[implement(IActivateAudioInterfaceCompletionHandler)]

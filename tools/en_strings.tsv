@@ -918,13 +918,13 @@ Odśwież listę aplikacji	Refresh the app list
 Opis z MusicBrainz: {0}	Description from MusicBrainz: {0}
 Po nagraniu podziel, opisz i dodaj do biblioteki	After recording, split, tag and add to the library
 Poziom	Level
-Program, który gra	Program that is playing
+Aplikacja do nagrania	App to record
 Wczytaj	Load
 Z aplikacji	From an app
 {0} · gra	{0} · playing
-Żaden program nie gra teraz dźwięku. Włącz odtwarzanie w aplikacji i odśwież listę.	No program is playing sound now. Start playback in the app and refresh the list.
+Nie widzę aplikacji. Uruchom program, z którego chcesz nagrać (np. Spotify), i odśwież listę.	No apps found. Start the program you want to record from (e.g. Spotify) and refresh the list.
 Czekam na dźwięk z aplikacji. Włącz album od pierwszego utworu.	Waiting for sound from the app. Play the album from the first track.
-Aplikacja nie gra teraz dźwięku. Włącz ją i odtwórz cokolwiek, potem odśwież listę.	The app is not playing sound now. Open it and play anything, then refresh the list.
+Ta aplikacja nie jest uruchomiona. Włącz ją i odśwież listę.	This app is not running. Start it and refresh the list.
 Z aplikacji nie popłynął żaden dźwięk. Nic nie zapisano.	No sound came from the app. Nothing was saved.
 To nie jest link do albumu w Spotify (open.spotify.com/album/…).	This is not a link to a Spotify album (open.spotify.com/album/…).
 Nie udało się odczytać albumu ze Spotify. Wpisz album i wykonawcę ręcznie.	Could not read the album from Spotify. Enter the album and artist by hand.
@@ -932,3 +932,14 @@ Spotify nie odpowiada. Sprawdź internet.	Spotify is not responding. Check your 
 Spotify nie zna tego albumu. Sprawdź link.	Spotify does not know this album. Check the link.
 Aplikacja została zamknięta podczas nagrania.	The app was closed during recording.
 Windows nie otworzył dźwięku aplikacji.	Windows did not open the app's sound.
+Utwory do nagrania	Tracks to record
+razem {0}	total {0}
+Usuń utwór	Remove track
+Dodaj utwór	Add track
+Wczytaj album z linku albo dodaj utwory ręcznie: tytuł i długość (m:ss).	Load the album from a link or add tracks by hand: title and length (m:ss).
+Podaj długość każdego utworu (m:ss). Bez tego podział będzie według ciszy.	Give the length of every track (m:ss). Without it the split follows silence.
+Zgraj muzykę	Rip music
+Winyl / kaseta / aplikacja	Vinyl / tape / app
+Wejście audio	Audio input
+Nagrywanie z aplikacji	Recording from an app
+Nagranie albumu z wybranej aplikacji, np. Spotify, podział i tagi	Recording an album from a chosen app, e.g. Spotify, split and tags

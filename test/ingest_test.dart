@@ -194,7 +194,7 @@ void main() {
     await t.tap(find.byType(Checkbox).at(3));
     await t.pumpAndSettle();
     // Switching tabs keeps the read disc and the form.
-    await t.tap(find.text('Winyl i kaseta'));
+    await t.tap(find.text('Winyl / kaseta / aplikacja'));
     await t.pumpAndSettle();
     await t.tap(find.text('Audio CD'));
     await t.pumpAndSettle();

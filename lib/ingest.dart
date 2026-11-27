@@ -29,6 +29,33 @@ String ingestClock(num ms) {
   return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$sec' : '$m:$sec';
 }
 
+/// "4:05", "1:02:03" or "245" (seconds) → milliseconds; 0 when it is not a length.
+int parseClock(String text) {
+  final parts = text.trim().replaceAll(',', '.').split(':');
+  if (parts.isEmpty || parts.length > 3 || parts.any((p) => p.trim().isEmpty)) return 0;
+  var seconds = 0.0;
+  for (final p in parts) {
+    final v = double.tryParse(p.trim());
+    if (v == null || v < 0) return 0;
+    seconds = seconds * 60 + v;
+  }
+  return (seconds * 1000).round();
+}
+
+/// One expected song of an app recording: title and length, both editable.
+class AppTrack {
+  final TextEditingController title, length;
+  final String artist;
+  AppTrack(String name, int ms, this.artist)
+    : title = TextEditingController(text: name),
+      length = TextEditingController(text: ms > 0 ? ingestClock(ms) : '');
+  int get ms => parseClock(length.text);
+  void dispose() {
+    title.dispose();
+    length.dispose();
+  }
+}
+
 String markTime(num ms) => '${ingestClock(ms)}.${(ms.toInt() % 1000 ~/ 100)}';
 
 /// One track row of the form: title and (for compilations) its own artist.
@@ -231,6 +258,16 @@ class IngestState extends ChangeNotifier {
     _changed();
   }
 
+  /// Recording tab source: an audio input (vinyl, tape) or one app.
+  bool appSource = false;
+
+  void setAppSource(bool value) {
+    appSource = value;
+    _changed();
+    // The app list changes as programs start and close.
+    if (value && !running) unawaited(refresh());
+  }
+
   void _schedule() {
     _timer?.cancel();
     if (_disposed || !running) return;
@@ -355,7 +392,64 @@ class IngestState extends ChangeNotifier {
   bool get appSession => selectedSession?['app'] != null;
 
   /// Total length of the album from the link (0 when some length is unknown).
+  /// Expected songs of the app recording (from the link or typed), editable.
+  final appTracks = <AppTrack>[];
+
+  void addAppTrack() {
+    appTracks.add(AppTrack('', 0, vinylForm.artist.text.trim()));
+    _changed();
+  }
+
+  void removeAppTrack(int i) {
+    appTracks.removeAt(i).dispose();
+    _changed();
+  }
+
+  void _fillAppTracks(List<ReleaseSong> songs) {
+    for (final t in appTracks) {
+      t.dispose();
+    }
+    appTracks
+      ..clear()
+      ..addAll([for (final x in songs) AppTrack(x.title, x.durationMs, x.artist)]);
+  }
+
+  /// The edited list becomes the track list the recording is cut and tagged by.
+  void _syncAppTracks() {
+    if (appTracks.isEmpty) return;
+    final release =
+        tracklist?.release ??
+        ReleaseCandidate(
+          id: '',
+          title: vinylForm.album.text.trim(),
+          artist: vinylForm.artist.text.trim(),
+          date: vinylForm.date,
+          country: '',
+          format: '',
+          label: '',
+          barcode: '',
+          disambiguation: '',
+          trackCount: appTracks.length,
+          score: 0,
+        );
+    tracklist = ReleaseInfo(release, [
+      for (var i = 0; i < appTracks.length; i++)
+        ReleaseSong(
+          title: appTracks[i].title.text.trim().isEmpty ? tr('Utwór {0}', [i + 1]) : appTracks[i].title.text.trim(),
+          artist: appTracks[i].artist,
+          discNumber: 1,
+          trackNumber: i + 1,
+          durationMs: appTracks[i].ms,
+        ),
+    ]);
+    tracklistPicked = [for (final _ in appTracks) true];
+    firstTrack = 1;
+  }
+
   int get albumMs {
+    if (appTracks.isNotEmpty) {
+      return appTracks.any((t) => t.ms <= 0) ? 0 : appTracks.fold(0, (a, t) => a + t.ms);
+    }
     final t = tracklist?.tracks ?? const <ReleaseSong>[];
     if (t.isEmpty || t.any((x) => x.durationMs <= 0)) return 0;
     return t.fold(0, (a, x) => a + x.durationMs);
@@ -416,6 +510,7 @@ class IngestState extends ChangeNotifier {
     _useTracklist(found);
     tracklistPicked = [for (final _ in found.tracks) true];
     firstTrack = 1;
+    _fillAppTracks(found.tracks);
     final cover = info['cover'];
     if (cover is Map) {
       vinylForm.cover = CoverChoice.fromJson(Map<String, dynamic>.from(cover));
@@ -440,6 +535,7 @@ class IngestState extends ChangeNotifier {
   Future<void> recordApp() => _act(() async {
     if (monitoring) await _stopCapture();
     await beforeCapture();
+    _syncAppTracks();
     final total = albumMs;
     await _start('record', 'record', {
       'app': app,
@@ -454,6 +550,7 @@ class IngestState extends ChangeNotifier {
 
   /// Cuts placed by the album's lengths (or by silence without a list), then saved.
   Future<void> _splitAppRecording() async {
+    _syncAppTracks();
     if (tracklist != null && albumMs > 0) {
       await applyTracklist();
       if (error == null && autoSave && markers.length == vinylForm.tracks.length - 1) await export();
@@ -1015,6 +1112,9 @@ class IngestState extends ChangeNotifier {
     _watch?.cancel();
     for (final c in [label, discogs, searchAlbum, searchArtist, firstTrackField, spotifyLink]) {
       c.dispose();
+    }
+    for (final t in appTracks) {
+      t.dispose();
     }
     cdForm.dispose();
     vinylForm.dispose();
