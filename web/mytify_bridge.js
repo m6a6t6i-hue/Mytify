@@ -152,6 +152,13 @@
     },
     async ingest(body) {
       const args = JSON.parse(body);
+      if (args.action === "logError") {
+        try {
+          await api("/api/log", { method: "POST", body: { text: String(args.text || "") } });
+        } catch (e) {
+        }
+        return "{}";
+      }
       if (args.action === "pickFolder") return JSON.stringify(await api("/api/pick", { method: "POST", body: { folder: true, title: "Wybierz folder na muzyk\u0119" } }));
       return JSON.stringify(await api(args.action === "disc" ? "/api/metadata/disc" : "/api/ingest", { method: "POST", body: args }));
     },

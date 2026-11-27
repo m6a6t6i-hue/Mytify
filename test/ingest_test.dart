@@ -523,4 +523,16 @@ void main() {
     expect(state.expectedSongs.map((x) => x.title), ['Drugi']);
     await close(t);
   });
+
+  testWidgets('a second album loaded while the first list is on screen does not break the view', (t) async {
+    await open(t, tab: IngestState.tabVinyl, height: 3200);
+    state.vinylForm.setTracks(['Raz', 'Dwa', 'Trzy']);
+    state.changed();
+    await t.pumpAndSettle();
+    state.vinylForm.setTracks(['Jeden']);
+    state.changed();
+    await t.pumpAndSettle();
+    expect(t.takeException(), isNull);
+    await close(t);
+  });
 }

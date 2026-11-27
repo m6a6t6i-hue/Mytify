@@ -931,28 +931,30 @@ class Catalog(private val context: Context) :
     /**
      * Artist photos from the music folders: `Artist/artist.jpg` next to `Artist/Album/...`
      * (or in the same folder for `Artist/song.mp3`). A folder counts only when its name is
-     * the artist's. Each picture is read once; nothing is written to the share.
+     * the artist's. Nothing is written to the share.
      */
-    private fun applyArtistPhotos(source: String, audio: List<String>, pictures: Map<String, String>, read: (String) -> ByteArray) {
+    private fun applyArtistPhotos(
+        audio: List<String>,
+        pictures: Map<String, Smb.Entry>,
+        tracksAt: Map<String, Pair<String, JSONObject>>,
+        hashOf: (Smb.Entry) -> String?,
+    ) {
         if (pictures.isEmpty()) return
         val db = writableDatabase
         ensureArtistPhotos(db)
-        val stored = HashMap<String, String?>()
+        val have = HashMap<String, String>()
+        db.rawQuery("SELECT key,cover FROM artist_photos", null).use { c -> while (c.moveToNext()) have[c.getString(0)] = c.getString(1) }
         val done = HashSet<String>()
         for (path in audio) {
             checkCancel()
             val album = path.substringBeforeLast('/', "")
             val parent = album.substringBeforeLast('/', "")
             val candidates = listOfNotNull(
-                album.takeIf { it.isNotEmpty() }?.let { d -> pictures[d]?.takeIf { artistRank(it.substringAfterLast('/')) >= 0 }?.let { d to it } },
+                album.takeIf { it.isNotEmpty() }?.let { d -> pictures[d]?.takeIf { artistRank(it.name) >= 0 }?.let { d to it } },
                 parent.takeIf { it.isNotEmpty() || album.isNotEmpty() }?.let { d -> pictures[d]?.let { d to it } },
             )
             if (candidates.isEmpty()) continue
-            val u = Smb.uri(source, path).toString()
-            val raw =
-                readableDatabase
-                    .rawQuery("SELECT t.raw FROM locations l JOIN tracks t ON t.id=l.track WHERE l.uri=? AND l.source=?", arrayOf(u, source))
-                    .use { if (it.moveToFirst()) JSONObject(it.getString(0)) else null } ?: continue
+            val raw = tracksAt[path]?.second ?: continue
             val names = listOf(raw.optString("albumArtist"), raw.optString("artist")).filter { it.isNotBlank() }.distinct()
             for ((dir, picture) in candidates) {
                 val folder = loose(dir.substringAfterLast('/'))
@@ -960,12 +962,35 @@ class Catalog(private val context: Context) :
                 for (name in names) {
                     val key = artistKey(name)
                     if (key in done || loose(name) != folder) continue
-                    val hash = stored.getOrPut(picture) { runCatching { storeCover(read(picture)).getString("hash") }.getOrNull() } ?: continue
-                    db.insertWithOnConflict("artist_photos", null, cv("key" to key, "name" to name, "cover" to hash), SQLiteDatabase.CONFLICT_REPLACE)
+                    val hash = hashOf(picture) ?: continue
+                    if (have[key] != hash) {
+                        db.insertWithOnConflict("artist_photos", null, cv("key" to key, "name" to name, "cover" to hash), SQLiteDatabase.CONFLICT_REPLACE)
+                    }
                     done.add(key)
                 }
             }
         }
+    }
+
+    /**
+     * A picture on a share as a stored cover. Read over the network only when it is new or
+     * changed (size and date), else the hash remembered from an earlier scan is used.
+     */
+    private fun pictureHash(source: String, e: Smb.Entry, read: (String) -> ByteArray): String? {
+        val db = writableDatabase
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS picture_cache(source TEXT NOT NULL,path TEXT NOT NULL,size INTEGER NOT NULL,modified INTEGER NOT NULL,cover TEXT NOT NULL,PRIMARY KEY(source,path))",
+        )
+        db.rawQuery("SELECT size,modified,cover FROM picture_cache WHERE source=? AND path=?", arrayOf(source, e.path)).use { c ->
+            if (c.moveToFirst() && c.getLong(0) == e.size && c.getLong(1) == e.modified && coverFile(c.getString(2)) != null) return c.getString(2)
+        }
+        val hash = runCatching { storeCover(read(e.path)).getString("hash") }.getOrNull() ?: return null
+        db.insertWithOnConflict(
+            "picture_cache", null,
+            cv("source" to source, "path" to e.path, "size" to e.size, "modified" to e.modified, "cover" to hash),
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
+        return hash
     }
 
     /** Artist key to the photo's file address, for the library. */
@@ -986,22 +1011,20 @@ class Catalog(private val context: Context) :
 
     /**
      * Tracks without an embedded picture take the album folder's cover.jpg / folder.jpg.
-     * [audio] and [covers] are paths inside the source; [read] gives a picture's bytes.
-     * Each picture is read once; nothing is written to the share.
+     * Nothing is written to the share.
      */
-    private fun applyFolderCovers(source: String, audio: List<String>, covers: Map<String, String>, read: (String) -> ByteArray) {
-        val stored = HashMap<String, String?>()
+    private fun applyFolderCovers(
+        audio: List<String>,
+        covers: Map<String, Smb.Entry>,
+        tracksAt: Map<String, Pair<String, JSONObject>>,
+        hashOf: (Smb.Entry) -> String?,
+    ) {
         for (path in audio) {
             checkCancel()
-            val dir = path.substringBeforeLast('/', "")
-            val picture = covers[dir] ?: continue
-            val u = Smb.uri(source, path).toString()
-            val (track, raw) =
-                readableDatabase
-                    .rawQuery("SELECT t.id,t.raw FROM locations l JOIN tracks t ON t.id=l.track WHERE l.uri=? AND l.source=?", arrayOf(u, source))
-                    .use { if (it.moveToFirst()) it.getString(0) to JSONObject(it.getString(1)) else null } ?: continue
+            val picture = covers[path.substringBeforeLast('/', "")] ?: continue
+            val (track, raw) = tracksAt[path] ?: continue
             if (raw.optString("cover").isNotEmpty()) continue
-            val hash = stored.getOrPut(picture) { runCatching { storeCover(read(picture)).getString("hash") }.getOrNull() } ?: continue
+            val hash = hashOf(picture) ?: continue
             raw.put("cover", hash)
             writableDatabase.update("tracks", cv("raw" to raw.toString()), "id=?", arrayOf(track))
         }
@@ -1103,26 +1126,46 @@ class Catalog(private val context: Context) :
                 .mapValues { (_, v) -> v.minBy { coverRank(it.name) } }
         val seen = HashSet<String>()
         var complete = true
-        for ((i, e) in entries.withIndex()) {
-            checkCancel()
+        // Compare the NAS listing with what the library knows (one query), and read only
+        // new and changed files: an unchanged file is never opened over the network.
+        progress(0, 0, "Porównywanie z biblioteką")
+        val known = HashMap<String, Triple<String, Long, Long>>()
+        readableDatabase.rawQuery("SELECT uri,track,size,modified FROM locations WHERE source=?", arrayOf(id)).use { c ->
+            while (c.moveToNext()) known[c.getString(0)] = Triple(c.getString(1), c.getLong(2), c.getLong(3))
+        }
+        val ignoredUris = HashSet<String>()
+        readableDatabase.rawQuery("SELECT uri FROM ignored", null).use { c -> while (c.moveToNext()) ignoredUris.add(c.getString(0)) }
+        val changed = ArrayList<Smb.Entry>()
+        val same = ArrayList<String>()
+        for (e in entries) {
             val u = Smb.uri(id, e.path).toString()
             seen.add(u)
-            progress(i, entries.size, e.name)
-            try {
-                if (readableDatabase.rawQuery("SELECT uri FROM ignored WHERE uri=?", arrayOf(u)).use { it.moveToFirst() }) {
-                    bump("ignored")
-                    continue
-                }
-                val prior =
-                    readableDatabase
-                        .rawQuery("SELECT track,size,modified FROM locations WHERE uri=? AND source=?", arrayOf(u, id))
-                        .use { if (it.moveToFirst()) Triple(it.getString(0), it.getLong(1), it.getLong(2)) else null }
-                if (prior != null && prior.second == e.size && prior.third == e.modified) {
-                    // Same size and date: no need to read the whole file over the network again.
-                    writableDatabase.update("locations", cv("available" to 1), "uri=? AND source=?", arrayOf(u, id))
+            val prior = known[u]
+            when {
+                u in ignoredUris -> bump("ignored")
+                prior != null && prior.second == e.size && prior.third == e.modified -> {
+                    same.add(u)
                     bump("unchanged")
-                    continue
                 }
+                else -> changed.add(e)
+            }
+        }
+        if (same.isNotEmpty()) {
+            val db = writableDatabase
+            db.beginTransaction()
+            try {
+                for (u in same) db.update("locations", cv("available" to 1), "uri=? AND source=?", arrayOf(u, id))
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+        }
+        for ((i, e) in changed.withIndex()) {
+            checkCancel()
+            val u = Smb.uri(id, e.path).toString()
+            progress(i, changed.size, e.name)
+            try {
+                val prior = known[u]
                 val result =
                     Smb.with(id, s, password) { share ->
                         Smb.openFile(share, e.path).use { f ->
@@ -1162,29 +1205,39 @@ class Catalog(private val context: Context) :
                 .groupBy { it.path.substringBeforeLast('/', "") }
                 .mapValues { (_, v) -> v.filter { artistRank(it.name) >= 0 || it.name.lowercase().startsWith("folder.") } }
                 .filterValues { it.isNotEmpty() }
-                .mapValues { (_, v) -> v.minBy { if (artistRank(it.name) >= 0) artistRank(it.name) else 10 }.path }
+                .mapValues { (_, v) -> v.minBy { if (artistRank(it.name) >= 0) artistRank(it.name) else 10 } }
         if (folderCovers.isNotEmpty() || artistPictures.isNotEmpty()) {
-            progress(entries.size, entries.size, "Okładki")
+            progress(changed.size, changed.size, "Okładki")
             try {
-                Smb.with(id, s, password) { share ->
-                    val read = { path: String ->
-                        Smb.openFile(share, path).use { f ->
-                            val out = ByteArrayOutputStream()
-                            val buffer = ByteArray(256 * 1024)
-                            var offset = 0L
-                            while (true) {
-                                val n = f.read(buffer, offset, 0, buffer.size)
-                                if (n <= 0) break
-                                out.write(buffer, 0, n)
-                                offset += n
-                                require(offset <= 8L * 1024 * 1024) { "Okładka przekracza 8 MB" }
+                // Tracks of this share by path inside it, in one query.
+                val byUri = entries.associateBy { Smb.uri(id, it.path).toString() }
+                val pathOf = HashMap<String, Pair<String, JSONObject>>()
+                readableDatabase.rawQuery("SELECT l.uri,t.id,t.raw FROM locations l JOIN tracks t ON t.id=l.track WHERE l.source=?", arrayOf(id)).use { c ->
+                    while (c.moveToNext()) byUri[c.getString(0)]?.let { e -> pathOf[e.path] = c.getString(1) to JSONObject(c.getString(2)) }
+                }
+                // A picture is read over the network only when new or changed.
+                val hashOf = { e: Smb.Entry ->
+                    pictureHash(id, e) { path ->
+                        Smb.with(id, s, password) { share ->
+                            Smb.openFile(share, path).use { f ->
+                                val out = ByteArrayOutputStream()
+                                val buffer = ByteArray(256 * 1024)
+                                var offset = 0L
+                                while (true) {
+                                    val n = f.read(buffer, offset, 0, buffer.size)
+                                    if (n <= 0) break
+                                    out.write(buffer, 0, n)
+                                    offset += n
+                                    require(offset <= 8L * 1024 * 1024) { "Okładka przekracza 8 MB" }
+                                }
+                                out.toByteArray()
                             }
-                            out.toByteArray()
                         }
                     }
-                    applyFolderCovers(id, entries.map { it.path }, folderCovers.mapValues { it.value.path }, read)
-                    applyArtistPhotos(id, entries.map { it.path }, artistPictures, read)
                 }
+                val paths = entries.map { it.path }
+                applyFolderCovers(paths, folderCovers, pathOf, hashOf)
+                applyArtistPhotos(paths, artistPictures, pathOf, hashOf)
             } catch (x: CancellationException) {
                 throw x
             } catch (x: Exception) {

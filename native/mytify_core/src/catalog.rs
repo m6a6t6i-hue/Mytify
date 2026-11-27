@@ -807,6 +807,10 @@ impl Catalog {
                 continue;
             }
             let mut files = Vec::new();
+            // Size and date of each listed file, straight from the folder listing (on a
+            // NAS one request per folder, not per file).
+            let mut listed: std::collections::HashMap<PathBuf, (i64, String)> = std::collections::HashMap::new();
+            let mut walked_root: Option<PathBuf> = None;
             let mut complete = true;
             if source.kind == "files" {
                 if request.source_id.is_none() {
@@ -843,6 +847,7 @@ impl Catalog {
                     report.offline_sources += 1;
                     continue;
                 }
+                walked_root = Some(root.to_path_buf());
                 for entry in WalkDir::new(root).follow_links(false) {
                     if cancel.load(Ordering::Relaxed) {
                         complete = false;
@@ -854,6 +859,12 @@ impl Catalog {
                             if mp3_copy(entry.path()) {
                                 report.ignored += 1;
                             } else if supported(entry.path()) {
+                                if let Ok(m) = entry.metadata() {
+                                    if let (Ok(len), Ok(t)) = (i64::try_from(m.len()), m.modified()) {
+                                        let stamp = t.duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos().to_string();
+                                        listed.insert(entry.path().to_path_buf(), (len, stamp));
+                                    }
+                                }
                                 files.push(entry.into_path());
                             } else {
                                 report.ignored += 1;
@@ -873,6 +884,36 @@ impl Catalog {
                 "UPDATE sources SET state='scanning' WHERE id=?",
                 [&source.id],
             )?;
+            // Compare the listing with the library in one go: files with the same size and
+            // date are not opened at all, only new and changed ones are read.
+            if !request.force {
+                if let Some(canonical_root) = walked_root.as_ref().and_then(|r| fs::canonicalize(r).ok()) {
+                    progress(Progress { done: 0, total: 0, name: "Porównywanie z biblioteką".into() });
+                    let root = walked_root.clone().unwrap_or_default();
+                    let known: std::collections::HashMap<String, (i64, String)> = {
+                        let db = self.db()?;
+                        let mut stmt = db.prepare("SELECT path_key,size,modified FROM locations WHERE source_id=?1")?;
+                        let rows = stmt.query_map([&source.id], |r| Ok((r.get::<_, String>(0)?, (r.get::<_, i64>(1)?, r.get::<_, String>(2)?))))?;
+                        rows.collect::<rusqlite::Result<_>>()?
+                    };
+                    let mut same = Vec::new();
+                    files.retain(|path| {
+                        let key = path.strip_prefix(&root).ok().map(|rel| path_key(&canonical_root.join(rel)));
+                        let unchanged = key.as_ref().is_some_and(|k| known.get(k).is_some_and(|sig| Some(sig) == listed.get(path)));
+                        if unchanged {
+                            same.push(key.unwrap_or_default());
+                        }
+                        !unchanged
+                    });
+                    let mut db = self.db()?;
+                    let tx = db.transaction()?;
+                    for key in &same {
+                        tx.execute("UPDATE locations SET available=1,seen=?1 WHERE source_id=?2 AND path_key=?3", params![generation, source.id, key])?;
+                    }
+                    tx.commit()?;
+                    report.unchanged += same.len() as u32;
+                }
+            }
             for (i, path) in files.iter().enumerate() {
                 if cancel.load(Ordering::Relaxed) {
                     complete = false;

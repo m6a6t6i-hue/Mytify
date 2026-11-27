@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 
 import 'capture_stage.dart';
+import 'errors.dart';
 import 'model.dart';
 import 'l10n.dart';
 
@@ -94,9 +95,9 @@ class IngestForm {
   String releaseId = '', date = '';
 
   void setTracks(List<String> titles, [List<String> artists = const []]) {
-    for (final c in tracks) {
-      c.dispose();
-    }
+    // Fields on screen still hold these until the next frame (a second album loaded
+    // while the first one's list is shown).
+    disposeLater([for (final c in tracks) ...[c.title, c.artist]]);
     tracks = [for (var i = 0; i < titles.length; i++) TrackField(titles[i], i < artists.length ? artists[i] : '')];
   }
 
@@ -476,14 +477,14 @@ class IngestState extends ChangeNotifier {
   }
 
   void removeAppTrack(int i) {
-    appTracks.removeAt(i).dispose();
+    final t = appTracks.removeAt(i);
+    disposeLater([t.title, t.length]);
     _changed();
   }
 
   void _fillAppTracks(List<ReleaseSong> songs) {
-    for (final t in appTracks) {
-      t.dispose();
-    }
+    // The fields on screen still hold the old controllers until the next frame.
+    disposeLater([for (final t in appTracks) ...[t.title, t.length]]);
     appTracks
       ..clear()
       ..addAll([for (final x in songs) AppTrack(x.title, x.durationMs, x.artist)]);

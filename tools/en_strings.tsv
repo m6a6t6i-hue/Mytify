@@ -1026,3 +1026,6 @@ Opis ze Spotify: {0}	Details from Spotify: {0}
 Odśwież źródło	Refresh source
 Odśwież wszystkie	Refresh all
 Skan niedokończony, odśwież źródło	Scan not finished, refresh the source
+Ten widok się nie wyświetlił	This view could not be shown
+Przejdź do innego widoku i wróć. Błąd jest zapisany w mytify-errors.log.	Go to another view and come back. The error is saved in mytify-errors.log.
+Porównywanie z biblioteką	Comparing with the library

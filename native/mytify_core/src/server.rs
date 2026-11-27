@@ -608,6 +608,23 @@ fn handle(app: Arc<App>, mut request: Request) -> Result<()> {
                 Err(e) => send_error(request, 400, e),
             };
         }
+        if path == "/api/log" && method == Method::Post {
+            // UI errors, kept next to the library so a broken view can be diagnosed.
+            // Only the error text and stack: no tracks, paths of the user or passwords.
+            let v = read_json(&mut request).unwrap_or_default();
+            let text: String = v["text"].as_str().unwrap_or("").chars().take(8000).collect();
+            if !text.is_empty() {
+                let file = app.catalog.root.join("mytify-errors.log");
+                if std::fs::metadata(&file).is_ok_and(|m| m.len() > 1 << 20) {
+                    let _ = std::fs::rename(&file, file.with_extension("old.log"));
+                }
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&file) {
+                    use std::io::Write;
+                    let _ = writeln!(f, "--- {} ms\n{text}", crate::catalog::now_ms());
+                }
+            }
+            return send_json(request, 200, json!({"ok": true}));
+        }
         if path == "/api/library" && method == Method::Get {
             return match encode_tracks(&app) {
                 Ok(v) => send_json(request, 200, v),

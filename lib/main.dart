@@ -23,6 +23,7 @@ import 'radio.dart';
 import 'repository.dart';
 import 'shell_desktop.dart';
 import 'shell_mobile.dart';
+import 'errors.dart';
 import 'downloads_ui.dart';
 import 'sources_ui.dart';
 import 'transfer.dart';
@@ -33,6 +34,7 @@ export 'design.dart' show accent, background, panel, secondaryText;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  installErrorHandling();
   // Android plays the Winyl intro in Flutter; PC shows it in index.html.
   introOnStart = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   runApp(const MytifyApp());
@@ -377,6 +379,10 @@ class LibraryScreenState extends State<LibraryScreen> {
   @override
   void initState() {
     super.initState();
+    if (repository is IngestRepository) {
+      final log = repository as IngestRepository;
+      uiErrorSink = (text) => unawaited(log.ingest({'action': 'logError', 'text': text}).then((_) {}, onError: (Object _) {}));
+    }
     if (repository is DropImport) {
       (repository as DropImport).listenForDrops((folders, files) => unawaited(importDropped(folders, files)));
     }

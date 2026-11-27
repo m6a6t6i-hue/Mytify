@@ -113,6 +113,16 @@ fn fast_rescan_does_not_reimport_unchanged_files() {
     assert_eq!(report.added, 0);
     assert_eq!(report.unchanged, 1);
     assert_eq!(catalog.tracks().unwrap().len(), 1);
+    // A new file next to it: only that one is read, the known one is matched from the
+    // folder listing.
+    fs::copy(fixture("sample.mp3"), source.path().join("b.mp3")).unwrap();
+    let mut totals = Vec::new();
+    let report = catalog
+        .scan(ScanRequest { source_id: Some("all".into()), ..Default::default() }, &AtomicBool::new(false), |p| totals.push(p.total))
+        .unwrap();
+    assert_eq!(report.unchanged, 1);
+    assert_eq!(catalog.tracks().unwrap().len(), 2);
+    assert_eq!(totals.iter().filter(|t| **t > 0).max(), Some(&1), "{totals:?}");
 }
 #[test]
 fn missing_track_remains_in_catalog_with_liked_state() {
