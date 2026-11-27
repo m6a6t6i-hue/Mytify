@@ -257,6 +257,7 @@ class LibraryScreenState extends State<LibraryScreen> {
     },
     onLibraryChanged: loadLibrary,
     onImported: (artists) async {
+      notifyDesktop(tr('Dodano do biblioteki'), artists.join(', '));
       // A freshly imported artist gets their photo right away.
       final repo = repository;
       if (repo is! ArtistPhotoRepository) return;
@@ -269,7 +270,7 @@ class LibraryScreenState extends State<LibraryScreen> {
         await loadArtistPhotos();
       } catch (_) {}
     },
-  );
+  )..addListener(_ingestTaskbar);
 
   /// Artist photos by artist key (PC); album covers stand in for the rest.
   Map<String, String> artistPhotos = const {};
@@ -362,6 +363,9 @@ class LibraryScreenState extends State<LibraryScreen> {
   @override
   void initState() {
     super.initState();
+    if (repository is DropImport) {
+      (repository as DropImport).listenForDrops((folders, files) => unawaited(importDropped(folders, files)));
+    }
     if (repository is LibraryChangesRepository) {
       subscriptions.add(
         (repository as LibraryChangesRepository).changes.listen((_) {
@@ -779,6 +783,11 @@ class LibraryScreenState extends State<LibraryScreen> {
         });
       }
       unawaited(loadArtistPhotos());
+      // Native window settings kept by the app (preferences are loaded by now).
+      if (!_windowPrefsSent && _hasWindow) {
+        _windowPrefsSent = true;
+        windowCommand({'action': 'closeToTray', 'value': closeToTray});
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -1297,12 +1306,15 @@ class LibraryScreenState extends State<LibraryScreen> {
       cancelling = false;
       progress = ImportProgress(0, 0, tr('Przygotowanie'));
     });
+    taskbarProgress(null, 'indeterminate');
     try {
       final report = await action((value) {
         if (mounted) setState(() => progress = value);
+        taskbarProgress(value.total > 0 ? value.done / value.total : null, value.total > 0 ? 'normal' : 'indeterminate');
       });
       await loadLibrary();
       if (!mounted) return;
+      if (report.added > 0) notifyDesktop(tr('Import zakończony'), tr('Dodano: {0}', [trackCount(report.added)]));
       if (!report.cancelled || report.added + report.updated + report.unchanged > 0) {
         setState(() => lastImport = report);
         if (showAlbums && report.added > 0) go(const Nav('library', 'albums'));
@@ -1317,6 +1329,7 @@ class LibraryScreenState extends State<LibraryScreen> {
           cancelling = false;
         });
       }
+      taskbarProgress(null, 'none');
     }
   }
 
@@ -1383,6 +1396,72 @@ class LibraryScreenState extends State<LibraryScreen> {
       ],
     ),
   );
+
+  /// Folders and files dropped on the window from Explorer: folders become sources.
+  Future<void> importDropped(List<String> folders, List<String> files) async {
+    final repo = repository;
+    if (repo is! DropImport) return;
+    if (folders.isNotEmpty) {
+      await runOperation((update) => (repo as DropImport).importPaths(folders, folder: true, onProgress: update), showAlbums: true);
+    }
+    if (files.isNotEmpty) {
+      await runOperation((update) => (repo as DropImport).importPaths(files, folder: false, onProgress: update), showAlbums: true);
+    }
+  }
+
+  // ------------------------------------------------------------ window (PC)
+
+  /// The window has its title bar inside the app (Windows caption buttons on top right).
+  bool get nativeChrome => canFloat;
+
+  void windowCommand(Map<String, dynamic> action) {
+    if (_hasWindow) unawaited(repository.windowAction(action));
+  }
+
+  String _chromeColors = '';
+  bool _windowPrefsSent = false;
+
+  /// Title bar colours follow the theme.
+  void syncChrome(Color bg, Color fg) {
+    String hex(Color c) => '#${(c.toARGB32() & 0xffffff).toRadixString(16).padLeft(6, '0')}';
+    final key = '${hex(bg)}${hex(fg)}';
+    if (key == _chromeColors || !_hasWindow) return;
+    _chromeColors = key;
+    windowCommand({'action': 'chrome', 'bg': hex(bg), 'fg': hex(fg)});
+  }
+
+  /// Progress on the taskbar icon: imports, CD reading, saving tracks.
+  String _taskbar = '';
+  void taskbarProgress(double? value, String state) {
+    final key = '$state:${value == null ? '' : (value * 100).round()}';
+    if (key == _taskbar) return;
+    _taskbar = key;
+    windowCommand({'action': 'progress', 'value': ?value, 'state': state});
+  }
+
+  void _ingestTaskbar() {
+    final s = _ingest;
+    if (s == null || importing) return;
+    final done = (s.status['done'] as num? ?? 0).toDouble(), total = (s.status['total'] as num? ?? 0).toDouble();
+    if (s.ripping || s.exporting) {
+      taskbarProgress(total > 0 ? done / total : null, total > 0 ? 'normal' : 'indeterminate');
+    } else if (s.recording) {
+      final overall = s.recordStage().overall;
+      taskbarProgress(overall, s.paused ? 'paused' : (overall == null ? 'indeterminate' : 'normal'));
+    } else {
+      taskbarProgress(null, 'none');
+    }
+  }
+
+  /// A Windows notification when the user is in another app.
+  void notifyDesktop(String title, String text) => windowCommand({'action': 'notify', 'title': title, 'text': text});
+
+  bool get closeToTray => prefs.get<bool>('closeToTray', true);
+  void setCloseToTray(bool value) {
+    prefs.set('closeToTray', value);
+    setState(() {});
+    windowCommand({'action': 'closeToTray', 'value': value});
+  }
 
   Future<void> importMusic(bool folder) => runOperation(
     (update) => repository.importAudio(folder: folder, onProgress: update),

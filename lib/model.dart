@@ -191,6 +191,16 @@ abstract class SourceProbe {
   Future<void> probeSources();
 }
 
+/// Files and folders dragged onto the desktop window from Explorer.
+abstract class DropImport {
+  void listenForDrops(void Function(List<String> folders, List<String> files) onDrop);
+  Future<ImportReport> importPaths(
+    List<String> paths, {
+    required bool folder,
+    required void Function(ImportProgress) onProgress,
+  });
+}
+
 /// Artist photos (PC): from a photo folder, artist folders next to the music, or
 /// downloaded. Keys are [LibraryIndex.artistKeyOf] of the artist name.
 abstract class ArtistPhotoRepository {

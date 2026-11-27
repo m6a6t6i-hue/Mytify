@@ -164,6 +164,7 @@ class _DesktopShellState extends State<DesktopShell> {
 
   @override
   Widget build(BuildContext context) {
+    app.syncChrome(background, primaryText);
     final sidebarW = collapsed
         ? 68.0
         : (_dragSidebar ?? app.prefs.number('sidebar.w', 240)).clamp(200.0, 320.0);
@@ -205,11 +206,16 @@ class _DesktopShellState extends State<DesktopShell> {
                   Expanded(
                     child: Column(
                       children: [
+                        // Spans the side panel too: it is the window's title bar.
                         Toolbar(app: app),
                         AnimatedSize(
                           duration: motion(context, Dur.standard),
                           child: app.importing ? ScanBanner(app: app) : const SizedBox(width: double.infinity),
                         ),
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
                         Expanded(
                           child: ClipRect(
                             child: AnimatedSwitcher(
@@ -234,9 +240,6 @@ class _DesktopShellState extends State<DesktopShell> {
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
                   if (panelOpen) ...[
                     _ResizeHandle(
                       onDrag: (dx) => setState(() => _dragPanel = (panelW - dx).clamp(280.0, 420.0)),
@@ -255,6 +258,12 @@ class _DesktopShellState extends State<DesktopShell> {
                       ),
                     ),
                   ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -291,8 +300,12 @@ class Toolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     height: 52,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Sp.m),
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        if (app.nativeChrome) Positioned.fill(child: WindowDragArea(app: app)),
+        Padding(
+      padding: EdgeInsets.only(left: Sp.m, right: app.nativeChrome ? 0 : Sp.m),
       child: Row(
         children: [
           IconAction(Icons.chevron_left_rounded, tr('Wstecz (Alt+←)'), app.canGoBack ? app.back : null, size: 24, box: 34),
@@ -340,9 +353,31 @@ class Toolbar extends StatelessWidget {
             ),
           ),
           IconAction(Icons.settings_outlined, tr('Ustawienia (Ctrl+,)'), () => app.go(const Nav('settings')), color: secondaryText, size: 20),
+          // Room for the Windows minimize, maximize and close buttons.
+          if (app.nativeChrome) const SizedBox(width: captionButtonsWidth + Sp.s),
         ],
       ),
     ),
+      ],
+    ),
+  );
+}
+
+/// Width of the three Windows caption buttons drawn over the top right corner.
+const captionButtonsWidth = 138.0;
+
+/// Empty title bar space: drag moves the window, double click maximizes, right click
+/// opens the window menu (like any Windows title bar).
+class WindowDragArea extends StatelessWidget {
+  final LibraryScreenState app;
+  const WindowDragArea({super.key, required this.app});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onPanStart: (_) => app.windowCommand({'action': 'drag'}),
+    onDoubleTap: () => app.windowCommand({'action': 'maximize'}),
+    onSecondaryTapUp: (_) => app.windowCommand({'action': 'systemMenu'}),
+    child: const SizedBox.expand(),
   );
 }
 
@@ -457,12 +492,17 @@ class Sidebar extends StatelessWidget {
         children: [
           SizedBox(
             height: 52,
-            child: Row(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (app.nativeChrome) Positioned.fill(child: WindowDragArea(app: app)),
+                Row(
               mainAxisAlignment: collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
               children: [
                 if (!collapsed) ...[
                   const SizedBox(width: Sp.l),
-                  const Expanded(child: MytifyBrand(size: 26)),
+                  // The brand is part of the title bar: dragging it moves the window.
+                  Expanded(child: IgnorePointer(ignoring: app.nativeChrome, child: const MytifyBrand(size: 26))),
                 ],
                 IconAction(
                   collapsed ? Icons.menu_rounded : Icons.menu_open_rounded,
@@ -472,6 +512,8 @@ class Sidebar extends StatelessWidget {
                   size: 20,
                 ),
                 if (!collapsed) const SizedBox(width: Sp.xs),
+              ],
+            ),
               ],
             ),
           ),

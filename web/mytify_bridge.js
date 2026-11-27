@@ -122,6 +122,9 @@
       db.close();
     }
   }
+  window.mytifyDropped = (data) => {
+    if (window.mytifyOnDrop) window.mytifyOnDrop(JSON.stringify(data));
+  };
   window.mytifyBridge = {
     // Desktop window layout (mini player, full screen). Only inside the Mytify window.
     windowAvailable() {
@@ -220,6 +223,12 @@
       progress = { done: 0, total: 0, name: "Wybierz muzyk\u0119" };
       const paths = await pick(folder);
       return JSON.stringify(paths.length && !migrationCancelled ? await scan({ paths, folder }) : { cancelled: true });
+    },
+    async importPaths(body) {
+      migrationCancelled = false;
+      const args = JSON.parse(body);
+      progress = { done: 0, total: 0, name: "Import" };
+      return JSON.stringify(await scan({ paths: args.paths || [], folder: !!args.folder }));
     },
     async rescan(id) {
       migrationCancelled = false;

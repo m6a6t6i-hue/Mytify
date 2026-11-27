@@ -160,7 +160,13 @@ impl Media {
             });
         }
         taskbar::show_state(playing, has);
+        crate::chrome::set_playing(playing);
     }
+}
+
+/// Progress on the taskbar icon (value 0..1; state none, normal, indeterminate, paused, error).
+pub fn taskbar_progress(value: Option<f64>, state: &str) {
+    taskbar::progress(value, state);
 }
 
 /// Buttons in the taskbar thumbnail (ITaskbarList3). Everything runs on the UI thread.
@@ -170,7 +176,10 @@ mod taskbar {
         Foundation::HWND,
         System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED},
         UI::{
-            Shell::{ITaskbarList3, TaskbarList, THBF_DISABLED, THBF_ENABLED, THB_FLAGS, THB_ICON, THB_TOOLTIP, THUMBBUTTON},
+            Shell::{
+                ITaskbarList3, TaskbarList, TBPF_ERROR, TBPF_INDETERMINATE, TBPF_NOPROGRESS, TBPF_NORMAL, TBPF_PAUSED, THBF_DISABLED,
+                THBF_ENABLED, THB_FLAGS, THB_ICON, THB_TOOLTIP, THUMBBUTTON,
+            },
             WindowsAndMessaging::HICON,
         },
     };
@@ -192,6 +201,9 @@ mod taskbar {
         hwnd: HWND,
         /// previous, play, pause, next
         icons: [HICON; 4],
+        /// Badge on the taskbar icon while music plays.
+        badge: HICON,
+        badged: bool,
         added: bool,
         playing: bool,
         enabled: bool,
@@ -250,6 +262,70 @@ mod taskbar {
             DeleteObject(mono);
             HICON(icon)
         }
+    }
+
+    /// Green dot with a white play mark, for the taskbar icon.
+    fn badge() -> HICON {
+        const N: usize = 32;
+        let mut bgra = vec![0u8; N * N * 4];
+        for y in 0..N {
+            for x in 0..N {
+                let (mut circle, mut mark) = (0u32, 0u32);
+                for sy in 0..4 {
+                    for sx in 0..4 {
+                        let px = (x as f32 + (sx as f32 + 0.5) / 4.0) / N as f32;
+                        let py = (y as f32 + (sy as f32 + 0.5) / 4.0) / N as f32;
+                        let (dx, dy) = (px - 0.5, py - 0.5);
+                        if dx * dx + dy * dy <= 0.25 {
+                            circle += 1;
+                            // Triangle (0.38,0.28) (0.38,0.72) (0.74,0.5).
+                            if px >= 0.38 && (py - 0.5).abs() <= (0.74 - px) * 0.61 {
+                                mark += 1;
+                            }
+                        }
+                    }
+                }
+                let a = circle * 255 / 16;
+                let w = mark * 255 / 16;
+                // Premultiplied: green under, white mark over.
+                let g = |c: u32| ((c * (a - w.min(a)) / 255) + w).min(255) as u8;
+                let i = (y * N + x) * 4;
+                bgra[i..i + 4].copy_from_slice(&[g(84), g(185), g(29), a as u8]);
+            }
+        }
+        let mask = vec![0u8; N * N / 8];
+        unsafe {
+            let color = CreateBitmap(N as i32, N as i32, 1, 32, bgra.as_ptr().cast());
+            let mono = CreateBitmap(N as i32, N as i32, 1, 1, mask.as_ptr().cast());
+            let info = ICONINFO { fIcon: 1, xHotspot: 0, yHotspot: 0, hbmMask: mono, hbmColor: color };
+            let icon = CreateIconIndirect(&info);
+            DeleteObject(color);
+            DeleteObject(mono);
+            HICON(icon)
+        }
+    }
+
+    /// Progress on the taskbar icon: import, CD reading, saving tracks.
+    pub fn progress(value: Option<f64>, state: &str) {
+        BAR.with(|b| {
+            if let Ok(b) = b.try_borrow() {
+                if let Some(bar) = b.as_ref() {
+                    let flag = match state {
+                        "none" => TBPF_NOPROGRESS,
+                        "indeterminate" => TBPF_INDETERMINATE,
+                        "error" => TBPF_ERROR,
+                        "paused" => TBPF_PAUSED,
+                        _ => TBPF_NORMAL,
+                    };
+                    unsafe {
+                        let _ = bar.list.SetProgressState(bar.hwnd, flag);
+                        if let (Some(v), false) = (value, flag == TBPF_NOPROGRESS || flag == TBPF_INDETERMINATE) {
+                            let _ = bar.list.SetProgressValue(bar.hwnd, (v.clamp(0.0, 1.0) * 1000.0) as u64, 1000);
+                        }
+                    }
+                }
+            }
+        });
     }
 
     fn tip(text: &str) -> [u16; 260] {
@@ -335,6 +411,8 @@ mod taskbar {
                     list,
                     hwnd: HWND(hwnd),
                     icons: [glyph(0), glyph(1), glyph(2), glyph(3)],
+                    badge: badge(),
+                    badged: false,
                     added: false,
                     playing: false,
                     enabled: false,
@@ -350,6 +428,13 @@ mod taskbar {
         BAR.with(|b| {
             if let Ok(mut b) = b.try_borrow_mut() {
                 if let Some(bar) = b.as_mut() {
+                    if bar.badged != playing {
+                        let icon = if playing { bar.badge } else { HICON::default() };
+                        let text: Vec<u16> = (if playing { "Odtwarzanie" } else { "" }).encode_utf16().chain(Some(0)).collect();
+                        if unsafe { bar.list.SetOverlayIcon(bar.hwnd, icon, windows::core::PCWSTR(text.as_ptr())) }.is_ok() {
+                            bar.badged = playing;
+                        }
+                    }
                     if bar.playing == playing && bar.enabled == enabled && bar.added {
                         return;
                     }

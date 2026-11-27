@@ -1,13 +1,50 @@
+// The desktop app is a window, not a console program: no command window at start.
+// (Tests and --headless keep their output; see attach_console.)
+#![cfg_attr(all(windows, feature = "desktop", not(debug_assertions)), windows_subsystem = "windows")]
 use anyhow::{bail, Context, Result};
 use mytify_core::server;
 use std::{io::Write, path::PathBuf, sync::Arc};
 
 #[cfg(all(windows, feature = "desktop"))]
+mod chrome;
+#[cfg(all(windows, feature = "desktop"))]
 mod desktop;
 #[cfg(all(windows, feature = "desktop"))]
 mod os_media;
 
+/// Started from a terminal with --headless or --version: print there.
+#[cfg(all(windows, feature = "desktop"))]
+fn attach_console() {
+    if std::env::args().any(|a| a == "--headless" || a == "--version" || a == "--browser") {
+        unsafe {
+            windows_sys::Win32::System::Console::AttachConsole(u32::MAX);
+        }
+    }
+}
+
+/// A crash in the window app has no console: write it to a log next to the library
+/// and tell the user.
+#[cfg(all(windows, feature = "desktop"))]
+fn crash_log() {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if let Some(dir) = std::env::var_os("LOCALAPPDATA") {
+            let path = PathBuf::from(dir).join("Mytify").join("mytify-crash.log");
+            let _ = std::fs::create_dir_all(path.parent().unwrap());
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+                let _ = writeln!(f, "{info}\n{}", std::backtrace::Backtrace::force_capture());
+            }
+        }
+        default(info);
+    }));
+}
+
 fn main() {
+    #[cfg(all(windows, feature = "desktop"))]
+    {
+        attach_console();
+        crash_log();
+    }
     if let Err(error) = run() {
         eprintln!("Mytify: {error:#}");
         #[cfg(all(windows, feature = "desktop"))]
@@ -59,6 +96,14 @@ fn run() -> Result<()> {
     let capture = value("--audio-test-output").map(PathBuf::from);
     #[cfg(not(debug_assertions))]
     let capture = None;
+    // One desktop window: a second start brings the first one to the front.
+    #[cfg(all(windows, feature = "desktop"))]
+    if !headless && !_browser {
+        if !chrome::single_instance() {
+            return Ok(());
+        }
+        chrome::app_id();
+    }
     let running = Arc::new(
         server::start_with_audio(data, port, ui, audio_test, capture)
             .context("Uruchomienie lokalnego katalogu")?,

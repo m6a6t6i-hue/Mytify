@@ -19,6 +19,10 @@ external JSPromise<JSString> _sources();
 external JSPromise<JSString> _search(JSString query);
 @JS('mytifyBridge.importAudio')
 external JSPromise<JSString> _import(JSBoolean folder);
+@JS('mytifyBridge.importPaths')
+external JSPromise<JSString> _importPaths(JSString body);
+@JS('mytifyOnDrop')
+external set _onDrop(JSFunction? handler);
 @JS('mytifyBridge.rescan')
 external JSPromise<JSString> _rescan(JSString id);
 @JS('mytifyBridge.relink')
@@ -68,7 +72,17 @@ external JSPromise<JSString> _radio(JSString action, JSString body);
 external JSPromise<JSString> _ingest(JSString body);
 
 class WebLibraryRepository extends LibraryRepository
-    implements IngestRepository, PlaylistRepository, TransferRepository, RadioRepository, ShopRepository, SourceProbe, ArtistPhotoRepository {
+    implements IngestRepository, PlaylistRepository, TransferRepository, RadioRepository, ShopRepository, SourceProbe, ArtistPhotoRepository, DropImport {
+  @override
+  void listenForDrops(void Function(List<String> folders, List<String> files) onDrop) {
+    _onDrop = ((JSString json) {
+      final v = jsonDecode(json.toDart) as Map;
+      onDrop([for (final p in v['folders'] as List? ?? const []) '$p'], [for (final p in v['files'] as List? ?? const []) '$p']);
+    }).toJS;
+  }
+  @override
+  Future<ImportReport> importPaths(List<String> paths, {required bool folder, required void Function(ImportProgress) onProgress}) =>
+      _operation(_importPaths(jsonEncode({'paths': paths, 'folder': folder}).toJS), onProgress);
   Future<dynamic> _artist(String action, [Map<String, dynamic> body = const {}]) async =>
       jsonDecode((await _artists(action.toJS, jsonEncode(body).toJS).toDart).toDart);
   @override

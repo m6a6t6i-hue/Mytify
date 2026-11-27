@@ -1,7 +1,7 @@
 name: mytify
 description: Lokalna biblioteka muzyki, iteracja 0.10.
 publish_to: none
-version: 0.26.0+45
+version: 0.27.0+46
 environment:
   sdk: '>=3.14.0 <4.0.0'
 dependencies:

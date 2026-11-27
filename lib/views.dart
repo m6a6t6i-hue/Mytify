@@ -1928,6 +1928,16 @@ class SettingsPage extends StatelessWidget {
       runSpacing: Sp.m,
       children: [for (final p in palettes) _PaletteSwatch(palette: p, selected: p == palette, onTap: () => app.setPalette(p))],
     ),
+    if (app.nativeChrome) ...[
+      SectionTitle(tr('Okno')),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(tr('Zamknięcie okna chowa Mytify do zasobnika'), style: TextStyle(fontSize: 14.5)),
+        subtitle: Text(tr('Muzyka gra dalej. Ikona Mytify jest obok zegara; z jej menu zamkniesz aplikację.'), style: Txt.meta),
+        value: app.closeToTray,
+        onChanged: app.setCloseToTray,
+      ),
+    ],
     if (app.desktopMode) ...[
       SectionTitle(tr('Biblioteka')),
       Text(tr('Rozmiar okładek w siatce'), style: Txt.meta),
@@ -1986,7 +1996,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.26.0']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.27.0']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),
