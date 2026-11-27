@@ -67,7 +67,7 @@ String pageTitle(LibraryScreenState app, Nav nav) => switch (nav.page) {
   'cleanup' => tr('Porządki'),
   'radio' => tr('Radio'),
   'sources' => tr('Źródła muzyki'),
-  'import' => tr('Zgraj muzykę'),
+  'import' => tr('Importuj muzykę'),
   'transfer' => app.isPhone ? tr('Przesyłanie muzyki') : tr('Połącz telefon'),
   _ => tr('Start'),
 };
@@ -1783,7 +1783,7 @@ class _SearchPageState extends State<SearchPage> {
 
 String? settingsTitle(String? section) => switch (section) {
   'sources' => tr('Źródła muzyki'),
-  'import' => tr('Zgraj muzykę'),
+  'import' => tr('Importuj muzykę'),
   'audio' => tr('Audio'),
   'look' => tr('Wygląd i język'),
   'phone' => tr('Telefon i komputer'),
@@ -1800,8 +1800,8 @@ class SettingsPage extends StatelessWidget {
   List<(String, IconData, String)> get sections => [
     if (!app.desktopMode) ('sources', Icons.folder_open_outlined, tr('Źródła muzyki')),
     ('audio', Icons.volume_up_outlined, tr('Audio')),
-    // Adding music is one place (sources). Import here means digitizing CD and vinyl.
-    if (app.canDigitize && !app.isPhone) ('import', Icons.album_outlined, tr('Zgraj muzykę')),
+    // Desktop has import in the sidebar; the narrow layout reaches it from here.
+    if (app.canDigitize && !app.isPhone && !app.desktopMode) ('import', Icons.album_outlined, tr('Importuj muzykę')),
     ('cleanup', Icons.cleaning_services_outlined, tr('Porządki w bibliotece')),
     ('look', Icons.palette_outlined, tr('Wygląd i język')),
     if (app.canTransfer && !app.desktopMode) ('phone', Icons.phonelink_rounded, app.isPhone ? tr('Przesyłanie muzyki') : tr('Połącz telefon')),
@@ -1986,7 +1986,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.24.1']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.25.0']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),

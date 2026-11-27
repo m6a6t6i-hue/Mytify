@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 
+import 'capture_stage.dart';
 import 'model.dart';
 import 'l10n.dart';
 
@@ -535,6 +536,7 @@ class IngestState extends ChangeNotifier {
   Future<void> recordApp() => _act(() async {
     if (monitoring) await _stopCapture();
     await beforeCapture();
+    appSource = true;
     _syncAppTracks();
     final total = albumMs;
     await _start('record', 'record', {
@@ -557,6 +559,127 @@ class IngestState extends ChangeNotifier {
     } else {
       await analyze();
     }
+  }
+
+  // ------------------------------------------------------------- Capture stage
+
+  /// Expected songs of the recording: the app list, or the picked side of a record.
+  List<({String title, String artist, int ms})> get expectedSongs {
+    if (appSource && appTracks.isNotEmpty) {
+      return [
+        for (var i = 0; i < appTracks.length; i++)
+          (title: appTracks[i].title.text.trim().isEmpty ? tr('Utwór {0}', [i + 1]) : appTracks[i].title.text.trim(), artist: appTracks[i].artist, ms: appTracks[i].ms),
+      ];
+    }
+    final t = tracklist?.tracks ?? const <ReleaseSong>[];
+    return [
+      for (var i = 0; i < t.length; i++)
+        if (i < tracklistPicked.length && tracklistPicked[i]) (title: t[i].title, artist: t[i].artist, ms: t[i].durationMs),
+    ];
+  }
+
+  String get _appName => '${apps.where((a) => a['id'] == app).firstOrNull?['name'] ?? app ?? ''}';
+
+  /// What the stage shows while recording: with known lengths, the song being
+  /// recorded now and how much of it is done.
+  StageInfo recordStage() {
+    final frames = (status['frames'] as num? ?? 0).toDouble();
+    final hz = (status['rate'] as num? ?? rate).toDouble();
+    final ms = (frames * 1000 / (hz > 0 ? hz : 44100)).round();
+    final album = [vinylForm.artist.text.trim(), vinylForm.album.text.trim()].where((x) => x.isNotEmpty).join(' · ');
+    if (step.isNotEmpty) {
+      return StageInfo(
+        kicker: tr('Czekam na dźwięk'),
+        title: appSource ? tr('Włącz album w: {0}', [_appName]) : trMessage(step),
+        subtitle: tr('Nagrywanie ruszy samo od pierwszego dźwięku.'),
+        time: ingestClock(0),
+        waiting: true,
+        rec: true,
+      );
+    }
+    final songs = expectedSongs;
+    final known = songs.isNotEmpty && songs.every((x) => x.ms > 0);
+    if (!known) {
+      return StageInfo(
+        kicker: paused ? tr('Pauza') : tr('Nagrywanie'),
+        title: label.text.trim().isEmpty ? tr('Nagranie') : label.text.trim(),
+        subtitle: album,
+        time: ingestClock(ms),
+        paused: paused,
+        rec: true,
+      );
+    }
+    final total = songs.fold(0, (a, x) => a + x.ms);
+    var i = 0, from = 0;
+    while (i < songs.length - 1 && ms >= from + songs[i].ms) {
+      from += songs[i].ms;
+      i++;
+    }
+    final song = songs[i];
+    return StageInfo(
+      kicker: paused ? tr('Pauza') : tr('Teraz zgrywane'),
+      title: song.title,
+      subtitle: [tr('Utwór {0} z {1}', [i + 1, songs.length]), if (song.artist.isNotEmpty) song.artist else if (album.isNotEmpty) album].join(' · '),
+      track: ((ms - from) / song.ms).clamp(0, 1).toDouble(),
+      overall: (ms / total).clamp(0, 1).toDouble(),
+      time: ingestClock(ms),
+      total: ingestClock(total),
+      parts: [for (final x in songs) x.ms.toDouble()],
+      current: i,
+      paused: paused,
+      rec: true,
+    );
+  }
+
+  /// Saving the split tracks into the library.
+  StageInfo exportStage() {
+    final done = (status['done'] as num? ?? 0).toInt();
+    final total = (status['total'] as num? ?? 0).toInt();
+    final titles = vinylForm.titles;
+    final i = done.clamp(0, titles.isEmpty ? 0 : titles.length - 1);
+    return StageInfo(
+      kicker: tr('Zapisuję do biblioteki'),
+      title: titles.isEmpty ? trMessage(step) : titles[i],
+      subtitle: [
+        if (total > 0) tr('Utwór {0} z {1}', [(done + 1).clamp(1, total), total]),
+        appSession ? tr('MP3 320 kb/s') : 'FLAC',
+      ].join(' · '),
+      overall: total > 0 ? done / total : null,
+      time: total > 0 ? '${(done * 100 / total).round()}%' : '',
+      parts: [for (var k = 0; k < total; k++) 1],
+      current: done,
+    );
+  }
+
+  /// Reading a CD: the track being read now, its percentage and the whole disc.
+  StageInfo ripStage() {
+    final done = (status['done'] as num? ?? 0).toDouble();
+    final total = (status['total'] as num? ?? 0).toDouble();
+    final number = (status['track'] as num? ?? 0).toInt();
+    final from = (status['trackFrom'] as num? ?? 0).toDouble();
+    final len = (status['trackLen'] as num? ?? 0).toDouble();
+    final chosen = [
+      for (var i = 0; i < tracks.length; i++)
+        if (i >= picked.length || picked[i]) (i, tracks[i]),
+    ];
+    final at = chosen.indexWhere((c) => c.$2['number'] == number);
+    final album = [cdForm.artist.text.trim(), cdForm.album.text.trim()].where((x) => x.isNotEmpty).join(' · ');
+    final overall = total > 0 ? (done / total).clamp(0, 1).toDouble() : null;
+    if (number == 0 || at < 0) {
+      return StageInfo(kicker: tr('Przygotowanie'), title: trMessage(step), subtitle: album, overall: overall, time: overall == null ? '' : tr('{0}% płyty', [(overall * 100).floor()]));
+    }
+    final index = chosen[at].$1;
+    final title = index < cdForm.tracks.length ? cdForm.tracks[index].title.text.trim() : '';
+    return StageInfo(
+      kicker: tr('Teraz zgrywane'),
+      title: title.isEmpty ? tr('Ścieżka {0}', [number]) : title,
+      subtitle: [tr('Utwór {0} z {1}', [at + 1, chosen.length]), if (album.isNotEmpty) album, if (step.isNotEmpty && !step.startsWith('Odczyt ścieżki')) trMessage(step)].join(' · '),
+      track: len > 0 ? ((done - from) / len).clamp(0, 1).toDouble() : null,
+      overall: overall,
+      time: overall == null ? '' : tr('{0}% płyty', [(overall * 100).floor()]),
+      parts: [for (final c in chosen) trackMs(c.$2).toDouble()],
+      current: at,
+    );
   }
 
   void selectInput(String? id) {

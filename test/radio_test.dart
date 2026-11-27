@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mytify/capture_stage.dart';
 import 'package:mytify/downloads_ui.dart';
 import 'package:mytify/logo_art.dart';
 import 'package:mytify/main.dart';
@@ -17,6 +18,24 @@ import 'package:mytify/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  testWidgets('level meters light up at once and fall back to rest', (tester) async {
+    Widget meters(List<double> p) => MaterialApp(home: Scaffold(body: SizedBox(width: 480, child: LevelMeters(peaks: p))));
+    double lit() => ((tester.widget<CustomPaint>(find.descendant(of: find.byType(LevelMeters), matching: find.byType(CustomPaint))).painter as dynamic).levels as List<double>).first;
+    await tester.pumpWidget(meters(const [0, 0]));
+    expect(lit(), 0);
+    await tester.pumpWidget(meters(const [0.5, 0.4]));
+    expect(lit(), closeTo(meterPosition(0.5), 1e-9));
+    // A reading stays until the next one; a lower one makes the bar fall smoothly.
+    await tester.pumpAndSettle();
+    expect(lit(), closeTo(meterPosition(0.5), 1e-9));
+    await tester.pumpWidget(meters(const [0.1, 0.1]));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(lit(), allOf(greaterThan(meterPosition(0.1)), lessThan(meterPosition(0.5))));
+    await tester.pumpWidget(meters(const [0, 0]));
+    await tester.pumpAndSettle();
+    expect(lit(), 0);
+  });
+
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('pl.mytify/library');
   const events = MethodChannel('pl.mytify/import');

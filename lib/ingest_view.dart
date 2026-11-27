@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'capture_stage.dart';
 import 'cover_widget.dart';
 import 'design.dart';
 import 'ingest.dart';
@@ -45,7 +46,7 @@ class _IngestViewState extends State<IngestView> {
       key: const PageStorageKey('import'),
       padding: widget.padding,
       children: [
-        Text(tr('Zgraj muzykę'), style: Txt.display),
+        Text(tr('Importuj muzykę'), style: Txt.display),
         const SizedBox(height: Sp.l),
         TextTabs(
           labels: [tr('Audio CD'), tr('Winyl / kaseta / aplikacja')],
@@ -269,7 +270,7 @@ class _IngestViewState extends State<IngestView> {
             text: tr('Podłącz napęd USB i odśwież listę.'),
             action: FilledButton(style: Ctl.filled, onPressed: s.searching ? null : () => unawaited(s.refresh()), child: Text(tr('Odśwież'))),
           ),
-          CdState.importing => _ripProgress(),
+          CdState.importing => _ripStage(),
           CdState.done => _ripDone(),
           CdState.failed => _ripFailed(),
           _ => _driveAndTracks(st, idle),
@@ -487,39 +488,31 @@ class _IngestViewState extends State<IngestView> {
     );
   }
 
-  Widget _ripProgress() {
-    final done = (s.status['done'] as num? ?? 0).toDouble();
-    final total = (s.status['total'] as num? ?? 0).toDouble();
-    final files = (s.status['files'] as List? ?? const []).length;
+  /// CD import as the same focused view: the track being read, its percentage, levels.
+  Widget _ripStage() {
     final offset = s.status['offset'];
     final verdicts = _verdicts();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(total > 0 ? tr('Importowanie: {0}%', [(done * 100 / total).clamp(0, 100).round()]) : tr('Importowanie'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-        const SizedBox(height: Sp.xs),
-        Text(trMessage(s.step), style: Ctl.label),
+    return CaptureStage(
+      info: s.ripStage(),
+      cover: s.cdForm.cover == null ? const SpinningDisc(spinning: false) : _cover(s.cdForm.cover, size: 112),
+      peaks: _peaks,
+      actions: [OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: Text(tr('Zatrzymaj i zachowaj gotowe pliki')))],
+      below: [
         const SizedBox(height: Sp.m),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: LinearProgressIndicator(value: total > 0 ? (done / total).clamp(0, 1) : null),
-        ),
-        const SizedBox(height: Sp.s),
         Text(
           [
-            tr('Gotowe pliki: {0}', [files]),
+            tr('Gotowe pliki: {0}', [(s.status['files'] as List? ?? const []).length]),
             if (offset != null) tr('przesunięcie {0}{1} ({2})', [(offset as num) >= 0 ? '+' : '', offset, trMessage('${s.status['offsetSource']}')]),
           ].join(' · '),
           style: Ctl.label,
+          textAlign: TextAlign.center,
         ),
         for (final v in verdicts.values)
           Padding(
             padding: const EdgeInsets.only(top: Sp.xs),
-            child: SizedBox(width: 360, child: Row(children: [Text(tr('Ścieżka {0}', [v['track']]), style: Ctl.label), const Spacer(), _verdict(v)])),
+            child: Center(child: SizedBox(width: 360, child: Row(children: [Text(tr('Ścieżka {0}', [v['track']]), style: Ctl.label), const Spacer(), _verdict(v)]))),
           ),
         for (final w in s.status['warnings'] as List? ?? const []) _warning('$w'),
-        const SizedBox(height: Sp.l),
-        OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: Text(tr('Zatrzymaj i zachowaj gotowe pliki'))),
       ],
     );
   }
@@ -589,7 +582,12 @@ class _IngestViewState extends State<IngestView> {
 
   // -------------------------------------------------------------- Vinyl, tape
 
-  List<Widget> _analog({bool fromApp = false}) => [
+  List<Widget> _analog({bool fromApp = false}) => s.recording || s.exporting
+      ? [
+          _recordStage(fromApp: fromApp),
+          if (s.error != null) _error(s.error!),
+        ]
+      : [
     LayoutBuilder(
       builder: (context, box) {
         final wide = box.maxWidth >= 760;
@@ -621,6 +619,53 @@ class _IngestViewState extends State<IngestView> {
     const SizedBox(height: Sp.l),
     _export(),
   ];
+
+  // ------------------------------------------------------------- Capture stage
+
+  List<double> get _peaks => [for (final p in s.status['peaks'] as List? ?? const []) (p as num).toDouble()];
+
+  /// Recording (input or app) and saving its tracks, as one focused view.
+  Widget _recordStage({bool fromApp = false}) {
+    final markers = (s.status['markers'] as List? ?? const []).cast<num>();
+    final clips = (s.status['clips'] as num? ?? 0).toInt();
+    final dropouts = (s.status['dropouts'] as num? ?? 0).toInt();
+    final info = s.exporting ? s.exportStage() : s.recordStage();
+    return CaptureStage(
+      info: info,
+      cover: s.vinylForm.cover == null ? SpinningDisc(spinning: s.recording && !s.paused) : _cover(s.vinylForm.cover, size: 112),
+      peaks: _peaks,
+      meters: !s.exporting,
+      actions: s.exporting
+          ? [OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: Text(tr('Zatrzymaj eksport')))]
+          : [
+              FilledButton.icon(
+                style: Ctl.filled,
+                onPressed: s.busy ? null : () => unawaited(s.stop()),
+                icon: const Icon(Icons.stop_rounded, size: 18),
+                label: Text(info.waiting ? tr('Anuluj') : tr('Zakończ nagranie')),
+              ),
+              if (!info.waiting)
+                OutlinedButton.icon(
+                  style: Ctl.outlined,
+                  onPressed: s.busy ? null : () => unawaited(s.pause(!s.paused)),
+                  icon: Icon(s.paused ? Icons.fiber_manual_record : Icons.pause_rounded, size: 18),
+                  label: Text(s.paused ? tr('Wznów') : tr('Pauza')),
+                ),
+              if (!fromApp && !info.waiting)
+                OutlinedButton.icon(
+                  style: Ctl.outlined,
+                  onPressed: s.busy || s.paused ? null : () => unawaited(s.mark()),
+                  icon: const Icon(Icons.flag_outlined, size: 18),
+                  label: Text(tr('Znacznik utworu')),
+                ),
+            ],
+      below: [
+        if (markers.isNotEmpty) Padding(padding: const EdgeInsets.only(top: Sp.m), child: Text(tr('Znaczniki: {0}', [markers.map(ingestClock).join(', ')]), style: Ctl.label, textAlign: TextAlign.center)),
+        if (clips > 0) _error(tr('Przesterowanie: {0}. Zmniejsz poziom na przedwzmacniaczu lub w Windows.', [collectionCount(clips, tr('próbka'), tr('próbki'), tr('próbek'))])),
+        if (dropouts > 0) _warning(tr('Utracone próbki: {0}. Zamknij inne programy korzystające z wejścia.', [dropouts])),
+      ],
+    );
+  }
 
   // ------------------------------------------------------------- From an app
 
@@ -907,53 +952,31 @@ class _IngestViewState extends State<IngestView> {
     final n = s.channels;
     final clips = (s.status['clips'] as num? ?? 0).toInt();
     final dropouts = (s.status['dropouts'] as num? ?? 0).toInt();
-    Widget meter(String name, double peak) {
-      final db = peak > 0 ? 20 * math.log(peak) / math.ln10 : -90.0;
-      final fill = live ? ((db + 60) / 60).clamp(0.0, 1.0) : 0.0;
-      final color = db > -1 ? _red : db > -6 ? warningText : accent;
-      return Padding(
-        padding: const EdgeInsets.only(bottom: Sp.s),
-        child: Row(
-          children: [
-            SizedBox(width: 16, child: Text(name, style: Ctl.label)),
-            Expanded(
-              child: Semantics(
-                label: tr('Poziom kanału {0}', [name]),
-                value: live ? tr('{0} dBFS', [db.toStringAsFixed(1)]) : tr('wyłączony'),
-                child: Container(
-                  height: 8,
-                  decoration: BoxDecoration(color: elevated, borderRadius: BorderRadius.circular(4)),
-                  alignment: Alignment.centerLeft,
-                  child: FractionallySizedBox(
-                    widthFactor: fill,
-                    child: Container(decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4))),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(
-              width: 76,
-              child: Text(
-                live ? (db <= -89 ? tr('−∞ dBFS') : tr('{0} dBFS', [db.toStringAsFixed(1)])) : '',
-                textAlign: TextAlign.right,
-                style: Ctl.label.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (n == 1)
-          meter('M', peaks.firstOrNull ?? 0)
-        else ...[
-          meter('L', peaks.elementAtOrNull(0) ?? 0),
-          meter('R', peaks.elementAtOrNull(1) ?? 0),
-        ],
-        if (!live) Text(tr('Podgląd wyłączony'), style: Ctl.label),
+        LevelMeters(peaks: n == 1 ? [peaks.firstOrNull ?? 0] : [peaks.elementAtOrNull(0) ?? 0, peaks.elementAtOrNull(1) ?? 0], live: live, height: 10, segments: 40),
+        const SizedBox(height: Sp.s),
+        if (!live)
+          Text(tr('Podgląd wyłączony'), style: Ctl.label)
+        else
+          Wrap(
+            spacing: Sp.l,
+            children: [
+              for (final (i, p) in (n == 1 ? [peaks.firstOrNull ?? 0] : [peaks.elementAtOrNull(0) ?? 0, peaks.elementAtOrNull(1) ?? 0]).indexed)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(n == 1 ? 'M' : (i == 0 ? 'L' : 'R'), style: Ctl.label.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(width: Sp.xs),
+                    Text(
+                      p > 0 ? tr('{0} dBFS', [(20 * math.log(p) / math.ln10).toStringAsFixed(1)]) : tr('−∞ dBFS'),
+                      style: Ctl.label.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                    ),
+                  ],
+                ),
+            ],
+          ),
         if (live && clips > 0) _error(tr('Przesterowanie: {0}. Zmniejsz poziom na przedwzmacniaczu lub w Windows.', [collectionCount(clips, tr('próbka'), tr('próbki'), tr('próbek'))])),
         if (live && dropouts > 0) _warning(tr('Utracone próbki: {0}. Zamknij inne programy korzystające z wejścia.', [dropouts])),
       ],

@@ -519,9 +519,11 @@ class Sidebar extends StatelessWidget {
           const SizedBox(height: Sp.xs),
           if (app.importing && collapsed) ImportStatus(app: app),
           _item(Icons.folder_open_outlined, Icons.folder_rounded, tr('Źródła muzyki'), const Nav('sources'), active: _active('sources') || _active('settings', 'sources') || _active('downloads')),
+          if (app.canDigitize && !app.isPhone)
+            _item(Icons.album_outlined, Icons.album_rounded, tr('Importuj muzykę'), const Nav('import'), active: _active('import')),
           if (app.canTransfer)
             _item(Icons.phonelink_rounded, Icons.phonelink_rounded, tr('Połącz telefon'), const Nav('settings', 'phone')),
-          _item(Icons.settings_outlined, Icons.settings_rounded, tr('Ustawienia'), const Nav('settings'), active: (_active('settings') && !_active('settings', 'sources') && !_active('settings', 'phone')) || _active('import')),
+          _item(Icons.settings_outlined, Icons.settings_rounded, tr('Ustawienia'), const Nav('settings'), active: _active('settings') && !_active('settings', 'sources') && !_active('settings', 'phone')),
           const SizedBox(height: Sp.s),
         ],
       ),

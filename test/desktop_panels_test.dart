@@ -130,6 +130,17 @@ void main() {
     expect(record['app'], 'spotify');
     expect(record['waitForSound'], isTrue);
     expect(record['maxMs'], 166000);
+    // The stage names the song being recorded now, from the lengths.
+    s.status = {'running': true, 'recording': true, 'stage': 'recording', 'rate': 44100, 'frames': 0, 'step': 'Czekam na dźwięk z aplikacji. Włącz album od pierwszego utworu.'};
+    expect(s.recordStage().waiting, isTrue);
+    expect(s.recordStage().title, 'Włącz album w: Spotify');
+    s.status = {'running': true, 'recording': true, 'stage': 'recording', 'rate': 44100, 'frames': 44100 * 70, 'step': ''};
+    final now = s.recordStage();
+    expect(now.kicker, 'Teraz zgrywane');
+    expect(now.title, 'Drugi (wersja)');
+    expect(now.subtitle, startsWith('Utwór 2 z 2'));
+    expect(now.track, closeTo(10000 / 91000, 1e-6));
+    expect(now.total, '2:31');
     repo.finishRecording();
     await s.poll();
     for (var i = 0; i < 100 && !repo.requests.any((r) => r['action'] == 'export'); i++) {
@@ -313,7 +324,7 @@ void main() {
     final app = await start(tester, repo: repo);
     app.go(const Nav('settings', 'audio'));
     await settle(tester);
-    await tester.tap(find.text('Zgraj muzykę').first);
+    await tester.tap(find.text('Importuj muzykę').first);
     await settle(tester);
     expect(app.route, const Nav('import'));
     expect(find.byType(IngestView), findsOneWidget);

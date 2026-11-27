@@ -429,6 +429,28 @@ void main() {
         await tester.ensureVisible(find.byType(WaveformEditor));
       }
       await shot(tester, '${tag}_7_split');
+      // Recording from an app: the stage with the song being recorded now.
+      repo.sessions = [];
+      app.ingest.setAppSource(true);
+      app.ingest.vinylForm.album.text = 'Ziemia obiecana';
+      app.ingest.vinylForm.artist.text = 'Nocny Ekspres';
+      for (final (t, l) in [('Świt nad Wisłą', '3:12'), ('Druga strona miasta', '4:05'), ('Neony', '3:48'), ('Ostatni tramwaj', '5:20')]) {
+        app.ingest.addAppTrack();
+        app.ingest.appTracks.last.title.text = t;
+        app.ingest.appTracks.last.length.text = l;
+      }
+      repo.state = {'running': true, 'stage': 'recording', 'recording': true, 'channels': 2, 'peaks': [0.62, 0.48], 'rate': 44100, 'frames': 44100 * 290, 'step': ''};
+      unawaited(app.ingest.refresh());
+      await shot(tester, '${tag}_8_app_recording');
+      repo.state = {...repo.state, 'peaks': [0.95, 0.88]};
+      unawaited(app.ingest.refresh());
+      await shot(tester, '${tag}_9_app_recording_loud');
+      // Reading a CD: the same stage with the track being read.
+      app.ingest.setTab(0);
+      app.ingest.job = 'rip';
+      repo.state = {'running': true, 'stage': 'ripping', 'done': 5200, 'total': 16000, 'track': 2, 'trackFrom': 3900, 'trackLen': 5000, 'peaks': [0.7, 0.6], 'step': 'Odczyt ścieżki 2 z 5', 'files': ['a.flac']};
+      unawaited(app.ingest.refresh());
+      await shot(tester, '${tag}_10_cd_rip');
       await close(tester);
     }, skip: !enabled, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   }

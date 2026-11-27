@@ -53,6 +53,10 @@ pub struct Status {
     pub disc_check: Option<Value>,
     /// Folder with the result (CD import, export).
     pub folder: String,
+    /// CD import: track being read, and where it starts and how long it is in `done` units.
+    pub track: u32,
+    pub track_from: u64,
+    pub track_len: u64,
 }
 pub struct Signals {
     pub stop: AtomicBool,
@@ -103,6 +107,10 @@ impl Ingest {
     }
     pub fn snapshot(&self) -> Value {
         let mut s = self.state.lock().unwrap().clone();
+        if s.stage == "ripping" {
+            // Levels of what is being read, for the import view.
+            s.peaks = self.signals.peaks.iter().map(|p| f32::from_bits(p.swap(0, Ordering::AcqRel))).collect();
+        }
         if s.stage == "recording" || s.stage == "monitor" {
             s.frames = self.signals.frames.load(Ordering::Acquire);
             s.peak = f32::from_bits(self.signals.peak.swap(0, Ordering::AcqRel));
@@ -617,7 +625,16 @@ impl Ingest {
             }
             let skip = (s - sector * spsec) as usize;
             let take = ((n * spsec) as usize - skip).min((end - s) as usize);
-            sink(&bytes[skip * 4..(skip + take) * 4])?;
+            let chunk = &bytes[skip * 4..(skip + take) * 4];
+            let mut per = [0u16; 2];
+            for (i, x) in chunk.chunks_exact(2).enumerate().step_by(7) {
+                let v = i16::from_le_bytes([x[0], x[1]]).unsigned_abs();
+                per[i % 2] = per[i % 2].max(v);
+            }
+            for (slot, v) in self.signals.peaks.iter().zip(per) {
+                slot.fetch_max((v as f32 / 32768.0).to_bits(), Ordering::Relaxed);
+            }
+            sink(chunk)?;
             s += take as i64;
             self.state.lock().unwrap().done += n as u64;
         }
@@ -776,6 +793,12 @@ impl Ingest {
                 continue;
             }
             self.step(&format!("Odczyt ścieżki {} z {}", track.number, n));
+            {
+                let mut s = self.state.lock().unwrap();
+                s.track = track.number as u32;
+                s.track_from = s.done;
+                s.track_len = (track.end - track.start) as u64;
+            }
             let samples = (track.end - track.start) as u64 * spsec;
             let track_from = track.start as u64 * spsec;
             let mut sums = verify::TrackSums::new(samples, i == 0, i + 1 == n, prefix, suffix);
