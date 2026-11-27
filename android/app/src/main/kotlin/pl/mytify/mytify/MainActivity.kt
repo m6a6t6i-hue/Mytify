@@ -565,6 +565,7 @@ class MainActivity : FlutterActivity() {
                     background(r) {
                         when (call.method) {
                             "load" -> catalog.load()
+                            "artistPhotos" -> catalog.artistPhotos()
                             "sources" -> catalog.sourceList()
                             "uri" ->
                                 JSONObject.quote(catalog.uri(call.arguments as String).toString())

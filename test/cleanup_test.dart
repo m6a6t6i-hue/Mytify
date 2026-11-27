@@ -5,7 +5,7 @@ import 'package:mytify/cover_tint.dart';
 import 'package:mytify/library_index.dart';
 import 'package:mytify/model.dart';
 
-Track t(String id, String title, {String artist = 'Zespół', String album = 'Album', int ms = 200000, String format = 'mp3', int bits = 0, int rate = 44100, int number = 1, String? cover = 'c'}) => Track(
+Track t(String id, String title, {String artist = 'Zespół', String album = 'Album', int ms = 200000, String format = 'mp3', int bits = 0, int rate = 44100, int number = 1, int disc = 0, String? cover = 'c'}) => Track(
   id: id,
   title: title,
   artist: artist,
@@ -18,6 +18,7 @@ Track t(String id, String title, {String artist = 'Zespół', String album = 'Al
   sampleRate: rate,
   bitDepth: bits,
   trackNumber: number,
+  discNumber: disc,
   cover: cover,
 );
 
@@ -44,6 +45,11 @@ void main() {
     expect(albumIssues(bad), ['bez nazwy albumu', 'bez wykonawcy', 'bez okładki', 'bez numerów utworów']);
     final repeated = AlbumGroup('k3', 'Album', 'Zespół', [t('a', 'Raz'), t('b', 'Dwa')]);
     expect(albumIssues(repeated), ['powtórzone numery']);
+    // Two discs number from 1 each; a second copy of a song is a duplicate, not a gap.
+    final discs = AlbumGroup('k4', 'Album', 'Zespół', [t('a', 'Raz', disc: 1), t('b', 'Dwa', disc: 2)]);
+    expect(albumIssues(discs), isEmpty);
+    final copies = AlbumGroup('k5', 'Album', 'Zespół', [t('a', 'Raz'), t('a2', 'Raz', format: 'flac'), t('b', 'Dwa', number: 2)]);
+    expect(albumIssues(copies), isEmpty);
   });
 
   test('cover palette: vivid hues of the picture, none for grey covers', () {

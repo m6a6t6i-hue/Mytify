@@ -32,6 +32,17 @@
 // final logo simply stays. A click reveals the UI at once.
 (function(){
   var el=document.getElementById('loading'),ready=false,started=false;
+  // Started again while running in the tray: the same intro plays over the app.
+  var markup=el.outerHTML;
+  window.mytifyIntro=function(){
+    if(document.getElementById('loading'))return;
+    var box=document.createElement('div');box.innerHTML=markup;
+    var again=box.firstElementChild;document.body.appendChild(again);
+    var svg=again.querySelector('svg');
+    if(svg&&svg.setCurrentTime){svg.setCurrentTime(0);svg.unpauseAnimations();}
+    again.addEventListener('click',function(){again.classList.add('done');});
+    setTimeout(function(){again.classList.add('done');setTimeout(function(){again.remove();},300);},1150);
+  };
   var t0=document.timeline?document.timeline.currentTime:performance.now();
   function hide(){if(!el)return;el.classList.add('done');var e=el;el=null;setTimeout(function(){e.remove();},300);}
   function reveal(){

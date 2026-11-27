@@ -916,6 +916,69 @@ class Catalog(private val context: Context) :
         return (if (album.isEmpty()) stem else "$album/$stem").lowercase() in flacs
     }
 
+    /** Artist picture in an artist's folder; lower is preferred, -1 = none. */
+    private fun artistRank(name: String): Int = listOf("artist.jpg", "artist.jpeg", "artist.png").indexOf(name.lowercase())
+
+    /** Letters and digits only, for matching "AC_DC" (a folder) with "AC/DC" (a tag). */
+    private fun loose(s: String) = s.filter { it.isLetterOrDigit() }.lowercase()
+
+    /** The app's artist key: whitespace folded, lower case (as in the Flutter library index). */
+    private fun artistKey(s: String) = s.trim().replace(Regex("\\s+"), " ").lowercase()
+
+    private fun ensureArtistPhotos(db: SQLiteDatabase) =
+        db.execSQL("CREATE TABLE IF NOT EXISTS artist_photos(key TEXT PRIMARY KEY,name TEXT NOT NULL,cover TEXT NOT NULL)")
+
+    /**
+     * Artist photos from the music folders: `Artist/artist.jpg` next to `Artist/Album/...`
+     * (or in the same folder for `Artist/song.mp3`). A folder counts only when its name is
+     * the artist's. Each picture is read once; nothing is written to the share.
+     */
+    private fun applyArtistPhotos(source: String, audio: List<String>, pictures: Map<String, String>, read: (String) -> ByteArray) {
+        if (pictures.isEmpty()) return
+        val db = writableDatabase
+        ensureArtistPhotos(db)
+        val stored = HashMap<String, String?>()
+        val done = HashSet<String>()
+        for (path in audio) {
+            checkCancel()
+            val album = path.substringBeforeLast('/', "")
+            val parent = album.substringBeforeLast('/', "")
+            val candidates = listOfNotNull(
+                album.takeIf { it.isNotEmpty() }?.let { d -> pictures[d]?.takeIf { artistRank(it.substringAfterLast('/')) >= 0 }?.let { d to it } },
+                parent.takeIf { it.isNotEmpty() || album.isNotEmpty() }?.let { d -> pictures[d]?.let { d to it } },
+            )
+            if (candidates.isEmpty()) continue
+            val u = Smb.uri(source, path).toString()
+            val raw =
+                readableDatabase
+                    .rawQuery("SELECT t.raw FROM locations l JOIN tracks t ON t.id=l.track WHERE l.uri=? AND l.source=?", arrayOf(u, source))
+                    .use { if (it.moveToFirst()) JSONObject(it.getString(0)) else null } ?: continue
+            val names = listOf(raw.optString("albumArtist"), raw.optString("artist")).filter { it.isNotBlank() }.distinct()
+            for ((dir, picture) in candidates) {
+                val folder = loose(dir.substringAfterLast('/'))
+                if (folder.isEmpty()) continue
+                for (name in names) {
+                    val key = artistKey(name)
+                    if (key in done || loose(name) != folder) continue
+                    val hash = stored.getOrPut(picture) { runCatching { storeCover(read(picture)).getString("hash") }.getOrNull() } ?: continue
+                    db.insertWithOnConflict("artist_photos", null, cv("key" to key, "name" to name, "cover" to hash), SQLiteDatabase.CONFLICT_REPLACE)
+                    done.add(key)
+                }
+            }
+        }
+    }
+
+    /** Artist key to the photo's file address, for the library. */
+    fun artistPhotos(): JSONObject {
+        val out = JSONObject()
+        val db = writableDatabase
+        ensureArtistPhotos(db)
+        db.rawQuery("SELECT key,cover FROM artist_photos", null).use { c ->
+            while (c.moveToNext()) coverFile(c.getString(1))?.let { out.put(c.getString(0), Uri.fromFile(it).toString()) }
+        }
+        return out
+    }
+
     /** Album picture next to the music (Plex, Jellyfin, Mytify on PC); lower is preferred, -1 = none. */
     private fun coverRank(name: String): Int =
         listOf("cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png", "front.jpg", "front.png", "albumart.jpg")
@@ -1019,7 +1082,7 @@ class Catalog(private val context: Context) :
         progress(0, 0, "Łączenie z ${s.host}…")
         val all =
             try {
-                Smb.with(id, s, password) { share -> Smb.walk(share, s, { isAudio(it) || coverRank(it) >= 0 }) { cancelled.get() } }
+                Smb.with(id, s, password) { share -> Smb.walk(share, s, { isAudio(it) || coverRank(it) >= 0 || artistRank(it) >= 0 }) { cancelled.get() } }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1093,11 +1156,18 @@ class Catalog(private val context: Context) :
                 if (errors.length() < 100) errors.put("${e.name}: ${Smb.friendly(x).message}")
             }
         }
-        if (folderCovers.isNotEmpty()) {
+        // artist.jpg (or folder.jpg) in the artist's folder, as Plex, Jellyfin and Mytify on PC keep it.
+        val artistPictures =
+            all.filter { (artistRank(it.name) >= 0 || coverRank(it.name) >= 0) && it.size in 1..8L * 1024 * 1024 }
+                .groupBy { it.path.substringBeforeLast('/', "") }
+                .mapValues { (_, v) -> v.filter { artistRank(it.name) >= 0 || it.name.lowercase().startsWith("folder.") } }
+                .filterValues { it.isNotEmpty() }
+                .mapValues { (_, v) -> v.minBy { if (artistRank(it.name) >= 0) artistRank(it.name) else 10 }.path }
+        if (folderCovers.isNotEmpty() || artistPictures.isNotEmpty()) {
             progress(entries.size, entries.size, "Okładki")
             try {
                 Smb.with(id, s, password) { share ->
-                    applyFolderCovers(id, entries.map { it.path }, folderCovers.mapValues { it.value.path }) { path ->
+                    val read = { path: String ->
                         Smb.openFile(share, path).use { f ->
                             val out = ByteArrayOutputStream()
                             val buffer = ByteArray(256 * 1024)
@@ -1112,6 +1182,8 @@ class Catalog(private val context: Context) :
                             out.toByteArray()
                         }
                     }
+                    applyFolderCovers(id, entries.map { it.path }, folderCovers.mapValues { it.value.path }, read)
+                    applyArtistPhotos(id, entries.map { it.path }, artistPictures, read)
                 }
             } catch (x: CancellationException) {
                 throw x

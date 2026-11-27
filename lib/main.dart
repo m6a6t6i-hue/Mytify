@@ -292,9 +292,9 @@ class LibraryScreenState extends State<LibraryScreen> {
 
   Future<void> loadArtistPhotos() async {
     final repo = repository;
-    if (repo is! ArtistPhotoRepository) return;
+    if (repo is! ArtistPhotoSource) return;
     try {
-      final photos = await (repo as ArtistPhotoRepository).artistPhotos();
+      final photos = await (repo as ArtistPhotoSource).artistPhotos();
       if (mounted) setState(() => artistPhotos = photos);
     } catch (_) {
       /* photos are optional */
@@ -1524,8 +1524,7 @@ class LibraryScreenState extends State<LibraryScreen> {
   /// Import from physical media opens in the normal layout. Nothing starts here.
   void openIngest(bool cd, {bool fromApp = false}) {
     if (!canDigitize || isPhone) return;
-    ingest.setTab(cd ? 0 : 1);
-    if (!cd && ingest.appSource != fromApp && !ingest.capturing) ingest.setAppSource(fromApp);
+    if (!ingest.capturing) ingest.setTab(cd ? IngestState.tabCd : (fromApp ? IngestState.tabApp : IngestState.tabVinyl));
     go(const Nav('import'));
   }
 

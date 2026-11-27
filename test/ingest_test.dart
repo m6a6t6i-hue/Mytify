@@ -31,6 +31,17 @@ class IngestFake implements LibraryRepository, IngestRepository {
       case 'setImportFolder':
         music = {...music, 'path': request['path'], 'available': request['path'] != null};
         return music;
+      case 'spotifyAlbum':
+        return {
+          'title': 'Album',
+          'artist': 'Zespół',
+          'date': '2001-02-03',
+          'trackCount': 2,
+          'tracks': [
+            {'title': 'Pierwszy', 'artist': 'Zespół', 'durationMs': 60000},
+            {'title': 'Drugi', 'artist': 'Zespół', 'durationMs': 90000},
+          ],
+        };
       case 'relocate':
         state = {'running': true, 'stage': 'moving', 'total': 2, 'done': 1, 'step': 'Amorphis / Queen of Time', 'files': <String>[]};
         return state;
@@ -199,14 +210,15 @@ void main() {
     await t.pumpAndSettle();
     expect(state.cd, CdState.ready);
     expect(find.text('3:20'), findsNWidgets(2));
-    await t.enterText(find.byType(TextField).at(0), 'Mój album');
-    await t.enterText(find.byType(TextField).at(1), 'Wykonawca');
-    await t.enterText(find.byType(TextField).at(2), 'Pierwszy');
+    // The first field is the Spotify link.
+    await t.enterText(find.byType(TextField).at(1), 'Mój album');
+    await t.enterText(find.byType(TextField).at(2), 'Wykonawca');
+    await t.enterText(find.byType(TextField).at(3), 'Pierwszy');
     // Untick the second track (after "Różni wykonawcy" and "select all").
     await t.tap(find.byType(Checkbox).at(3));
     await t.pumpAndSettle();
     // Switching tabs keeps the read disc and the form.
-    await t.tap(find.text('Winyl / kaseta / aplikacja'));
+    await t.tap(find.text('Winyl / kaseta'));
     await t.pumpAndSettle();
     await t.tap(find.text('Audio CD'));
     await t.pumpAndSettle();
@@ -478,5 +490,37 @@ void main() {
     await t.pump(const Duration(milliseconds: 100));
     await t.pumpAndSettle();
     expect(t.takeException(), isNull);
+  });
+
+  testWidgets('CD: a Spotify link fills names and titles, the disc stays the audio', (t) async {
+    await open(t);
+    await t.tap(find.text('Odczytaj'));
+    await t.pumpAndSettle();
+    expect(state.cd, CdState.ready);
+    await t.enterText(find.widgetWithText(TextField, 'Link albumu ze Spotify (okładka i tytuły)'), 'https://open.spotify.com/album/x');
+    await t.tap(find.text('Wczytaj'));
+    await t.pumpAndSettle();
+    expect(state.cdForm.album.text, 'Album');
+    expect(state.cdForm.artist.text, 'Zespół');
+    expect(state.cdForm.titles, ['Pierwszy', 'Drugi']);
+    expect(state.cdForm.date, '2001-02-03');
+    await close(t);
+  });
+
+  testWidgets('vinyl: album from Spotify before recording, ticked tracks are the side', (t) async {
+    repo.inputs = [
+      {'id': 'in', 'name': 'USB Audio CODEC', 'rates': [48000], 'channels': 2},
+    ];
+    await open(t, tab: IngestState.tabVinyl, height: 3200);
+    expect(find.text('Album ze Spotify (link)'), findsOneWidget);
+    await t.enterText(find.widgetWithText(TextField, 'https://open.spotify.com/album/…'), 'https://open.spotify.com/album/x');
+    await t.tap(find.text('Wczytaj'));
+    await t.pumpAndSettle();
+    expect(state.appTracks.map((x) => x.title.text), ['Pierwszy', 'Drugi']);
+    // Side B holds only the second song.
+    await t.tap(find.byType(Checkbox).first);
+    await t.pumpAndSettle();
+    expect(state.expectedSongs.map((x) => x.title), ['Drugi']);
+    await close(t);
   });
 }

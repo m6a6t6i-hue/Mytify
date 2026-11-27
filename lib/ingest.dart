@@ -58,6 +58,9 @@ int parseClock(String text) {
 class AppTrack {
   final TextEditingController title, length;
   final String artist;
+
+  /// Vinyl and tape: on the side being recorded.
+  bool picked = true;
   AppTrack(String name, int ms, this.artist)
     : title = TextEditingController(text: name),
       length = TextEditingController(text: ms > 0 ? ingestClock(ms) : '');
@@ -199,7 +202,7 @@ class IngestState extends ChangeNotifier {
   /// Albums made earlier move from the app data into the music folder layout.
   Future<void> moveStored() => _act(() => _start('move', 'relocate', {}));
 
-  int tab = 0;
+  int tab = tabApp;
   Map<String, dynamic> status = const {};
   List<Map<String, dynamic>>? drives;
   List<Map<String, dynamic>> inputs = [], sessions = [];
@@ -214,7 +217,7 @@ class IngestState extends ChangeNotifier {
 
   /// After an app recording: split by the album's lengths, tag and save without asking.
   bool autoSave = true;
-  bool _appRecording = false;
+  bool _appRecording = false, _vinylRecording = false;
 
   /// Where the app album's description came from.
   String? appDescribed;
@@ -324,20 +327,20 @@ class IngestState extends ChangeNotifier {
     if (_views > 0) _views--;
   }
 
+  /// Tabs: [tabCd], [tabVinyl] (audio input), [tabApp]. Shown as App, CD, Vinyl.
+  static const tabCd = 0, tabVinyl = 1, tabApp = 2;
+
   void setTab(int value) {
     tab = value;
     _changed();
-  }
-
-  /// Recording tab source: an audio input (vinyl, tape) or one app.
-  bool appSource = false;
-
-  void setAppSource(bool value) {
-    appSource = value;
-    _changed();
     // The app list changes as programs start and close.
-    if (value && !running) unawaited(refresh());
+    if (value == tabApp && !running) unawaited(refresh());
   }
+
+  /// Recording from one app (else from an audio input).
+  bool get appSource => tab == tabApp;
+
+  void setAppSource(bool value) => setTab(value ? tabApp : tabVinyl);
 
   void _schedule() {
     _timer?.cancel();
@@ -516,8 +519,15 @@ class IngestState extends ChangeNotifier {
           durationMs: appTracks[i].ms,
         ),
     ]);
-    tracklistPicked = [for (final _ in appTracks) true];
-    firstTrack = 1;
+    // An app plays the whole album; a vinyl or tape side holds the ticked tracks.
+    tracklistPicked = [for (final t in appTracks) appSource || t.picked];
+    final first = tracklistPicked.indexOf(true);
+    firstTrack = first < 0 ? 1 : first + 1;
+  }
+
+  void pickAppTrack(int i, bool value) {
+    appTracks[i].picked = value;
+    _changed();
   }
 
   int get albumMs {
@@ -532,8 +542,54 @@ class IngestState extends ChangeNotifier {
   /// Reads the album behind a Spotify link and finds it in MusicBrainz for full tags.
   /// The track lengths stay Spotify's: they are what the app plays.
   Future<void> loadSpotify() => _act(() async {
-    final info = Map<String, dynamic>.from(await api('spotifyAlbum', {'url': spotifyLink.text.trim()}) as Map);
+    final (info, found) = await _spotifyRelease(spotifyLink.text);
     spotify = info;
+    final title = info['title'] as String? ?? '', artist = info['artist'] as String? ?? '';
+    _useTracklist(found);
+    tracklistPicked = [for (final _ in found.tracks) true];
+    firstTrack = 1;
+    _fillAppTracks(found.tracks);
+    final cover = info['cover'];
+    if (cover is Map) {
+      vinylForm.cover = CoverChoice.fromJson(Map<String, dynamic>.from(cover));
+    } else if (found.release.id.isNotEmpty) {
+      try {
+        vinylForm.cover = await library.downloadCover(found.release.id);
+      } catch (_) {}
+    }
+    label.text = [artist, title].where((x) => x.isNotEmpty).join(' · ');
+    appDescribed = found.release.id.isNotEmpty
+        ? tr('Opis z MusicBrainz: {0}', [[found.release.title, found.release.date, found.release.country].where((x) => x.isNotEmpty).join(' · ')])
+        : tr('MusicBrainz nie zna tego wydania. Tytuły ze Spotify.');
+  });
+
+  /// CD from a Spotify link: names, tracks and cover only (the disc decides the audio).
+  final cdSpotifyLink = TextEditingController();
+
+  Future<void> loadSpotifyCd() => _act(() async {
+    final (info, found) = await _spotifyRelease(cdSpotifyLink.text);
+    final n = found.release.id.isNotEmpty ? matchingDisc(found) : null;
+    final songs = n != null ? found.tracks.where((t) => t.discNumber == n).toList() : found.tracks;
+    final own = cdForm.tracks.length;
+    cdForm.album.text = found.release.title;
+    cdForm.artist.text = found.release.artist;
+    final titles = [for (var i = 0; i < own; i++) i < songs.length ? songs[i].title : cdForm.tracks[i].title.text];
+    final artists = [for (var i = 0; i < own; i++) i < songs.length && sameName(songs[i].artist) != sameName(found.release.artist) ? songs[i].artist : ''];
+    cdForm.setTracks(own == 0 ? [for (final x in songs) x.title] : titles, artists);
+    cdForm.various = artists.any((a) => a.isNotEmpty && !sameName(a).contains(sameName(found.release.artist)));
+    cdForm.releaseId = found.release.id;
+    cdForm.date = found.release.date.isNotEmpty ? found.release.date : '${info['date'] ?? ''}';
+    final cover = info['cover'];
+    if (cover is Map) cdForm.cover = CoverChoice.fromJson(Map<String, dynamic>.from(cover));
+    described = own > 0 && songs.length != own
+        ? tr('Spotify: {0} utworów, płyta: {1}. Sprawdź tytuły.', [songs.length, own])
+        : tr('Opis ze Spotify: {0}', [[found.release.artist, found.release.title].where((x) => x.isNotEmpty).join(' · ')]);
+  });
+
+  /// The album behind a Spotify link, found in MusicBrainz for full tags when possible.
+  /// Track lengths stay Spotify's: they are what the app plays.
+  Future<(Map<String, dynamic>, ReleaseInfo)> _spotifyRelease(String url) async {
+    final info = Map<String, dynamic>.from(await api('spotifyAlbum', {'url': url.trim()}) as Map);
     final title = info['title'] as String? ?? '';
     final artist = info['artist'] as String? ?? '';
     final songs = [
@@ -586,23 +642,8 @@ class IngestState extends ChangeNotifier {
           ReleaseSong(title: songs[i].title, artist: songs[i].artist, discNumber: 1, trackNumber: i + 1, durationMs: songs[i].ms),
       ],
     );
-    _useTracklist(found);
-    tracklistPicked = [for (final _ in found.tracks) true];
-    firstTrack = 1;
-    _fillAppTracks(found.tracks);
-    final cover = info['cover'];
-    if (cover is Map) {
-      vinylForm.cover = CoverChoice.fromJson(Map<String, dynamic>.from(cover));
-    } else if (found.release.id.isNotEmpty) {
-      try {
-        vinylForm.cover = await library.downloadCover(found.release.id);
-      } catch (_) {}
-    }
-    label.text = [artist, title].where((x) => x.isNotEmpty).join(' · ');
-    appDescribed = found.release.id.isNotEmpty
-        ? tr('Opis z MusicBrainz: {0}', [[found.release.title, found.release.date, found.release.country].where((x) => x.isNotEmpty).join(' · ')])
-        : tr('MusicBrainz nie zna tego wydania. Tytuły ze Spotify.');
-  });
+    return (info, found);
+  }
 
   Future<void> monitorApp() => _act(() async {
     await beforeCapture();
@@ -614,7 +655,7 @@ class IngestState extends ChangeNotifier {
   Future<void> recordApp() => _act(() async {
     if (monitoring) await _stopCapture();
     await beforeCapture();
-    appSource = true;
+    tab = tabApp;
     _syncAppTracks();
     final total = albumMs;
     await _start('record', 'record', {
@@ -643,10 +684,12 @@ class IngestState extends ChangeNotifier {
 
   /// Expected songs of the recording: the app list, or the picked side of a record.
   List<({String title, String artist, int ms})> get expectedSongs {
-    if (appSource && appTracks.isNotEmpty) {
+    if (appTracks.isNotEmpty) {
+      // App: the whole album; vinyl and tape: the ticked side.
       return [
         for (var i = 0; i < appTracks.length; i++)
-          (title: appTracks[i].title.text.trim().isEmpty ? tr('Utwór {0}', [i + 1]) : appTracks[i].title.text.trim(), artist: appTracks[i].artist, ms: appTracks[i].ms),
+          if (appSource || appTracks[i].picked)
+            (title: appTracks[i].title.text.trim().isEmpty ? tr('Utwór {0}', [i + 1]) : appTracks[i].title.text.trim(), artist: appTracks[i].artist, ms: appTracks[i].ms),
       ];
     }
     final t = tracklist?.tracks ?? const <ReleaseSong>[];
@@ -830,8 +873,12 @@ class IngestState extends ChangeNotifier {
       if (id != null && sessions.any((s) => s['id'] == id)) {
         await selectSession(id);
         if (_appRecording && stage != 'error') await _splitAppRecording();
+        // Vinyl with an album list and no markers set by hand: cut by the lengths
+        // (snapped to the gaps between songs), then saved or left to check.
+        if (_vinylRecording && stage != 'error' && markers.isEmpty && appTracks.any((t) => t.picked)) await _splitAppRecording();
       }
       _appRecording = false;
+      _vinylRecording = false;
     }
     if (job == 'move') {
       await onLibraryChanged();
@@ -1156,6 +1203,7 @@ class IngestState extends ChangeNotifier {
       'label': label.text,
       if (autoStop) 'autoStop': 8,
     });
+    _vinylRecording = true;
   });
 
   /// Next side of the same album: label and numbering continue.
@@ -1163,6 +1211,12 @@ class IngestState extends ChangeNotifier {
     final text = label.text;
     final a = tr('strona A'), b = tr('strona B');
     label.text = text.contains(a) ? text.replaceFirst(a, b) : tr('{0}, strona B', [text]);
+    // The other side: the tracks not recorded yet.
+    if (appTracks.isNotEmpty && appTracks.any((t) => t.picked) && appTracks.any((t) => !t.picked)) {
+      for (final t in appTracks) {
+        t.picked = !t.picked;
+      }
+    }
     await record();
   }
 
@@ -1356,7 +1410,7 @@ class IngestState extends ChangeNotifier {
     _disposed = true;
     _timer?.cancel();
     _watch?.cancel();
-    for (final c in [label, discogs, searchAlbum, searchArtist, firstTrackField, spotifyLink]) {
+    for (final c in [label, discogs, searchAlbum, searchArtist, firstTrackField, spotifyLink, cdSpotifyLink]) {
       c.dispose();
     }
     for (final t in appTracks) {

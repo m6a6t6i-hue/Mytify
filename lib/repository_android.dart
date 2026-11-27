@@ -18,9 +18,15 @@ class AndroidLibraryRepository extends LibraryRepository
         LibraryChangesRepository,
         RadioRepository,
         ShopRepository,
-        SourceProbe {
+        SourceProbe,
+        ArtistPhotoSource {
   @override
   Future<void> probeSources() async => _call('probeSources');
+  /// artist.jpg from the artists' folders on the NAS, read during the scan.
+  @override
+  Future<Map<String, String>> artistPhotos() async => {
+    for (final e in (await _call('artistPhotos') as Map? ?? const {}).entries) '${e.key}': '${e.value}',
+  };
   @override
   Future<List<Offer>> shopSearch(String query, String country) async => [
     for (final v in await _call('shop', {'query': query, 'country': country}) as List) ?Offer.fromJson(Map<String, dynamic>.from(v as Map)),

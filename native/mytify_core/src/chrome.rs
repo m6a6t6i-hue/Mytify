@@ -372,10 +372,28 @@ pub fn show() {
     send(json!({"action": "tray", "command": "show"}));
 }
 
-/// In front of other windows (after it was shown).
+/// In front of other windows (after it was shown), restored if it was minimized.
+/// Windows lets only the foreground thread hand the focus over, so the input of the
+/// window in front is attached for the moment of the switch.
 pub fn front() {
+    use windows_sys::Win32::{
+        System::Threading::{AttachThreadInput, GetCurrentThreadId},
+        UI::WindowsAndMessaging::{BringWindowToTop, GetWindowThreadProcessId, ShowWindow, SW_RESTORE},
+    };
     if let Some(p) = with(|s| s.parent) {
-        unsafe { SetForegroundWindow(p) };
+        unsafe {
+            if IsIconic(p) != 0 {
+                ShowWindow(p, SW_RESTORE);
+            }
+            let other = GetWindowThreadProcessId(GetForegroundWindow(), std::ptr::null_mut());
+            let me = GetCurrentThreadId();
+            let attached = other != 0 && other != me && AttachThreadInput(me, other, 1) != 0;
+            BringWindowToTop(p);
+            SetForegroundWindow(p);
+            if attached {
+                AttachThreadInput(me, other, 0);
+            }
+        }
     }
 }
 
@@ -532,7 +550,8 @@ unsafe extern "system" fn parent_proc(hwnd: HWND, msg: u32, wparam: usize, lpara
             return 0;
         }
         m if m != 0 && m == activate => {
-            show();
+            // Mytify started again while it sits in the tray: it opens as if started.
+            send(json!({"action": "tray", "command": "launch"}));
             return 0;
         }
         m if m != 0 && m == taskbar_created => {

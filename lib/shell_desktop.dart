@@ -138,7 +138,11 @@ class _DesktopShellState extends State<DesktopShell> {
     return app.prefs.get<bool>('panel.open', width >= 1400);
   }
 
-  String get panelTab => app.prefs.get<String>('panel.tab', 'now');
+  /// Queue or track details; the old "now playing" tab is the player bar now.
+  String get panelTab {
+    final t = app.prefs.get<String>('panel.tab', 'queue');
+    return t == 'info' ? 'info' : 'queue';
+  }
   void setPanel(bool open, [String? tab]) => app.refresh(() {
     if (_utility) {
       _utilityPanel = open;
@@ -353,7 +357,19 @@ class Toolbar extends StatelessWidget {
               color: secondaryText,
             ),
           ),
-          IconAction(Icons.settings_outlined, tr('Ustawienia (Ctrl+,)'), () => app.go(const Nav('settings')), color: secondaryText, size: 20),
+          Builder(
+            builder: (context) {
+              final r = app.route;
+              final here = r.page == 'settings' && r.arg != 'sources' && r.arg != 'phone';
+              return IconAction(
+                here ? Icons.settings_rounded : Icons.settings_outlined,
+                tr('Ustawienia (Ctrl+,)'),
+                () => app.go(const Nav('settings')),
+                color: here ? accent : secondaryText,
+                size: 20,
+              );
+            },
+          ),
           // Room for the Windows minimize, maximize and close buttons.
           if (app.nativeChrome) const SizedBox(width: captionButtonsWidth + Sp.s),
         ],
@@ -566,7 +582,6 @@ class Sidebar extends StatelessWidget {
             _item(Icons.album_outlined, Icons.album_rounded, tr('Importuj muzykę'), const Nav('import'), active: _active('import')),
           if (app.canTransfer)
             _item(Icons.phonelink_rounded, Icons.phonelink_rounded, tr('Połącz telefon'), const Nav('settings', 'phone')),
-          _item(Icons.settings_outlined, Icons.settings_rounded, tr('Ustawienia'), const Nav('settings'), active: _active('settings') && !_active('settings', 'sources') && !_active('settings', 'phone')),
           const SizedBox(height: Sp.s),
         ],
       ),

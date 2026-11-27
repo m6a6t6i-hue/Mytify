@@ -1997,7 +1997,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.28.1']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.29.0']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),
@@ -2093,7 +2093,7 @@ class SourcesList extends StatelessWidget {
           style: Ctl.outlined,
           onPressed: app.importing || app.librarySources.isEmpty ? null : () => unawaited(app.scanSources()),
           icon: const Icon(Icons.refresh_rounded, size: 18),
-          label: Text(tr('Skanuj wszystkie')),
+          label: Text(tr('Odśwież wszystkie')),
         ),
       ],
     ),
@@ -2128,7 +2128,7 @@ class SourcesList extends StatelessWidget {
       'error' => tr('Nie można odczytać'),
       // While a scan runs, an unfinished source is simply waiting for it.
       'partial' || 'scanning' when app.importing => tr('Skanowanie…'),
-      'partial' => tr('Skan niedokończony, wybierz „Skanuj ponownie”'),
+      'partial' => tr('Skan niedokończony, odśwież źródło'),
       'scanning' => tr('Skanowanie…'),
       _ => null,
     };
@@ -2175,6 +2175,13 @@ class SourcesList extends StatelessWidget {
               ],
             ),
           ),
+          // Refreshing is the everyday action: one click, not a menu.
+          IconAction(
+            Icons.refresh_rounded,
+            tr('Odśwież źródło'),
+            app.importing ? null : () => unawaited(app.scanSources(source.id)),
+            color: secondaryText,
+          ),
           PopupMenuButton<String>(
             tooltip: tr('Opcje źródła'),
             icon: Icon(Icons.more_horiz_rounded, color: secondaryText),
@@ -2191,7 +2198,6 @@ class SourcesList extends StatelessWidget {
               }
             },
             itemBuilder: (_) => [
-              PopupMenuItem(value: 'scan', height: 36, child: Text(tr('Skanuj ponownie'))),
               if (source.network) PopupMenuItem(value: 'edit', height: 36, child: Text(tr('Edytuj połączenie'))),
               if (source.kind == 'folder') PopupMenuItem(value: 'relink', height: 36, child: Text(tr('Wskaż folder ponownie'))),
               const PopupMenuDivider(),

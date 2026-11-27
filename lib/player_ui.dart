@@ -201,10 +201,10 @@ class PlayerBar extends StatelessWidget {
                   : Row(
                       children: [
                         Tooltip(
-                          message: tr('Teraz odtwarzane'),
+                          message: tr('Informacje o utworze'),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(Rad.coverSmall),
-                            onTap: () => onPanel('now'),
+                            onTap: () => onPanel('info'),
                             child: AnimatedSwitcher(
                               duration: motion(context, Dur.standard),
                               child: Artwork(
@@ -338,7 +338,7 @@ class PlayerBar extends StatelessWidget {
   );
 }
 
-/// Right panel on desktop: now playing, queue, track details.
+/// Right panel on desktop: queue and track details (what plays is in the player bar).
 class SidePanel extends StatelessWidget {
   final LibraryScreenState app;
   final String tab;
@@ -371,7 +371,6 @@ class SidePanel extends StatelessWidget {
                       child: Row(
                         children: [
                           for (final (key, label) in [
-                            ('now', tr('Odtwarzane')),
                             ('queue', tr('Kolejka')),
                             ('info', tr('Informacje')),
                           ])
@@ -407,7 +406,6 @@ class SidePanel extends StatelessWidget {
               child: KeyedSubtree(
                 key: ValueKey(tab),
                 child: switch (tab) {
-                  'queue' => QueueList(app: app),
                   'info' => t == null
                       ? EmptyState(icon: Icons.info_outline_rounded, text: tr('Nic nie jest odtwarzane'))
                       : PlayerListener(
@@ -417,88 +415,12 @@ class SidePanel extends StatelessWidget {
                             child: TrackFacts(track: t, snapshot: s),
                           ),
                         ),
-                  _ => NowPlayingPanel(app: app),
+                  _ => QueueList(app: app),
                 },
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class NowPlayingPanel extends StatelessWidget {
-  final LibraryScreenState app;
-  const NowPlayingPanel({super.key, required this.app});
-  @override
-  Widget build(BuildContext context) {
-    final t = app.current;
-    if (t == null) {
-      return EmptyState(icon: Icons.music_note_rounded, text: tr('Nic nie jest odtwarzane'));
-    }
-    final album = app.index.albumByKey[t.albumKey];
-    return LayoutBuilder(
-      builder: (context, box) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(Sp.l, Sp.s, Sp.l, Sp.l),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AnimatedSwitcher(
-              duration: motion(context, Dur.shared),
-              child: Artwork(t.cover, key: ValueKey(t.cover), size: box.maxWidth - Sp.xxl),
-            ),
-            const SizedBox(height: Sp.l),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(t.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Txt.title),
-                      const SizedBox(height: Sp.xs),
-                      InkWell(
-                        onTap: () => app.go(isRadio(t.id) ? const Nav('radio') : Nav('artist', LibraryIndex.artistKeyOf(t.displayArtist))),
-                        child: Text(t.displayArtist, style: Txt.sub),
-                      ),
-                      if (album != null && t.album.isNotEmpty)
-                        InkWell(
-                          onTap: () => app.go(Nav('album', album.key)),
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(t.album, maxLines: 1, overflow: TextOverflow.ellipsis, style: Txt.meta),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                LikeButton(liked: t.liked, onPressed: () => unawaited(app.toggleLike(t))),
-              ],
-            ),
-            const SizedBox(height: Sp.l),
-            Wrap(
-              spacing: Sp.s,
-              runSpacing: Sp.s,
-              children: [
-                for (final label in [
-                  formatLabel(t),
-                  ?qualityLabel([t]),
-                  if (t.sampleRate > 0) sampleRateLabel(t.sampleRate),
-                  ?bitDepthLabel(t),
-                ])
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: softBorder),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(label, style: Txt.meta),
-                  ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

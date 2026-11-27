@@ -334,6 +334,8 @@ pub fn run(app: Arc<mytify_core::server::App>, on_close: impl Fn() + 'static) ->
     // Title bar inside the app, tray icon; then the window appears where it was.
     crate::chrome::install(window.hwnd() as _, chrome_proxy);
     windowing.restore_window(&window);
+    window.set_focus();
+    crate::chrome::front();
     let player = app.clone();
     let quit = move |windowing: &mut Windowing, window: &Window, flow: &mut ControlFlow| {
         windowing.remember_floating(window);
@@ -349,13 +351,19 @@ pub fn run(app: Arc<mytify_core::server::App>, on_close: impl Fn() + 'static) ->
         match event {
             Event::UserEvent(v) if v["action"] == "nowPlaying" => media.update(&v),
             Event::UserEvent(v) if v["action"] == "tray" => match v["command"].as_str().unwrap_or("") {
-                "show" => {
+                command @ ("show" | "launch") => {
+                    let hidden = !window.is_visible() || window.is_minimized();
                     window.set_visible(true);
                     if window.is_minimized() {
                         window.set_minimized(false);
                     }
                     window.set_focus();
                     crate::chrome::front();
+                    // Started again from the Start menu or a shortcut: the intro plays
+                    // like at a real start (not when brought back from the tray icon).
+                    if command == "launch" && hidden {
+                        let _ = webview.evaluate_script("window.mytifyIntro&&window.mytifyIntro()");
+                    }
                 }
                 "minimize" => window.set_minimized(true),
                 "maximize" => window.set_maximized(!window.is_maximized()),

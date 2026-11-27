@@ -51,16 +51,19 @@ class _IngestViewState extends State<IngestView> {
         const SizedBox(height: Sp.l),
         if (s.folders.isNotEmpty && !(s.ripping || s.capturing || s.exporting)) ...[_musicFolder(), const SizedBox(height: Sp.xl)],
         TextTabs(
-          labels: [tr('Audio CD'), tr('Winyl / kaseta / aplikacja')],
-          index: s.tab,
-          onChanged: s.setTab,
-          busy: [s.ripping, s.capturing || s.exporting],
+          labels: [tr('Aplikacja'), tr('Audio CD'), tr('Winyl / kaseta')],
+          index: _order.indexOf(s.tab),
+          onChanged: (i) => s.setTab(_order[i]),
+          busy: [(s.capturing || s.exporting) && s.appSource, s.ripping, (s.capturing || s.exporting) && !s.appSource],
         ),
         const SizedBox(height: Sp.xl),
-        if (s.tab == 0) ..._cd() else ..._analog(fromApp: s.appSource),
+        if (s.tab == IngestState.tabCd) ..._cd() else ..._analog(fromApp: s.appSource),
       ],
     ),
   );
+
+  /// Tabs as shown: app, CD, vinyl and tape.
+  static const _order = [IngestState.tabApp, IngestState.tabCd, IngestState.tabVinyl];
 
   // ---------------------------------------------------------------- music folder
 
@@ -440,6 +443,22 @@ class _IngestViewState extends State<IngestView> {
                   )
                 else if (s.described != null)
                   _note(s.described!),
+                const SizedBox(height: Sp.s),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: s.cdSpotifyLink,
+                        enabled: idle,
+                        style: Ctl.fieldText,
+                        decoration: Ctl.field(hint: tr('Link albumu ze Spotify (okładka i tytuły)')),
+                        onSubmitted: (_) => unawaited(s.loadSpotifyCd()),
+                      ),
+                    ),
+                    const SizedBox(width: Sp.s),
+                    OutlinedButton(style: Ctl.outlined, onPressed: idle ? () => unawaited(s.loadSpotifyCd()) : null, child: Text(tr('Wczytaj'))),
+                  ],
+                ),
                 Wrap(
                   spacing: Sp.s,
                   children: [
@@ -663,7 +682,7 @@ class _IngestViewState extends State<IngestView> {
         final wide = box.maxWidth >= 760;
         final input = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [_source(), const SizedBox(height: Sp.l), fromApp ? _appInput() : _input()],
+          children: [fromApp ? _appInput() : _input()],
         );
         final rec = _recording(fromApp: fromApp);
         return _panel(
@@ -739,21 +758,8 @@ class _IngestViewState extends State<IngestView> {
 
   // ------------------------------------------------------------- From an app
 
-  /// What is recorded: an audio input (turntable, tape deck) or one app.
-  Widget _source() => SegmentedButton<bool>(
-    segments: [
-      ButtonSegment(value: false, icon: const Icon(Icons.settings_input_component_outlined), label: Text(tr('Wejście audio'))),
-      ButtonSegment(value: true, icon: const Icon(Icons.apps_rounded), label: Text(tr('Aplikacja'))),
-    ],
-    selected: {s.appSource},
-    showSelectedIcon: false,
-    onSelectionChanged: s.capturing || s.busy ? null : (v) => s.setAppSource(v.first),
-  );
-
   Widget _appInput() {
     final idle = !s.busy && !s.running;
-    final album = s.spotify;
-    final tracks = s.tracklist?.tracks.length ?? 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -800,107 +806,7 @@ class _IngestViewState extends State<IngestView> {
                   : IconAction(Icons.refresh_rounded, tr('Odśwież listę aplikacji'), idle ? () => unawaited(s.refresh()) : null, color: secondaryText),
             ],
           ),
-        const SizedBox(height: Sp.l),
-        Text(tr('Album ze Spotify (link)'), style: Ctl.label),
-        const SizedBox(height: Sp.xs),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: s.spotifyLink,
-                enabled: idle,
-                style: Ctl.fieldText,
-                decoration: Ctl.field(hint: 'https://open.spotify.com/album/…'),
-                onSubmitted: (_) => unawaited(s.loadSpotify()),
-              ),
-            ),
-            const SizedBox(width: Sp.s),
-            OutlinedButton(style: Ctl.outlined, onPressed: idle ? () => unawaited(s.loadSpotify()) : null, child: Text(tr('Wczytaj'))),
-          ],
-        ),
-        if (album != null) ...[
-          const SizedBox(height: Sp.m),
-          Row(
-            children: [
-              _cover(s.vinylForm.cover, size: 56),
-              const SizedBox(width: Sp.m),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${s.vinylForm.artist.text} · ${s.vinylForm.album.text}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                    Text(
-                      [
-                        if (s.vinylForm.date.isNotEmpty) s.vinylForm.date.split('-').first,
-                        if (tracks > 0) trackCount(tracks),
-                        if (s.albumMs > 0) ingestClock(s.albumMs),
-                      ].join(' · '),
-                      style: Ctl.label,
-                    ),
-                    if (s.appDescribed != null) Text(s.appDescribed!, style: Ctl.label, maxLines: 2, overflow: TextOverflow.ellipsis),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-        const SizedBox(height: Sp.l),
-        Row(
-          children: [
-            Expanded(child: Text(tr('Utwory do nagrania'), style: Ctl.label)),
-            if (s.albumMs > 0) Text(tr('razem {0}', [ingestClock(s.albumMs)]), style: Ctl.label),
-          ],
-        ),
-        const SizedBox(height: Sp.xs),
-        for (var i = 0; i < s.appTracks.length; i++)
-          Padding(
-            key: ObjectKey(s.appTracks[i]),
-            padding: const EdgeInsets.only(bottom: Sp.xs),
-            child: Row(
-              children: [
-                SizedBox(width: 26, child: Text('${i + 1}', style: Ctl.label)),
-                Expanded(
-                  child: TextField(
-                    controller: s.appTracks[i].title,
-                    enabled: idle,
-                    style: Ctl.fieldText,
-                    decoration: Ctl.field(hint: tr('Tytuł')),
-                  ),
-                ),
-                const SizedBox(width: Sp.s),
-                SizedBox(
-                  width: 78,
-                  child: TextField(
-                    controller: s.appTracks[i].length,
-                    enabled: idle,
-                    style: Ctl.fieldText.copyWith(color: s.appTracks[i].ms > 0 ? null : dangerText),
-                    textAlign: TextAlign.end,
-                    decoration: Ctl.field(hint: 'm:ss'),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                IconAction(Icons.close_rounded, tr('Usuń utwór'), idle ? () => s.removeAppTrack(i) : null, color: secondaryText),
-              ],
-            ),
-          ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: idle ? s.addAppTrack : null,
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: Text(tr('Dodaj utwór')),
-          ),
-        ),
-        if (s.appTracks.isEmpty)
-          Text(tr('Wklej link albumu albo dodaj utwory.'), style: Ctl.label)
-        else if (s.albumMs == 0)
-          Text(tr('Uzupełnij długości (m:ss).'), style: Ctl.label.copyWith(color: dangerText)),
-        const SizedBox(height: Sp.s),
-        _check(
-          tr('Po nagraniu podziel, opisz i dodaj do biblioteki'),
-          s.autoSave,
-          idle ? (v) => setState(() => s.autoSave = v) : null,
-        ),
+        ..._albumEditor(vinyl: false),
         Divider(height: Sp.xl, color: softBorder),
         Text(tr('Poziom'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         const SizedBox(height: Sp.m),
@@ -912,6 +818,123 @@ class _IngestViewState extends State<IngestView> {
           OutlinedButton(style: Ctl.outlined, onPressed: idle && s.app != null ? () => unawaited(s.monitorApp()) : null, child: Text(tr('Sprawdź poziom'))),
       ],
     );
+  }
+
+  /// Album from a Spotify link (cover, names, lengths), editable before recording.
+  /// Vinyl and tape: ticked tracks are the side being recorded; the recording is cut
+  /// by their lengths at the gaps between songs.
+  List<Widget> _albumEditor({required bool vinyl}) {
+    final idle = !s.busy && !s.running;
+    final album = s.spotify;
+    final tracks = s.tracklist?.tracks.length ?? 0;
+    return [
+      const SizedBox(height: Sp.l),
+      Text(tr('Album ze Spotify (link)'), style: Ctl.label),
+      const SizedBox(height: Sp.xs),
+      Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: s.spotifyLink,
+              enabled: idle,
+              style: Ctl.fieldText,
+              decoration: Ctl.field(hint: 'https://open.spotify.com/album/…'),
+              onSubmitted: (_) => unawaited(s.loadSpotify()),
+            ),
+          ),
+          const SizedBox(width: Sp.s),
+          OutlinedButton(style: Ctl.outlined, onPressed: idle ? () => unawaited(s.loadSpotify()) : null, child: Text(tr('Wczytaj'))),
+        ],
+      ),
+      if (album != null) ...[
+        const SizedBox(height: Sp.m),
+        Row(
+          children: [
+            _cover(s.vinylForm.cover, size: 56),
+            const SizedBox(width: Sp.m),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${s.vinylForm.artist.text} · ${s.vinylForm.album.text}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  Text(
+                    [
+                      if (s.vinylForm.date.isNotEmpty) s.vinylForm.date.split('-').first,
+                      if (tracks > 0) trackCount(tracks),
+                      if (s.albumMs > 0) ingestClock(s.albumMs),
+                    ].join(' · '),
+                    style: Ctl.label,
+                  ),
+                  if (s.appDescribed != null) Text(s.appDescribed!, style: Ctl.label, maxLines: 2, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+      const SizedBox(height: Sp.l),
+      Row(
+        children: [
+          Expanded(child: Text(vinyl ? tr('Utwory (zaznacz te z tej strony)') : tr('Utwory do nagrania'), style: Ctl.label)),
+          if (s.albumMs > 0) Text(tr('razem {0}', [ingestClock(s.albumMs)]), style: Ctl.label),
+        ],
+      ),
+      const SizedBox(height: Sp.xs),
+      for (var i = 0; i < s.appTracks.length; i++)
+        Padding(
+          key: ObjectKey(s.appTracks[i]),
+          padding: const EdgeInsets.only(bottom: Sp.xs),
+          child: Row(
+            children: [
+              if (vinyl)
+                SizedBox(
+                  width: 30,
+                  child: Checkbox(value: s.appTracks[i].picked, onChanged: idle ? (v) => s.pickAppTrack(i, v ?? false) : null, visualDensity: VisualDensity.compact),
+                ),
+              SizedBox(width: 26, child: Text('${i + 1}', style: Ctl.label)),
+              Expanded(
+                child: TextField(
+                  controller: s.appTracks[i].title,
+                  enabled: idle,
+                  style: Ctl.fieldText,
+                  decoration: Ctl.field(hint: tr('Tytuł')),
+                ),
+              ),
+              const SizedBox(width: Sp.s),
+              SizedBox(
+                width: 78,
+                child: TextField(
+                  controller: s.appTracks[i].length,
+                  enabled: idle,
+                  style: Ctl.fieldText.copyWith(color: s.appTracks[i].ms > 0 ? null : dangerText),
+                  textAlign: TextAlign.end,
+                  decoration: Ctl.field(hint: 'm:ss'),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              IconAction(Icons.close_rounded, tr('Usuń utwór'), idle ? () => s.removeAppTrack(i) : null, color: secondaryText),
+            ],
+          ),
+        ),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: idle ? s.addAppTrack : null,
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: Text(tr('Dodaj utwór')),
+        ),
+      ),
+      if (s.appTracks.isEmpty)
+        Text(tr('Wklej link albumu albo dodaj utwory.'), style: Ctl.label)
+      else if (s.albumMs == 0)
+        Text(tr('Uzupełnij długości (m:ss).'), style: Ctl.label.copyWith(color: dangerText)),
+      const SizedBox(height: Sp.s),
+      _check(
+        tr('Po nagraniu podziel, opisz i dodaj do biblioteki'),
+        s.autoSave,
+        idle ? (v) => setState(() => s.autoSave = v) : null,
+      ),
+    ];
   }
 
   Widget _input() {
@@ -1002,6 +1025,8 @@ class _IngestViewState extends State<IngestView> {
             ],
           ),
         ),
+        Divider(height: Sp.xl, color: softBorder),
+        ..._albumEditor(vinyl: true),
         Divider(height: Sp.xl, color: softBorder),
         Text(tr('Poziom wejścia'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         const SizedBox(height: Sp.m),

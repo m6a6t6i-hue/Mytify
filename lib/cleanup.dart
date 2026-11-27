@@ -57,14 +57,24 @@ int betterCopy(Track a, Track b) {
 }
 
 /// What an album is missing, from the catalog itself (no guessing).
-List<String> albumIssues(AlbumGroup a) => [
-  if (a.tracks.every((t) => t.album.trim().isEmpty)) tr('bez nazwy albumu'),
-  if (a.tracks.every((t) => t.artist.trim().isEmpty && t.albumArtist.trim().isEmpty)) tr('bez wykonawcy'),
-  if (a.tracks.every((t) => t.cover == null)) tr('bez okładki'),
-  if (a.tracks.length > 1 && a.tracks.any((t) => t.trackNumber == 0)) tr('bez numerów utworów'),
-  if (a.tracks.length > 1 && a.tracks.map((t) => t.trackNumber).where((n) => n > 0).toSet().length < a.tracks.where((t) => t.trackNumber > 0).length)
-    tr('powtórzone numery'),
-];
+List<String> albumIssues(AlbumGroup a) {
+  // The same song twice (a second copy, FLAC and MP3) is a duplicate, not a gap:
+  // it belongs to the duplicates tab.
+  final songs = <String, Track>{};
+  for (final t in a.tracks) {
+    songs.putIfAbsent('${t.discNumber}/${t.trackNumber}/${albumGroupingPart(t.title)}', () => t);
+  }
+  final tracks = songs.values.toList();
+  // Numbers repeat across discs of one album: disc 1 track 1 and disc 2 track 1.
+  final numbered = [for (final t in tracks) if (t.trackNumber > 0) (t.discNumber, t.trackNumber)];
+  return [
+    if (tracks.every((t) => t.album.trim().isEmpty)) tr('bez nazwy albumu'),
+    if (tracks.every((t) => t.artist.trim().isEmpty && t.albumArtist.trim().isEmpty)) tr('bez wykonawcy'),
+    if (tracks.every((t) => t.cover == null)) tr('bez okładki'),
+    if (tracks.length > 1 && tracks.any((t) => t.trackNumber == 0)) tr('bez numerów utworów'),
+    if (tracks.length > 1 && numbered.toSet().length < numbered.length) tr('powtórzone numery'),
+  ];
+}
 
 class CleanupPage extends StatefulWidget {
   final LibraryScreenState app;

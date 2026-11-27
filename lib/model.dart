@@ -203,7 +203,14 @@ abstract class DropImport {
 
 /// Artist photos (PC): from a photo folder, artist folders next to the music, or
 /// downloaded. Keys are [LibraryIndex.artistKeyOf] of the artist name.
-abstract class ArtistPhotoRepository {
+/// Artist photos to show: artist key to picture address.
+abstract class ArtistPhotoSource {
+  Future<Map<String, String>> artistPhotos();
+}
+
+/// PC: photos from a folder, downloads and their settings.
+abstract class ArtistPhotoRepository implements ArtistPhotoSource {
+  @override
   Future<Map<String, String>> artistPhotos();
   Future<Map<String, dynamic>> artistPhotoStatus();
   Future<Map<String, dynamic>> refreshArtistPhotos({bool download = false, List<String>? only});
