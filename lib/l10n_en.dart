@@ -512,6 +512,7 @@ const enStrings = <String, String>{
   'Podgląd poziomu, nic nie jest zapisywane': 'Level preview, nothing is being saved',
   'Podgląd wyłączony': 'Preview off',
   'Podział i eksport': 'Split and export',
+  'Podział trafił w {0} z {1} utworów. Nagranie jest pewnie krótsze niż album: sprawdź znaczniki przed zapisem.': 'The split found {0} of {1} tracks. The recording is probably shorter than the album: check the markers before saving.',
   'Podłącz napęd USB i odśwież listę.': 'Connect a USB drive and refresh the list.',
   'Pojedyncze pliki': 'Single files',
   'Pokaż hasło': 'Show password',

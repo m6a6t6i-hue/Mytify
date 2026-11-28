@@ -1029,3 +1029,4 @@ Skan niedokończony, odśwież źródło	Scan not finished, refresh the source
 Ten widok się nie wyświetlił	This view could not be shown
 Przejdź do innego widoku i wróć. Błąd jest zapisany w mytify-errors.log.	Go to another view and come back. The error is saved in mytify-errors.log.
 Porównywanie z biblioteką	Comparing with the library
+Podział trafił w {0} z {1} utworów. Nagranie jest pewnie krótsze niż album: sprawdź znaczniki przed zapisem.	The split found {0} of {1} tracks. The recording is probably shorter than the album: check the markers before saving.

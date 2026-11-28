@@ -1615,6 +1615,14 @@ fn align(path: &Path, durations: &[u64]) -> Result<Vec<u64>> {
         let lo = expected.saturating_sub(80).max(last + 50);
         let hi = (expected + 80).min(env.len().saturating_sub(1));
         if lo >= hi {
+            // No room to look for a gap (a very short track, or the recording ends early):
+            // the cut goes where the list puts it, so every track keeps its place.
+            let at = expected.max(last + 1);
+            if at + 1 >= env.len() {
+                break;
+            }
+            out.push(at as u64 * 100 + 50);
+            last = at;
             continue;
         }
         // Quietest 1 s stretch around the expected position.
@@ -1924,6 +1932,11 @@ mod tests {
         for (m, truth) in marks.iter().zip([44.0 * 1.03, 96.0 * 1.03]) {
             assert!((*m as f64 / 1000.0 - truth).abs() < 1.2, "{m} vs {truth}");
         }
+        // A 3 s interlude and a list longer than the recording: every cut that fits is
+        // placed, none is dropped in the middle (titles and cuts stay in step).
+        let marks = align(&p, &[42_000, 3_000, 49_000, 30_000]).unwrap();
+        assert_eq!(marks.len(), 3, "{marks:?}");
+        assert!(marks.windows(2).all(|w| w[0] < w[1]), "{marks:?}");
     }
     #[test]
     fn silence_suggestions_do_not_cut_short_breaks() {

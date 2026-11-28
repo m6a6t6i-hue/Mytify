@@ -42,6 +42,13 @@ class IngestFake implements LibraryRepository, IngestRepository {
             {'title': 'Drugi', 'artist': 'Zespół', 'durationMs': 90000},
           ],
         };
+      case 'apps':
+        return [
+          {'id': 'spotify', 'name': 'Spotify', 'playing': true},
+        ];
+      case 'record':
+        state = {'running': true, 'stage': 'recording', 'frames': 0, 'rate': 44100, 'files': <String>[], 'peaks': [0.3, 0.3]};
+        return state;
       case 'relocate':
         state = {'running': true, 'stage': 'moving', 'total': 2, 'done': 1, 'step': 'Amorphis / Queen of Time', 'files': <String>[]};
         return state;
@@ -531,6 +538,41 @@ void main() {
     await t.pumpAndSettle();
     state.vinylForm.setTracks(['Jeden']);
     state.changed();
+    await t.pumpAndSettle();
+    expect(t.takeException(), isNull);
+    await close(t);
+  });
+
+  testWidgets('app album: record, cut by the list and save, the view stays whole all the way', (t) async {
+    repo.sessions = [
+      {'id': 'rec1', 'label': 'Zespół · Album', 'durationMs': 152000, 'markers': <int>[], 'app': 'Spotify'},
+    ];
+    await open(t, tab: IngestState.tabApp, height: 3200);
+    Future<void> step(String what) async {
+      await t.pump(const Duration(seconds: 2));
+      await t.pump(const Duration(milliseconds: 700));
+      final e = t.takeException();
+      expect(e, isNull, reason: '$what: $e');
+    }
+
+    await t.enterText(find.widgetWithText(TextField, 'https://open.spotify.com/album/…'), 'https://open.spotify.com/album/x');
+    await t.tap(find.text('Wczytaj'));
+    await t.pumpAndSettle();
+    expect(state.appTracks.length, 2);
+    await state.recordApp();
+    await step('recording');
+    repo.state = {'running': true, 'stage': 'recording', 'frames': 44100 * 70, 'rate': 44100, 'files': <String>[], 'peaks': [0.4, 0.4]};
+    await step('recording, second song');
+    // The app went quiet: the recording ends by itself, is cut and saved.
+    repo.state = {'running': false, 'stage': 'finished', 'session': 'rec1', 'frames': 44100 * 152, 'rate': 44100, 'files': <String>[]};
+    await step('recording finished');
+    expect(repo.calls.where((c) => c['action'] == 'export'), isNotEmpty, reason: 'saved by itself');
+    repo.state = {'running': true, 'stage': 'exporting', 'total': 2, 'done': 0, 'progress': .2, 'part': .4, 'step': 'Zapis utworów', 'files': <String>[]};
+    await step('saving the first song');
+    repo.state = {'running': true, 'stage': 'exporting', 'total': 2, 'done': 2, 'progress': .95, 'part': .5, 'step': 'Dodawanie do biblioteki', 'files': <String>[]};
+    await step('adding to the library');
+    repo.state = {'running': false, 'stage': 'finished', 'total': 2, 'done': 2, 'progress': 1.0, 'files': <String>['a.mp3', 'b.mp3']};
+    await step('saved');
     await t.pumpAndSettle();
     expect(t.takeException(), isNull);
     await close(t);

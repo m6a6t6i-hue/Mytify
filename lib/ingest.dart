@@ -1346,7 +1346,11 @@ class IngestState extends ChangeNotifier {
     _changed();
   }
 
+  /// Track [i] of the list is ticked (a list and its ticks can differ in length for a moment).
+  bool isPicked(int i) => i < tracklistPicked.length && tracklistPicked[i];
+
   void pickTracklist(int i, bool value) {
+    if (i >= tracklistPicked.length) return;
     tracklistPicked[i] = value;
     _changed();
   }
@@ -1355,7 +1359,7 @@ class IngestState extends ChangeNotifier {
   Future<void> applyTracklist() => _act(() async {
     final info = tracklist;
     if (info == null) return;
-    final songs = [for (var i = 0; i < info.tracks.length; i++) if (tracklistPicked[i]) info.tracks[i]];
+    final songs = [for (var i = 0; i < info.tracks.length; i++) if (isPicked(i)) info.tracks[i]];
     if (songs.length < 2) {
       setMarkers([]);
     } else if (songs.any((s) => s.durationMs <= 0)) {
@@ -1370,14 +1374,19 @@ class IngestState extends ChangeNotifier {
     // A guest on some tracks ("Amorphis, Hellscore") keeps the album the band's own; only
     // tracks without the album artist make it a compilation.
     vinylForm.various = own.isNotEmpty && songs.any((s) => other(s) && !sameName(s.artist).contains(own));
-    final picked = [for (var i = 0; i < info.tracks.length; i++) if (tracklistPicked[i]) i];
+    final picked = [for (var i = 0; i < info.tracks.length; i++) if (isPicked(i)) i];
     if (picked.isNotEmpty) firstTrack = picked.first + 1;
+    // The recording ended before the album did (or a cut fell outside it): say so
+    // instead of saving tracks with the wrong audio.
+    if (songs.length >= 2 && markers.length != songs.length - 1) {
+      throw StateError(tr('Podział trafił w {0} z {1} utworów. Nagranie jest pewnie krótsze niż album: sprawdź znaczniki przed zapisem.', [markers.length + 1, songs.length]));
+    }
   });
 
   Future<void> export() => _act(() async {
     final fromApp = appSession;
     // The last track ends with its length, not with whatever the app played next.
-    final picked = [for (var i = 0; i < (tracklist?.tracks.length ?? 0); i++) if (tracklistPicked[i]) tracklist!.tracks[i]];
+    final picked = [for (var i = 0; i < (tracklist?.tracks.length ?? 0); i++) if (isPicked(i)) tracklist!.tracks[i]];
     final last = picked.length == vinylForm.tracks.length ? picked.lastOrNull?.durationMs ?? 0 : 0;
     final endMs = fromApp && last > 0 ? (markers.lastOrNull ?? 0) + last + 1500 : 0;
     await _start('export', 'export', {

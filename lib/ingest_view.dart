@@ -1290,7 +1290,8 @@ class _IngestViewState extends State<IngestView> {
                     SizedBox(
                       width: 56,
                       child: Text(
-                        ingestClock(i == 0 ? 0 : s.markers[i - 1]),
+                        // Titles and cuts can differ for a moment (a list longer than the cuts).
+                        i == 0 ? ingestClock(0) : (i - 1 < s.markers.length ? ingestClock(s.markers[i - 1]) : '–'),
                         textAlign: TextAlign.right,
                         style: Ctl.label,
                       ),
@@ -1451,7 +1452,7 @@ class _IngestViewState extends State<IngestView> {
             for (var i = 0; i < info.tracks.length; i++)
               _check(
                 '${info.tracks[i].number.isNotEmpty ? '${info.tracks[i].number}  ' : ''}${info.tracks[i].title}',
-                s.tracklistPicked[i],
+                s.isPicked(i),
                 idle ? (v) => s.pickTracklist(i, v) : null,
                 sub: info.tracks[i].durationMs > 0 ? ingestClock(info.tracks[i].durationMs) : tr('bez czasu'),
               ),
