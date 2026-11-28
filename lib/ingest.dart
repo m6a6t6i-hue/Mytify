@@ -520,8 +520,8 @@ class IngestState extends ChangeNotifier {
           durationMs: appTracks[i].ms,
         ),
     ]);
-    // An app plays the whole album; a vinyl or tape side holds the ticked tracks.
-    tracklistPicked = [for (final t in appTracks) appSource || t.picked];
+    // The ticked tracks: the whole album, a vinyl side, or the rest of an album.
+    tracklistPicked = [for (final t in appTracks) t.picked];
     final first = tracklistPicked.indexOf(true);
     firstTrack = first < 0 ? 1 : first + 1;
   }
@@ -533,7 +533,8 @@ class IngestState extends ChangeNotifier {
 
   int get albumMs {
     if (appTracks.isNotEmpty) {
-      return appTracks.any((t) => t.ms <= 0) ? 0 : appTracks.fold(0, (a, t) => a + t.ms);
+      final on = appTracks.where((t) => t.picked);
+      return on.any((t) => t.ms <= 0) ? 0 : on.fold(0, (a, t) => a + t.ms);
     }
     final t = tracklist?.tracks ?? const <ReleaseSong>[];
     if (t.isEmpty || t.any((x) => x.durationMs <= 0)) return 0;
@@ -545,6 +546,7 @@ class IngestState extends ChangeNotifier {
   Future<void> loadSpotify() => _act(() async {
     final (info, found) = await _spotifyRelease(spotifyLink.text);
     spotify = info;
+    partial = null;
     final title = info['title'] as String? ?? '', artist = info['artist'] as String? ?? '';
     _useTracklist(found);
     tracklistPicked = [for (final _ in found.tracks) true];
@@ -657,6 +659,7 @@ class IngestState extends ChangeNotifier {
     if (monitoring) await _stopCapture();
     await beforeCapture();
     tab = tabApp;
+    partial = null;
     _syncAppTracks();
     final total = albumMs;
     await _start('record', 'record', {
@@ -689,7 +692,7 @@ class IngestState extends ChangeNotifier {
       // App: the whole album; vinyl and tape: the ticked side.
       return [
         for (var i = 0; i < appTracks.length; i++)
-          if (appSource || appTracks[i].picked)
+          if (appTracks[i].picked)
             (title: appTracks[i].title.text.trim().isEmpty ? tr('Utwór {0}', [i + 1]) : appTracks[i].title.text.trim(), artist: appTracks[i].artist, ms: appTracks[i].ms),
       ];
     }
@@ -1376,12 +1379,43 @@ class IngestState extends ChangeNotifier {
     vinylForm.various = own.isNotEmpty && songs.any((s) => other(s) && !sameName(s.artist).contains(own));
     final picked = [for (var i = 0; i < info.tracks.length; i++) if (isPicked(i)) i];
     if (picked.isNotEmpty) firstTrack = picked.first + 1;
-    // The recording ended before the album did (or a cut fell outside it): say so
-    // instead of saving tracks with the wrong audio.
-    if (songs.length >= 2 && markers.length != songs.length - 1) {
-      throw StateError(tr('Podział trafił w {0} z {1} utworów. Nagranie jest pewnie krótsze niż album: sprawdź znaczniki przed zapisem.', [markers.length + 1, songs.length]));
+    partial = null;
+    if (songs.length >= 2 && markers.length < songs.length - 1) {
+      // The recording ended before the album did (the app stopped, a long quiet
+      // passage). The tracks it holds in full are kept and saved; the rest can be
+      // recorded on its own later.
+      final duration = waveform?.durationMs ?? 0;
+      var n = markers.length + 1;
+      final lastStart = n == 1 ? 0 : markers[n - 2];
+      if (duration > 0 && duration - lastStart < songs[n - 1].durationMs - 10000) n--;
+      if (n < 1) {
+        throw StateError(tr('Nagranie jest krótsze niż pierwszy utwór. Nagraj album jeszcze raz.'));
+      }
+      var kept = 0;
+      for (var i = 0; i < tracklistPicked.length; i++) {
+        if (tracklistPicked[i] && ++kept > n) tracklistPicked[i] = false;
+      }
+      setMarkers(markers.take(n - 1).toList());
+      vinylForm.setTracks([for (final s in songs.take(n)) s.title], [for (final s in songs.take(n)) other(s) ? s.artist : '']);
+      final rest = [for (var i = 0; i < info.tracks.length; i++) if (!tracklistPicked[i] && i > picked.first) i];
+      partial = (kept: n, of: songs.length, rest: rest);
     }
   });
+
+  /// After a recording that ended early: the tracks it held and the ones still to record.
+  ({int kept, int of, List<int> rest})? partial;
+
+  /// Ticks the tracks the last recording did not reach, to record them now.
+  void pickRest() {
+    final p = partial;
+    if (p == null || appTracks.isEmpty) return;
+    for (var i = 0; i < appTracks.length; i++) {
+      appTracks[i].picked = p.rest.contains(i);
+    }
+    partial = null;
+    _syncAppTracks();
+    _changed();
+  }
 
   Future<void> export() => _act(() async {
     final fromApp = appSession;

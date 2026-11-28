@@ -18,6 +18,7 @@ class IngestFake implements LibraryRepository, IngestRepository {
   bool media = false;
   ReleaseInfo? details;
   Map<String, dynamic> state = {'running': false, 'stage': '', 'files': <String>[]};
+  List<Map<String, dynamic>>? spotifyTracks;
   Map<String, dynamic> music = {'path': null, 'available': false, 'inLibrary': false, 'stored': 2};
 
   @override
@@ -32,6 +33,7 @@ class IngestFake implements LibraryRepository, IngestRepository {
         music = {...music, 'path': request['path'], 'available': request['path'] != null};
         return music;
       case 'spotifyAlbum':
+        if (spotifyTracks != null) return {'title': 'Album', 'artist': 'Zespół', 'date': '2001', 'trackCount': spotifyTracks!.length, 'tracks': spotifyTracks};
         return {
           'title': 'Album',
           'artist': 'Zespół',
@@ -575,6 +577,41 @@ void main() {
     await step('saved');
     await t.pumpAndSettle();
     expect(t.takeException(), isNull);
+    await close(t);
+  });
+
+  testWidgets('app album that ended early: the recorded tracks are saved, the rest can be recorded next', (t) async {
+    repo.spotifyTracks = [
+      {'title': 'Raz', 'artist': 'Zespół', 'durationMs': 60000},
+      {'title': 'Dwa', 'artist': 'Zespół', 'durationMs': 90000},
+      {'title': 'Trzy', 'artist': 'Zespół', 'durationMs': 50000},
+    ];
+    repo.sessions = [
+      {'id': 'rec1', 'label': 'Zespół · Album', 'durationMs': 180000, 'markers': <int>[], 'app': 'Spotify'},
+    ];
+    await open(t, tab: IngestState.tabApp, height: 3200);
+    await t.enterText(find.widgetWithText(TextField, 'https://open.spotify.com/album/…'), 'https://open.spotify.com/album/x');
+    await t.tap(find.text('Wczytaj'));
+    await t.pumpAndSettle();
+    await state.recordApp();
+    await t.pump(const Duration(seconds: 2));
+    // The cut list has one cut: the recording holds two of three tracks.
+    repo.state = {'running': false, 'stage': 'finished', 'session': 'rec1', 'files': <String>[]};
+    await t.pump(const Duration(seconds: 2));
+    await t.pump(const Duration(milliseconds: 700));
+    expect(t.takeException(), isNull);
+    expect(state.vinylForm.titles, ['Raz', 'Dwa']);
+    expect(state.partial?.kept, 2);
+    expect(repo.calls.where((c) => c['action'] == 'export'), isNotEmpty, reason: 'the two full tracks are saved');
+    repo.state = {'running': false, 'stage': 'finished', 'total': 2, 'done': 2, 'files': <String>['a.mp3', 'b.mp3']};
+    await t.pump(const Duration(seconds: 2));
+    await t.pumpAndSettle();
+    expect(find.textContaining('Nagranie skończyło się na utworze 2 z 3'), findsOneWidget);
+    await t.tap(find.text('Zaznacz resztę (3–3) do nagrania'));
+    await t.pumpAndSettle();
+    expect([for (final x in state.appTracks) x.picked], [false, false, true]);
+    expect(state.expectedSongs.map((x) => x.title), ['Trzy']);
+    expect(state.firstTrack, 3);
     await close(t);
   });
 }

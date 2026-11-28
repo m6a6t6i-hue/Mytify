@@ -277,6 +277,11 @@ fn write(
         engine.state.lock().unwrap().step = "Czekam na dźwięk z aplikacji. Włącz album od pierwszego utworu.".into();
     }
     let max_frames = args["maxMs"].as_u64().filter(|ms| *ms >= 10_000).map(|ms| ms * rate as u64 / 1000);
+    // With the album's length known, a quiet stretch inside the album (a fade-out
+    // followed by a quiet intro, a slow buffer in the app) does not end it: only the
+    // last half minute ends on silence, or a long pause (playback stopped) anywhere.
+    let album_end = max_frames.map(|m| m.saturating_sub(rate as u64 * 45));
+    const LONG_PAUSE_S: u64 = 90;
     while !engine.signals.stop.load(Ordering::Acquire)
         && !engine.signals.failed.load(Ordering::Acquire)
         && !auto_ended
@@ -304,6 +309,8 @@ fn write(
                     quiet_since = None;
                 }
                 if let Some(q) = quiet_since {
+                    let inside_album = album_end.is_some_and(|end| written < end);
+                    let limit = if inside_album { LONG_PAUSE_S } else { limit };
                     if written > rate as u64 * 30 && written - q > rate as u64 * limit {
                         auto_ended = true;
                     }

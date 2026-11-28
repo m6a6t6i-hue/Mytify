@@ -875,7 +875,7 @@ class _IngestViewState extends State<IngestView> {
       const SizedBox(height: Sp.l),
       Row(
         children: [
-          Expanded(child: Text(vinyl ? tr('Utwory (zaznacz te z tej strony)') : tr('Utwory do nagrania'), style: Ctl.label)),
+          Expanded(child: Text(vinyl ? tr('Utwory (zaznacz te z tej strony)') : tr('Utwory do nagrania (zaznaczone)'), style: Ctl.label)),
           if (s.albumMs > 0) Text(tr('razem {0}', [ingestClock(s.albumMs)]), style: Ctl.label),
         ],
       ),
@@ -886,8 +886,7 @@ class _IngestViewState extends State<IngestView> {
           padding: const EdgeInsets.only(bottom: Sp.xs),
           child: Row(
             children: [
-              if (vinyl)
-                SizedBox(
+              SizedBox(
                   width: 30,
                   child: Checkbox(value: s.appTracks[i].picked, onChanged: idle ? (v) => s.pickAppTrack(i, v ?? false) : null, visualDensity: VisualDensity.compact),
                 ),
@@ -924,6 +923,22 @@ class _IngestViewState extends State<IngestView> {
           label: Text(tr('Dodaj utwór')),
         ),
       ),
+      if (s.partial case final p?) ...[
+        _note(
+          tr('Nagranie skończyło się na utworze {0} z {1}. Zapisane są utwory 1–{0}.', [p.kept, p.of]),
+          icon: Icons.info_outline_rounded,
+        ),
+        if (p.rest.isNotEmpty && s.appTracks.isNotEmpty)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              style: Ctl.text,
+              onPressed: idle ? s.pickRest : null,
+              icon: const Icon(Icons.playlist_add_check_rounded, size: 18),
+              label: Text(tr('Zaznacz resztę ({0}–{1}) do nagrania', [p.rest.first + 1, p.rest.last + 1])),
+            ),
+          ),
+      ],
       if (s.appTracks.isEmpty)
         Text(tr('Wklej link albumu albo dodaj utwory.'), style: Ctl.label)
       else if (s.albumMs == 0)
