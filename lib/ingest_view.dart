@@ -111,7 +111,7 @@ class _IngestViewState extends State<IngestView> {
             const SizedBox(height: Sp.m),
             LiveProgress(value: s.progress),
             const SizedBox(height: Sp.xs),
-            Text([if (s.step.isNotEmpty) trMessage(s.step), if (total > 0) '$done / $total'].join(' · '), style: Ctl.label),
+            Text([if (s.step.isNotEmpty) trMessage(s.step), if (total > 0) '$done / $total', s.etaText(s.progress)].where((x) => x.isNotEmpty).join(' · '), style: Ctl.label),
             const SizedBox(height: Sp.s),
             OutlinedButton(style: Ctl.outlined, onPressed: () => unawaited(s.stop()), child: Text(tr('Zatrzymaj'))),
           ] else if (path != null && available && s.storedAlbums > 0) ...[
@@ -1356,7 +1356,7 @@ class _IngestViewState extends State<IngestView> {
             if (s.exporting) ...[
               LiveProgress(value: s.progress),
               const SizedBox(height: Sp.xs),
-              Text(trMessage(s.step), style: Ctl.label),
+              Text([trMessage(s.step), s.etaText(s.progress)].where((x) => x.isNotEmpty).join(' · '), style: Ctl.label),
               const SizedBox(height: Sp.s),
               OutlinedButton(style: Ctl.outlined, onPressed: s.busy ? null : () => unawaited(s.stop()), child: Text(tr('Zatrzymaj eksport'))),
             ] else if (selected['exported'] is Map) ...[

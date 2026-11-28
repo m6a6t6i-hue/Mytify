@@ -370,6 +370,9 @@ class StageInfo {
   /// Lengths of all tracks (for the timeline) and the current one.
   final List<double> parts;
   final int current;
+
+  /// "Minęło 2:14 · zostało ok. 3:30" for jobs that run faster than real time.
+  final String eta;
   final bool waiting, paused, rec;
   const StageInfo({
     required this.kicker,
@@ -381,6 +384,7 @@ class StageInfo {
     this.total = '',
     this.parts = const [],
     this.current = -1,
+    this.eta = '',
     this.waiting = false,
     this.paused = false,
     this.rec = false,
@@ -515,6 +519,20 @@ class CaptureStage extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (info.eta.isNotEmpty) ...[
+                    const SizedBox(height: Sp.m),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.schedule_rounded, size: 16, color: secondaryText),
+                        const SizedBox(width: 6),
+                        Text(
+                          info.eta,
+                          style: TextStyle(fontSize: 14, color: secondaryText, fontFeatures: const [ui.FontFeature.tabularFigures()]),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (actions.isNotEmpty) ...[
                     const SizedBox(height: Sp.xl),
                     Wrap(spacing: Sp.s, runSpacing: Sp.s, alignment: WrapAlignment.center, children: actions),

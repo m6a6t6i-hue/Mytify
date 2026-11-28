@@ -460,7 +460,7 @@ void main() {
     expect(find.text(r'\\NAS\muzyka'), findsWidgets);
     await t.tap(find.text('Przenieś wcześniej zgrane (2)'));
     await t.pump();
-    expect(find.text('Amorphis / Queen of Time · 1 / 2'), findsOneWidget);
+    expect(find.textContaining('Amorphis / Queen of Time · 1 / 2 · Minęło 0:00'), findsOneWidget);
     repo.state = {'running': false, 'stage': 'finished', 'total': 2, 'done': 2, 'files': <String>['a', 'b']};
     repo.music = {...repo.music, 'stored': 0, 'inLibrary': true};
     await t.pump(const Duration(seconds: 2));
@@ -488,6 +488,18 @@ void main() {
     // Older core without live progress: done of total.
     s.status = {'running': true, 'stage': 'exporting', 'done': 1, 'total': 4};
     expect(s.progress, .25);
+    s.dispose();
+  });
+
+  test('saving shows time spent and about how much is left', () {
+    final s = IngestState(repository: repo, library: repo, beforeCapture: () async {}, onLibraryChanged: () async {});
+    s.status = {'running': true, 'stage': 'exporting', 'progress': .25};
+    final start = DateTime.now();
+    s.jobStart = start;
+    expect(s.timing(.25, now: start.add(const Duration(seconds: 2)))?.left, isNull, reason: 'too early to tell');
+    final t = s.timing(.25, now: start.add(const Duration(seconds: 60)))!;
+    expect(t.elapsed.inSeconds, inInclusiveRange(59, 61));
+    expect(t.left!.inSeconds, inInclusiveRange(175, 185), reason: 'a quarter in a minute: three minutes to go');
     s.dispose();
   });
 

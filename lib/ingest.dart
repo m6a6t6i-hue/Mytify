@@ -777,7 +777,43 @@ class IngestState extends ChangeNotifier {
       time: overall == null ? '' : '${(overall * 100).floor()}%',
       parts: _withSaving(_exportLengths(total), .9),
       current: finishing ? total : done,
+      eta: etaText(overall),
     );
+  }
+
+  DateTime? _jobStart;
+  double? _etaTotal;
+
+  /// When the running job started (set by the job itself; tests set it directly).
+  set jobStart(DateTime? value) {
+    _jobStart = value;
+    _etaTotal = null;
+  }
+
+  /// Time spent on the running job and, once the pace is known, about how much is left.
+  /// The estimate is smoothed, so it does not jump with every track.
+  ({Duration elapsed, Duration? left})? timing(double? progress, {DateTime? now}) {
+    final start = _jobStart;
+    if (start == null || !running) return null;
+    final elapsed = (now ?? DateTime.now()).difference(start);
+    final p = progress ?? 0;
+    if (p < .03 || elapsed.inSeconds < 5) return (elapsed: elapsed, left: null);
+    final total = elapsed.inMilliseconds / p;
+    final smooth = _etaTotal = _etaTotal == null ? total : _etaTotal! * .85 + total * .15;
+    final left = (smooth - elapsed.inMilliseconds).clamp(0, double.infinity);
+    return (elapsed: elapsed, left: Duration(milliseconds: left.round()));
+  }
+
+  String etaText(double? progress) {
+    final t = timing(progress);
+    if (t == null) return '';
+    final elapsed = tr('Minęło {0}', [ingestClock(t.elapsed.inMilliseconds)]);
+    final left = t.left;
+    if (left == null) return '$elapsed · ${tr('liczę, ile zostało')}';
+    final rest = left.inSeconds < 60
+        ? tr('zostało mniej niż minuta')
+        : tr('zostało ok. {0}', [ingestClock(((left.inSeconds + 15) ~/ 30 * 30) * 1000)]);
+    return '$elapsed · $rest';
   }
 
   /// Track lengths of the export (from the markers), so the timeline moves with the core.
@@ -818,6 +854,7 @@ class IngestState extends ChangeNotifier {
         time: overall == null ? '' : '${(overall * 100).floor()}%',
         parts: saving ? _withSaving([for (final c in chosen) trackMs(c.$2).toDouble()], .95) : const [],
         current: chosen.length,
+        eta: etaText(overall),
       );
     }
     final index = chosen[at].$1;
@@ -831,6 +868,7 @@ class IngestState extends ChangeNotifier {
       time: overall == null ? '' : '${(overall * 100).floor()}%',
       parts: _withSaving([for (final c in chosen) trackMs(c.$2).toDouble()], .95),
       current: at,
+      eta: etaText(overall),
     );
   }
 
@@ -928,6 +966,8 @@ class IngestState extends ChangeNotifier {
   Future<void> _start(String name, String action, Map<String, dynamic> args) async {
     status = Map<String, dynamic>.from(await api(action, args) as Map);
     job = name;
+    _jobStart = DateTime.now();
+    _etaTotal = null;
     _changed();
     _schedule();
   }
