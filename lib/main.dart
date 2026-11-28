@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show BrowserContextMenu;
 import 'package:material_ui/material_ui.dart';
 
 import 'audio_player.dart';
@@ -35,6 +36,9 @@ export 'design.dart' show accent, background, panel, secondaryText;
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   installErrorHandling();
+  // PC window: right click is the app's (text fields get Flutter's copy and paste menu),
+  // never the browser's Reload / Back menu.
+  if (kIsWeb) unawaited(BrowserContextMenu.disableContextMenu());
   // Android plays the Winyl intro in Flutter; PC shows it in index.html.
   introOnStart = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   runApp(const MytifyApp());

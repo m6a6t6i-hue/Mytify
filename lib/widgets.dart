@@ -249,6 +249,9 @@ class CollectionCard extends StatelessWidget {
   final bool circle, current, playing;
   final VoidCallback onOpen;
   final VoidCallback? onPlay;
+
+  /// Tapping the second line (an album's artist) opens it.
+  final VoidCallback? onSubtitle;
   final void Function(Offset)? onMenu;
   final Widget? placeholder;
   const CollectionCard({
@@ -259,6 +262,7 @@ class CollectionCard extends StatelessWidget {
     required this.onOpen,
     this.subtitle,
     this.onPlay,
+    this.onSubtitle,
     this.onMenu,
     this.circle = false,
     this.current = false,
@@ -358,11 +362,15 @@ class CollectionCard extends StatelessWidget {
               ),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
-                Text(
-                  subtitle!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Txt.meta,
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onSubtitle ?? onOpen,
+                  child: Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Txt.meta,
+                  ),
                 ),
               ],
             ],

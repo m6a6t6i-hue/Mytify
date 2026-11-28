@@ -14,7 +14,7 @@ use windows_sys::Win32::{
         GetWindowPlacement, MessageBoxW, SetWindowPlacement, MB_ICONERROR, MB_OK, SW_HIDE, WINDOWPLACEMENT,
     },
 };
-use wry::{DragDropEvent, NewWindowResponse, WebContext, WebViewBuilder};
+use wry::{DragDropEvent, NewWindowResponse, WebContext, WebViewBuilder, WebViewBuilderExtWindows};
 
 /// Smallest full window: below this the app would switch to its phone layout.
 const MIN_WIDTH: f64 = 860.0;
@@ -302,6 +302,10 @@ pub fn run(app: Arc<mytify_core::server::App>, on_close: impl Fn() + 'static) ->
     let webview = WebViewBuilder::new_with_web_context(&mut web_context)
         .with_url(url)
         .with_background_color((12, 13, 15, 255))
+        // An app, not a browser: no "Reload / Back / Inspect" menu on right click and no
+        // F5, Ctrl+R, Ctrl+P or browser find bar that could reset what is on screen.
+        .with_default_context_menus(false)
+        .with_browser_accelerator_keys(false)
         // Links such as the author's page open in the default browser.
         .with_new_window_req_handler(|target, _| {
             open_external(&target);

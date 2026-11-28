@@ -660,6 +660,26 @@ void showQueueSheet(LibraryScreenState app) => showModalBottomSheet<void>(
 );
 
 /// Full-screen player for both platforms. Esc / back closes it.
+/// A line of text that opens a page when tapped (padded for a finger).
+class _Link extends StatelessWidget {
+  final String text;
+  final TextStyle style;
+  final VoidCallback? onTap;
+  const _Link(this.text, {required this.style, this.onTap});
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    cursor: onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style),
+      ),
+    ),
+  );
+}
+
 class NowPlayingScreen extends StatefulWidget {
   final LibraryScreenState app;
   const NowPlayingScreen({super.key, required this.app});
@@ -767,6 +787,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     ],
   );
 
+  void _open(LibraryScreenState app, Nav nav) {
+    unawaited(Navigator.maybePop(context));
+    app.go(nav);
+  }
+
   Widget _titleRow(LibraryScreenState app, Track t, double fontSize) => Row(
     children: [
       Expanded(
@@ -780,7 +805,18 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, letterSpacing: -.5, height: 1.15),
             ),
             const SizedBox(height: Sp.xs),
-            Text(t.displayArtist, maxLines: 1, overflow: TextOverflow.ellipsis, style: Txt.sub.copyWith(fontSize: 16, color: primaryText.withValues(alpha: .75))),
+            // Artist and album open their pages (the player closes on the way).
+            _Link(
+              t.displayArtist,
+              style: Txt.sub.copyWith(fontSize: 16, color: primaryText.withValues(alpha: .75)),
+              onTap: isRadio(t.id) ? null : () => _open(app, Nav('artist', LibraryIndex.artistKeyOf(t.displayArtist))),
+            ),
+            if (t.album.trim().isNotEmpty && !isRadio(t.id))
+              _Link(
+                t.album,
+                style: Txt.meta.copyWith(fontSize: 14),
+                onTap: app.index.albumByKey.containsKey(t.albumKey) ? () => _open(app, Nav('album', t.albumKey)) : null,
+              ),
           ],
         ),
       ),

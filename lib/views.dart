@@ -221,6 +221,7 @@ Widget albumCard(LibraryScreenState app, AlbumGroup a, double size) {
     current: current,
     playing: current && app.playing,
     onOpen: () => app.go(Nav('album', a.key)),
+    onSubtitle: a.artistKey.isEmpty ? null : () => app.go(Nav('artist', a.artistKey)),
     onPlay: app.desktopMode ? () => unawaited(app.playAlbum(a)) : null,
     onMenu: (at) => unawaited(app.albumMenu(a, at: at)),
   );
@@ -1997,7 +1998,7 @@ class SettingsPage extends StatelessWidget {
   ];
 
   List<Widget> _about() => [
-    _row('Mytify', tr('Wersja {0}', ['0.29.5']), icon: Icons.info_outline_rounded),
+    _row('Mytify', tr('Wersja {0}', ['0.29.6']), icon: Icons.info_outline_rounded),
     _row(tr('Autor'), tr('Mateusz Kanik'), icon: Icons.person_outline_rounded),
     _row(
       tr('Strona'),
